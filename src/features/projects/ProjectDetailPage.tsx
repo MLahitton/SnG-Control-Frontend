@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useRef, useState, type FormEvent } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import { clientsService } from "@/features/clients/service";
 import { notificationsService } from "@/features/notifications/service";
 import { NotificationList } from "@/features/notifications/NotificationList";
@@ -16,6 +17,7 @@ import { projectsService } from "./service";
 
 export function ProjectDetailPage({ id }: { id: string }) {
   const api = useApiClient();
+  const { user } = useAuth();
   const load = useCallback(async (signal: AbortSignal) => {
     const [project, tasks, notifications] = await Promise.all([
       projectsService.get(api, id, signal), tasksService.forProject(api, id, signal), notificationsService.forProject(api, id, signal),
@@ -35,8 +37,11 @@ export function ProjectDetailPage({ id }: { id: string }) {
   const [conflict, setConflict] = useState("");
   const [notice, setNotice] = useState("");
   const preparation = data?.tasks.find((task) => task.type === "PrepareQuotation");
-  const canAssign = preparation?.status === "Pending" && data?.project.sgCode === null;
-  const canCorrect = preparation?.status === "InProgress" && !!data?.project.sgCode;
+  // Presentation only; the backend's BudgetsAssignee policy authorizes the PUT.
+  const isPreparationAssignee = !!user && user.subject === preparation?.assignedToGoogleSubject;
+  const pendingSg = preparation?.status === "Pending" && data?.project.sgCode === null;
+  const canAssign = isPreparationAssignee && pendingSg;
+  const canCorrect = isPreparationAssignee && preparation?.status === "InProgress" && !!data?.project.sgCode;
 
   async function mutate(action: "send" | "sg") {
     if (locked.current || !data) return;
@@ -112,6 +117,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
           <div className="flex flex-wrap gap-3"><button className="button-primary" disabled={busy} onClick={() => void mutate("send")}>{busy ? "Enviando…" : "Confirmar envío"}</button><button className="button-secondary" disabled={busy} onClick={() => setConfirmSend(false)}>Cancelar</button></div>
         </div> : <button className="button-primary" disabled={busy} onClick={() => setConfirmSend(true)}>Enviar a Presupuestos</button>}
       </section>}
+      {pendingSg && !isPreparationAssignee && <p role="status" className="rounded-lg border border-slate-200 bg-white p-4">Pendiente de asignación de SG por Presupuestos.</p>}
       {(canAssign || canCorrect) && <section className="panel" aria-labelledby="sg-title">
         <h2 id="sg-title" className="section-title">{canCorrect ? "Corregir SG" : "Asignar SG"}</h2>
         <p className="my-3 text-sm text-slate-600">{canCorrect ? "La corrección conserva el inicio y vencimiento de la tarea." : "La primera asignación inicia el plazo de preparación de la cotización."}</p>

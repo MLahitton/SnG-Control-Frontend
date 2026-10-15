@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
 import { AuthContext } from "@/features/auth/context/AuthProvider";
+import type { CurrentUser } from "@/features/auth/types/auth";
 import { createApiClient } from "@/lib/api/apiClient";
 import type { Client } from "@/features/clients/types";
 import type { Project } from "@/features/projects/types";
@@ -28,9 +29,9 @@ export const notification: ProjectNotification = {
   message: "Revisa el proyecto asignado.", scheduledAt: "2026-10-15T15:00:00Z", createdAt: "2026-10-15T15:00:00Z", resolvedAt: null, deadlineAt: null,
 };
 
-export function renderOperational(children: ReactNode) {
+export function renderOperational(children: ReactNode, currentUser: CurrentUser = user) {
   const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
-  return render(<AuthContext.Provider value={{ status: "authenticated", user, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient }}>{children}</AuthContext.Provider>);
+  return render(<AuthContext.Provider value={{ status: "authenticated", user: currentUser, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient }}>{children}</AuthContext.Provider>);
 }
 
 export function mockBackend(handler: (path: string, init: RequestInit) => unknown | Promise<unknown>) {

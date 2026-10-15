@@ -234,7 +234,9 @@ Crear cliente envía solo `{ name }`; crear proyecto envía `{ clientId, name, c
 
 El detalle consulta proyecto, cliente, tareas y notificaciones. Solo ofrece enviar a Presupuestos si no existe PrepareQuotation, con confirmación explícita. Al recibir éxito incorpora la tarea y refresca tareas/notificaciones. El envío crea Pending/NotStarted, con inicio y vencimiento nulos: no inicia el plazo de cinco días.
 
-La primera asignación de SG se ofrece con PrepareQuotation Pending y SG nulo. La corrección se ofrece con SG existente y PrepareQuotation InProgress. Se aplica trim + uppercase y `/^SG[0-9]+$/`, sin conversión numérica ni pérdida de ceros iniciales. La respuesta `{ project, prepareQuotationTask }` actualiza ambas entidades y se refrescan notificaciones. Inicio, vencimiento, estado y evidencia de atraso proceden del backend; corregir SG no calcula fechas ni crea tareas.
+La gestión visual de SG exige `user.subject === prepareQuotation.assignedToGoogleSubject`, sin roles locales ni comparaciones por email/name. Para ese usuario, la primera asignación se ofrece con PrepareQuotation Pending y SG nulo; la corrección, con SG existente y PrepareQuotation InProgress. Los demás usuarios consultan SG, tareas, plazos e historial sin controles de edición; si está Pending sin SG, ven «Pendiente de asignación de SG por Presupuestos». Esta condición solo controla presentación: la policy `BudgetsAssignee` del backend sigue autorizando el PUT y los rechazos 403 conservan el manejo existente.
+
+Se aplica trim + uppercase y `/^SG[0-9]+$/`, sin conversión numérica ni pérdida de ceros iniciales. La respuesta `{ project, prepareQuotationTask }` actualiza ambas entidades y se refrescan notificaciones. Inicio, vencimiento, estado y evidencia de atraso proceden del backend; corregir SG no calcula fechas ni crea tareas.
 
 Todas las mutaciones tienen bloqueo síncrono contra doble submit y controles deshabilitados durante el envío; no hay retries automáticos. Un 409 refresca el detalle. Para SG, el mensaje contempla código en uso o estado incompatible sin afirmar una causa; conserva el business code si existe. Si la mutación ya se guardó y falla una consulta relacionada, la UI conserva el éxito y permite repetir únicamente las lecturas.
 
@@ -306,7 +308,7 @@ No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tai
 8. Con un token rechazado por el backend, confirma 401, eliminación y mensaje seguro.
 9. Crea un cliente en `/clients` y un proyecto en `/projects/new`; confirma la navegación al detalle.
 10. Envía a Presupuestos tras confirmar; verifica PrepareQuotation Pendiente/Sin iniciar y vencimiento sin fecha.
-11. Asigna SG001; comprueba SG, tarea En curso, inicio/vencimiento reales y notificaciones. Corrige a otro SG disponible y verifica que inicio/vencimiento se conservan según backend.
+11. Con la cuenta asignada a PrepareQuotation, asigna SG001; comprueba SG, tarea En curso, inicio/vencimiento reales y notificaciones. Corrige a otro SG disponible y verifica que inicio/vencimiento se conservan según backend. Con otra cuenta, verifica que SG y avance sean de consulta y no existan controles de asignación/corrección.
 12. En `/tasks`, selecciona Presupuestos y el estado correspondiente; comprueba el proyecto y su enlace. Revisa `/notifications` y el historial del proyecto, incluidas alertas resueltas. Verifica navegación móvil y desktop.
 
 Sin las dos variables y un backend activo, un 200 de la página solo verifica que Next sirve la UI. Los tests del puente con fetch mock no prueban la integración .NET ni Google real. No confundas esos resultados.

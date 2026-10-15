@@ -5,6 +5,10 @@ import { ProjectDetailPage } from "@/features/projects/ProjectDetailPage";
 import type { Project } from "@/features/projects/types";
 import type { ProjectTask } from "@/features/tasks/types";
 import { client, project, task, inProgressTask, notification, deferred, mockBackend, renderOperational } from "./operationalFixtures";
+import { user } from "./fixtures";
+
+// Synthetic identities: same email/name, different stable Subjects.
+const assignedUser = { ...user, subject: task.assignedToGoogleSubject! };
 
 function backend(initialTasks: ProjectTask[] = [], initialProject: Project = project) {
   const state = { project: initialProject, tasks: initialTasks, notifications: [notification] };
@@ -19,8 +23,8 @@ function backend(initialTasks: ProjectTask[] = [], initialProject: Project = pro
   });
   return { state, fetchMock, setMutation: (handler: typeof mutation) => { mutation = handler; } };
 }
-async function openDetail() {
-  renderOperational(<ProjectDetailPage id="project-1" />);
+async function openDetail(currentUser = user) {
+  renderOperational(<ProjectDetailPage id="project-1" />, currentUser);
   await screen.findByRole("heading", { name: project.name });
 }
 const mutationCalls = (fetchMock: ReturnType<typeof mockBackend>) => fetchMock.mock.calls.filter(([, init]) => init.method !== "GET");
@@ -109,7 +113,7 @@ describe("SG assignment and correction", () => {
     const { state, fetchMock, setMutation } = backend([task]);
     const pending = deferred<unknown>();
     setMutation((path, init) => { expect(path).toBe("projects/project-1/sg-code"); expect(init.method).toBe("PUT"); expect(JSON.parse(init.body as string)).toEqual({ sgCode: "SG001" }); return pending.promise; });
-    await openDetail();
+    await openDetail(assignedUser);
     await userEvent.type(screen.getByLabelText("Código SG"), " sg001 ");
     const form = screen.getByRole("button", { name: "Asignar SG" }).closest("form")!;
     fireEvent.submit(form); fireEvent.submit(form);
@@ -126,7 +130,7 @@ describe("SG assignment and correction", () => {
     expect(screen.queryByText("El plazo comienza al asignar el SG.")).not.toBeInTheDocument();
   });
   it.each(["SG", "SG-12", "ABC12", "SG１２", "SG1 2"])("does not submit invalid SG %s", async (value) => {
-    const { fetchMock } = backend([task]); await openDetail();
+    const { fetchMock } = backend([task]); await openDetail(assignedUser);
     await userEvent.type(screen.getByLabelText("Código SG"), value);
     await userEvent.click(screen.getByRole("button", { name: "Asignar SG" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("dígitos del 0 al 9");
@@ -136,7 +140,7 @@ describe("SG assignment and correction", () => {
     const oldTask: ProjectTask = { ...inProgressTask, startedAt: "2020-01-01T15:00:00Z", deadlineAt: "2020-01-08T22:00:00Z" };
     const { setMutation, fetchMock } = backend([oldTask], { ...project, sgCode: "SG001" });
     setMutation(() => ({ project: { ...project, sgCode: "SG780" }, prepareQuotationTask: oldTask }));
-    await openDetail();
+    await openDetail(assignedUser);
     const tasksRegion = screen.getByRole("region", { name: "Tareas del proyecto" });
     const before = tasksRegion.textContent;
     await userEvent.type(screen.getByLabelText("Código SG"), "SG780");
@@ -154,7 +158,7 @@ describe("SG assignment and correction", () => {
     { tasks: [task], sgCode: "SG1" },
     { tasks: [inProgressTask], sgCode: null },
   ])("does not offer SG changes outside the supported state: $sgCode / $tasks.0.status", async ({ tasks, sgCode }) => {
-    backend(tasks, { ...project, sgCode }); await openDetail();
+    backend(tasks, { ...project, sgCode }); await openDetail(assignedUser);
     expect(screen.queryByLabelText("Código SG")).not.toBeInTheDocument();
   });
   it("does not guess a 409 cause and refreshes project/tasks after a concurrent change", async () => {
@@ -163,7 +167,7 @@ describe("SG assignment and correction", () => {
       state.project = { ...project, sgCode: "SG55" }; state.tasks = [inProgressTask];
       return Response.json({ detail: "duplicate secret" }, { status: 409 });
     });
-    await openDetail();
+    await openDetail(assignedUser);
     await userEvent.type(screen.getByLabelText("Código SG"), "SG1");
     await userEvent.click(screen.getByRole("button", { name: "Asignar SG" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("El código puede estar en uso o el proyecto ya no permite esta operación");
@@ -171,5 +175,68 @@ describe("SG assignment and correction", () => {
     expect(screen.getByText("En curso")).toBeInTheDocument();
     expect(screen.queryByText(/duplicate secret/)).not.toBeInTheDocument();
     await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("/tasks"))).toHaveLength(2));
+  });
+});
+
+describe("SG controls follow PrepareQuotation assignment", () => {
+  function expectReadOnlySg() {
+    expect(screen.queryByLabelText("Código SG")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Asignar SG" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Corregir SG" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Asignar SG" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Guardar corrección" })).not.toBeInTheDocument();
+  }
+
+  it("shows pending assignment information to another Subject, even with the same email/name", async () => {
+    const { fetchMock } = backend([task]);
+    await openDetail(user);
+    expect(screen.getByText("Pendiente de asignación de SG por Presupuestos.")).toBeInTheDocument();
+    expectReadOnlySg();
+    expect(screen.getByText("Sin iniciar")).toBeInTheDocument();
+    expect(screen.getByText(notification.title)).toBeInTheDocument();
+    expect(mutationCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("keeps SG, task timing and history visible without correction controls for another Subject", async () => {
+    const { fetchMock } = backend([inProgressTask], { ...project, sgCode: "SG001" });
+    await openDetail(user);
+    expectReadOnlySg();
+    for (const label of ["SG001", "En curso", "En tiempo", notification.title]) expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.getByText(/Vence:.*22\/10\/2026.*5:00/)).toBeInTheDocument();
+    expect(screen.queryByText("Pendiente de asignación de SG por Presupuestos.")).not.toBeInTheDocument();
+    expect(mutationCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it.each([
+    { preparation: task, sgCode: null, title: "Asignar SG", action: "Asignar SG" },
+    { preparation: inProgressTask, sgCode: "SG001", title: "Corregir SG", action: "Guardar corrección" },
+  ])("offers $title to the assigned Subject despite changed email and name", async ({ preparation, sgCode, title, action }) => {
+    backend([preparation], { ...project, sgCode });
+    await openDetail({ ...assignedUser, email: "changed@example.test", name: "Nombre actualizado" });
+    expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+    expect(screen.getByLabelText("Código SG")).toBeEnabled();
+    expect(screen.getByRole("button", { name: action })).toBeInTheDocument();
+    expect(screen.queryByText("Pendiente de asignación de SG por Presupuestos.")).not.toBeInTheDocument();
+  });
+
+  it("does not offer SG controls without an assigned Subject", async () => {
+    backend([{ ...task, assignedToGoogleSubject: null }]);
+    await openDetail(assignedUser);
+    expectReadOnlySg();
+    expect(screen.getByText("Pendiente de asignación de SG por Presupuestos.")).toBeInTheDocument();
+  });
+
+  it("still presents a backend 403 safely when the visible action is denied", async () => {
+    const { fetchMock, setMutation } = backend([task]);
+    setMutation(() => Response.json({ detail: "private policy diagnostic" }, { status: 403 }));
+    await openDetail(assignedUser);
+    await userEvent.type(screen.getByLabelText("Código SG"), "SG001");
+    await userEvent.click(screen.getByRole("button", { name: "Asignar SG" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No tienes permiso para esta acción.");
+    expect(screen.queryByText(/private policy diagnostic/)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: project.name })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Asignar SG" })).toBeEnabled();
+    expect(screen.queryByText("SG asignado.")).not.toBeInTheDocument();
+    expect(mutationCalls(fetchMock)).toHaveLength(1);
   });
 });
