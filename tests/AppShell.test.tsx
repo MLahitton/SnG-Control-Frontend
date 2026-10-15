@@ -27,13 +27,15 @@ describe("operational shell", () => {
     expect(screen.queryByText(user.name!)).not.toBeInTheDocument();
   });
 
-  it("shows identity and only a real Inicio navigation link", () => {
+  it("shows identity and the five real operational navigation links", () => {
     render(<AuthContext.Provider value={context}><AppShell><h1>Inicio</h1></AppShell></AuthContext.Provider>);
     expect(screen.getByRole("main")).toHaveTextContent("Inicio");
     expect(screen.getByText(user.name!)).toBeInTheDocument();
     expect(screen.getByText(user.email!)).toBeInTheDocument();
     const links = within(screen.getByRole("navigation", { name: "Principal" })).getAllByRole("link");
-    expect(links).toHaveLength(1);
+    expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Inicio", "/"], ["Clientes", "/clients"], ["Proyectos", "/projects"], ["Tareas", "/tasks"], ["Notificaciones", "/notifications"],
+    ]);
     expect(links[0]).toHaveAttribute("href", "/");
     expect(links[0]).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Saltar al contenido" })).toHaveAttribute("href", "#main-content");

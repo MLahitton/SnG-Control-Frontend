@@ -1,0 +1,34 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback } from "react";
+import { useApiClient } from "@/features/auth/hooks/useApiClient";
+import { clientsService } from "@/features/clients/service";
+import { ErrorNotice } from "@/lib/api/ErrorNotice";
+import { useResource } from "@/lib/api/useResource";
+import { formatDate } from "@/lib/formatDate";
+import { projectsService } from "./service";
+
+export function ProjectsPage() {
+  const api = useApiClient();
+  const load = useCallback(async (signal: AbortSignal) => {
+    const [projects, clients] = await Promise.all([projectsService.list(api, signal), clientsService.list(api, signal)]);
+    return { projects, clients: new Map(clients.map((client) => [client.id, client.name])) };
+  }, [api]);
+  const { data, loading, error, refresh } = useResource(load);
+  return <div className="space-y-6">
+    <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="page-title">Proyectos</h1><Link className="button-primary" href="/projects/new">Crear proyecto</Link></div>
+    {loading && <p role="status">Cargando proyectos…</p>}
+    <ErrorNotice error={error} retry={refresh} />
+    {data?.projects.length === 0 && <p className="panel">Todavía no hay proyectos.</p>}
+    {data && data.projects.length > 0 && <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <table className="data-table"><caption className="sr-only">Proyectos registrados. Fechas en hora de Colombia.</caption>
+        <thead><tr>{["Proyecto", "Cliente", "Ciudad", "Línea", "SG", "Creación"].map((title) => <th key={title} scope="col">{title}</th>)}</tr></thead>
+        <tbody>{data.projects.map((project) => <tr key={project.id}>
+          <td><Link className="text-link" href={`/projects/${encodeURIComponent(project.id)}`}>{project.name}</Link></td>
+          <td>{data.clients.get(project.clientId) ?? "Cliente no disponible"}</td><td>{project.city}</td><td>{project.productLine}</td><td>{project.sgCode ?? "Sin asignar"}</td><td>{formatDate(project.createdAt)}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>}
+  </div>;
+}

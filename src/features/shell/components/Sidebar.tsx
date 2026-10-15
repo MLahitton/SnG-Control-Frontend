@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const navigation = [{ href: "/", label: "Inicio" }];
+const navigation = [
+  { href: "/", label: "Inicio" },
+  { href: "/clients", label: "Clientes" },
+  { href: "/projects", label: "Proyectos" },
+  { href: "/tasks", label: "Tareas" },
+  { href: "/notifications", label: "Notificaciones" },
+];
 
 export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
   const pathname = usePathname();
@@ -18,7 +24,7 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
         <ul className="space-y-1">
           {navigation.map(({ href, label }) => (
             <li key={href}>
-              <Link href={href} aria-current={pathname === href ? "page" : undefined} onClick={onNavigate}
+              <Link href={href} aria-current={pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)) ? "page" : undefined} onClick={onNavigate}
                 className="block rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 aria-[current=page]:bg-cyan-50 aria-[current=page]:text-cyan-900">
                 {label}
               </Link>

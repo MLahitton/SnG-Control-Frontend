@@ -137,7 +137,7 @@ Al salir de la ruta login y volver a entrar, la integración puede inicializar G
 
 ## Sesión y estado
 
-`AuthProvider` mantiene `status` (`loading`, `authenticated`, `unauthenticated`), `user`, `error`, `signIn(idToken)`, `logout()`, `invalidateSession()` y el cliente API asociado a la sesión. `useAuth` expone ese contexto; `useApiClient` devuelve el cliente para futuros servicios/hooks de negocio.
+`AuthProvider` mantiene `status` (`loading`, `authenticated`, `unauthenticated`), `user`, `error`, `signIn(idToken)`, `logout()`, `invalidateSession()` y el cliente API asociado a la sesión. `useAuth` expone ese contexto; `useApiClient` devuelve el cliente para los servicios/hooks de negocio.
 
 1. Al montar, lee únicamente `sessionStorage["sng.google.id_token"]`.
 2. Sin token: pasa a no autenticado.
@@ -211,7 +211,38 @@ También acepta `missingItems` y `unexpectedItems` como arrays de `CommercialIte
 
 Estos tres campos admiten entrada en la raíz o en `extensions`, con la misma precedencia existente: raíz no nula primero. La salida canónica está en `problem.extensions`; `ApiError` además expone propiedades tipadas `missingItems`, `unexpectedItems` y `fileError`. No se permite ningún objeto o extensión arbitrarios.
 
-No hay servicios específicos de Client/Project en este bloque. Los componentes futuros deben usar esta capa, mostrar ApiError y gestionar su estado de envío, sin duplicar fetch ni invalidación de sesión.
+Los servicios en `features/clients`, `features/projects`, `features/tasks` y `features/notifications` utilizan esta capa con contratos explícitos. Las pantallas obtienen `useApiClient()` y gestionan su estado de envío sin duplicar fetch ni invalidación de sesión.
+
+### Flujo operativo de Frontend 2B
+
+Las rutas `/clients`, `/projects`, `/projects/new`, `/projects/[id]`, `/tasks` y `/notifications` pertenecen al grupo protegido `(app)`. La página dinámica espera `params` de Next y entrega el identificador al componente cliente. No hay nuevas dependencias ni almacenamiento global de entidades.
+
+| Operación | Endpoint backend (vía BFF) |
+| --- | --- |
+| Lista/creación de clientes | GET/POST `clients` |
+| Cliente del proyecto | GET `clients/{id}` |
+| Lista/creación de proyectos | GET/POST `projects` |
+| Detalle | GET `projects/{id}` |
+| Tareas del proyecto | GET `projects/{id}/tasks` |
+| Historial de notificaciones | GET `projects/{id}/notifications` |
+| Envío a Presupuestos | POST `projects/{id}/send-to-budgets`, sin body |
+| Asignación/corrección SG | PUT `projects/{id}/sg-code`, `{ sgCode }` |
+| Tareas filtradas | GET `project-tasks?area={area}&status={status}` |
+| Notificaciones personales | GET `notifications`, sin query params |
+
+Crear cliente envía solo `{ name }`; crear proyecto envía `{ clientId, name, city, productLine }`. Los nombres duplicados no se bloquean. La línea acepta Classic, Essential, Bioconfort o Signature. El selector exige un cliente existente; sin clientes ofrece ir a `/clients`. El backend determina `createdBy`; la UI muestra su nombre/email como responsable comercial y no pide ni presenta Subjects en estas pantallas.
+
+El detalle consulta proyecto, cliente, tareas y notificaciones. Solo ofrece enviar a Presupuestos si no existe PrepareQuotation, con confirmación explícita. Al recibir éxito incorpora la tarea y refresca tareas/notificaciones. El envío crea Pending/NotStarted, con inicio y vencimiento nulos: no inicia el plazo de cinco días.
+
+La primera asignación de SG se ofrece con PrepareQuotation Pending y SG nulo. La corrección se ofrece con SG existente y PrepareQuotation InProgress. Se aplica trim + uppercase y `/^SG[0-9]+$/`, sin conversión numérica ni pérdida de ceros iniciales. La respuesta `{ project, prepareQuotationTask }` actualiza ambas entidades y se refrescan notificaciones. Inicio, vencimiento, estado y evidencia de atraso proceden del backend; corregir SG no calcula fechas ni crea tareas.
+
+Todas las mutaciones tienen bloqueo síncrono contra doble submit y controles deshabilitados durante el envío; no hay retries automáticos. Un 409 refresca el detalle. Para SG, el mensaje contempla código en uso o estado incompatible sin afirmar una causa; conserva el business code si existe. Si la mutación ya se guardó y falla una consulta relacionada, la UI conserva el éxito y permite repetir únicamente las lecturas.
+
+`useResource` mantiene estado local de consulta, cancela lecturas al desmontar/cambiar filtros y descarta respuestas tardías. Presenta carga/error/vacío y permite recarga explícita tras fallos. No es una caché global. La lista de tareas exige área y estado en cada solicitud; comienza mostrando Comercial/Pendiente como filtros visibles, sin inferir el área del usuario. Resuelve nombres con un único GET `projects` por montaje, sin consultas por tarea ni nuevas lecturas de proyectos al cambiar filtros.
+
+`TaskList` y `TaskTimingStatus` presentan los tipos/estados y `leakTimeStatus` del backend en español. `formatDate` usa `Intl.DateTimeFormat` con **America/Bogota**, incluyendo hora para vencimientos. No compara deadlines con el reloj ni reconstruye días hábiles. Cuando PrepareQuotation está NotStarted sin deadline, indica que el plazo comienza al asignar SG.
+
+`NotificationList` conserva Informational, Active y Resolved. Resalta Overdue Active y mantiene Overdue Resolved como historial. Muestra título, mensaje, tipo de tarea, fechas y estado; las personales enlazan al proyecto. No muestra recipientGoogleSubject ni incorpora leído/no leído, contadores o acciones de mutación.
 
 ## TLS local
 
@@ -234,7 +265,7 @@ No se desactiva validación TLS global ni por request. No se usan agentes que ac
 
 `AuthGate` muestra loading, redirige no autenticados a `/login` y renderiza children únicamente con sesión validada.
 
-`AppShell` agrupa Sidebar, TopBar y el contenido principal. Sidebar contiene únicamente Inicio; la lista se amplía cuando existan rutas reales. TopBar muestra nombre/email y logout. En móvil/tablet, el botón de menú controla la navegación con aria-expanded/aria-controls; en desktop permanece visible. Hay enlace para saltar al contenido y el foco vuelve al contenido al navegar. No existen enlaces a módulos pendientes.
+`AppShell` agrupa Sidebar, TopBar y el contenido principal. Sidebar enlaza Inicio, Clientes, Proyectos, Tareas y Notificaciones; Proyectos permanece activo en creación y detalle. TopBar muestra nombre/email y logout. En móvil/tablet, el botón de menú controla la navegación con aria-expanded/aria-controls; en desktop permanece visible. Hay enlace para saltar al contenido y el foco vuelve al contenido al navegar. No existen enlaces a módulos pendientes.
 
 La home muestra Name, Email y Google Subject, incluidos valores nulos tratados como “No disponible”. Copiar Subject invoca `navigator.clipboard.writeText(user.subject)`. La API requiere contexto seguro (HTTPS o localhost) y permisos del navegador; el fallo indica cómo copiar manualmente.
 
@@ -257,6 +288,9 @@ Las suites verifican:
 - Integración API/sesión: 401 concurrentes, 403/409/503 sin logout y respuestas tardías de sesiones anteriores.
 - Shell: protección, identidad, logout, menú accesible, estructura responsive y enlaces reales.
 - GSI: librería instalada con límite SDK simulado, Strict Mode y estabilidad del montaje durante validación.
+- Clientes/proyectos: carga, vacío, selección de cliente, cuatro líneas, creación, nombres duplicados, navegación y doble submit.
+- Detalle/SG: cargas relacionadas, 404, confirmación, envío sin body, primera asignación, formato ASCII/ceros, corrección con las mismas fechas, conflictos 409 y recuperación de lecturas fallidas tras éxito.
+- Tareas/notificaciones: filtros completos, lookup sin N+1, respuestas tardías descartadas, ocho estados temporales, timezone, historial activo/resuelto y ausencia de estado leído/no leído. Estas pruebas recorren el cliente API con fetch simulado; no llaman al backend real.
 
 No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tailwind.
 
@@ -270,12 +304,16 @@ No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tai
 6. Usa Copiar Subject, recarga y confirma restauración.
 7. Cierra sesión y confirma `/login`; la home no debe mostrar identidad al abrirla sin sesión.
 8. Con un token rechazado por el backend, confirma 401, eliminación y mensaje seguro.
+9. Crea un cliente en `/clients` y un proyecto en `/projects/new`; confirma la navegación al detalle.
+10. Envía a Presupuestos tras confirmar; verifica PrepareQuotation Pendiente/Sin iniciar y vencimiento sin fecha.
+11. Asigna SG001; comprueba SG, tarea En curso, inicio/vencimiento reales y notificaciones. Corrige a otro SG disponible y verifica que inicio/vencimiento se conservan según backend.
+12. En `/tasks`, selecciona Presupuestos y el estado correspondiente; comprueba el proyecto y su enlace. Revisa `/notifications` y el historial del proyecto, incluidas alertas resueltas. Verifica navegación móvil y desktop.
 
 Sin las dos variables y un backend activo, un 200 de la página solo verifica que Next sirve la UI. Los tests del puente con fetch mock no prueban la integración .NET ni Google real. No confundas esos resultados.
 
 ## Límites y siguiente bloque
 
-Frontend 2A deja shell, BFF y API client preparados. No implementa pantallas de Clientes, Proyectos, Tareas, Notificaciones, Presupuestos, Comercial ni aprobación/pago. Tampoco inventa roles, permisos o cálculos de negocio. El backend sigue siendo la autoridad. Frontend 2B requiere una instrucción explícita.
+Frontend 2B implementa clientes, proyectos, envío a Presupuestos, asignación/corrección de SG, tareas y notificaciones. Termina antes de upload/preview XLSX, edición/confirmación de cotizaciones y revisión comercial. No implementa aprobación/pago, roles, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad. Frontend 2C requiere una instrucción explícita.
 
 Mantener actualizados ambos README cuando cambie el comportamiento. `.gitignore` excluye `.env`, `.env.local`, `.env.*.local`, node_modules, .next, coverage, logs y el almacén local de pnpm. No incluir valores reales en documentación o tests.
 
