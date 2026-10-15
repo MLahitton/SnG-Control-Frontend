@@ -207,6 +207,10 @@ El cliente agrega Bearer, omite cookies, no cachea ni sigue redirects. JSON se s
 
 La allowlist de extensiones acepta `code`, `errorCode`, `field`, `fields` (identificadores acotados) y `retryAfterSeconds` (entero no negativo), tanto en la raíz de ProblemDetails como dentro de `extensions`. Se conservan en 4xx; los 5xx usan diagnóstico genérico. Se descartan title/detail/type/instance libres, stack traces, paths y extensiones desconocidas. Agrega extensiones solo al confirmar un contrato seguro del backend; no expongas indiscriminadamente ProblemDetails.
 
+También acepta `missingItems` y `unexpectedItems` como arrays de `CommercialItemKey`: únicamente `section: "Main" | "Additional"` y `sourceRow` entero seguro positivo. Cada array admite hasta **200 elementos**, incluidos arrays vacíos. Si supera el límite o contiene algún elemento inválido se descarta ese array completo, sin truncarlo; los campos adicionales de los objetos se eliminan. `fileError` acepta solo un identificador ASCII de 1–80 caracteres, iniciado por una letra y seguido de letras, números o guiones bajos. No admite texto libre, URLs ni paths.
+
+Estos tres campos admiten entrada en la raíz o en `extensions`, con la misma precedencia existente: raíz no nula primero. La salida canónica está en `problem.extensions`; `ApiError` además expone propiedades tipadas `missingItems`, `unexpectedItems` y `fileError`. No se permite ningún objeto o extensión arbitrarios.
+
 No hay servicios específicos de Client/Project en este bloque. Los componentes futuros deben usar esta capa, mostrar ApiError y gestionar su estado de envío, sin duplicar fetch ni invalidación de sesión.
 
 ## TLS local

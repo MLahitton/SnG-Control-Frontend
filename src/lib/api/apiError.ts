@@ -1,4 +1,6 @@
-import type { SafeProblemDetails } from "./types";
+import type { CommercialItemKey, SafeProblemDetails } from "./types";
+
+export const MAX_COMMERCIAL_ITEM_KEYS = 200;
 
 const titles: Record<number, string> = {
   0: "No pudimos conectar con el servicio. Inténtalo de nuevo.",
@@ -26,6 +28,19 @@ function identifier(value: unknown): string | undefined {
     ? value : undefined;
 }
 
+function commercialItemKeys(value: unknown): CommercialItemKey[] | undefined {
+  if (!Array.isArray(value) || value.length > MAX_COMMERCIAL_ITEM_KEYS) return undefined;
+  const items: CommercialItemKey[] = [];
+  for (const entry of value) {
+    const item = record(entry);
+    if ((item.section !== "Main" && item.section !== "Additional")
+      || typeof item.sourceRow !== "number" || !Number.isSafeInteger(item.sourceRow)
+      || item.sourceRow <= 0) return undefined;
+    items.push({ section: item.section, sourceRow: item.sourceRow });
+  }
+  return items;
+}
+
 // Allowlisted structured metadata only. Free-form upstream diagnostics are never public.
 export function safeProblem(status: number, payload?: unknown): SafeProblemDetails {
   const source = record(payload);
@@ -44,6 +59,14 @@ export function safeProblem(status: number, payload?: unknown): SafeProblemDetai
     if (typeof retry === "number" && Number.isSafeInteger(retry) && retry >= 0) {
       extensions.retryAfterSeconds = retry;
     }
+    for (const key of ["missingItems", "unexpectedItems"] as const) {
+      const items = commercialItemKeys(source[key] ?? extra[key]);
+      if (items) extensions[key] = items;
+    }
+    const fileError = source.fileError ?? extra.fileError;
+    if (typeof fileError === "string" && /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(fileError)) {
+      extensions.fileError = fileError;
+    }
   }
   return {
     type: "about:blank",
@@ -58,6 +81,9 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
   readonly problem: SafeProblemDetails;
+  readonly missingItems?: CommercialItemKey[];
+  readonly unexpectedItems?: CommercialItemKey[];
+  readonly fileError?: string;
 
   constructor(status: number, payload?: unknown) {
     const problem = safeProblem(status, payload);
@@ -66,5 +92,8 @@ export class ApiError extends Error {
     this.status = status;
     this.code = problem.code;
     this.problem = problem;
+    this.missingItems = problem.extensions.missingItems;
+    this.unexpectedItems = problem.extensions.unexpectedItems;
+    this.fileError = problem.extensions.fileError;
   }
 }

@@ -1,5 +1,10 @@
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
+export interface CommercialItemKey {
+  section: "Main" | "Additional";
+  sourceRow: number;
+}
+
 export interface SafeProblemDetails {
   type: "about:blank";
   status: number;
@@ -11,6 +16,9 @@ export interface SafeProblemDetails {
     field?: string;
     fields?: string[];
     retryAfterSeconds?: number;
+    missingItems?: CommercialItemKey[];
+    unexpectedItems?: CommercialItemKey[];
+    fileError?: string;
   };
 }
 
