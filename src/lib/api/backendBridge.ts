@@ -30,6 +30,29 @@ function safeJson(value: JsonValue, forbidden: string[], depth = 0): JsonValue {
   return value;
 }
 
+// Only probe untyped bodies: Next can supply a stream even for an empty POST.
+// Stop at the first byte; accepted typed uploads are never read here.
+async function hasPayload(body: ReadableStream<Uint8Array>, signal: AbortSignal): Promise<boolean> {
+  signal.throwIfAborted();
+  const reader = body.getReader();
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      signal.throwIfAborted();
+      if (done) return false;
+      if (value.byteLength > 0) {
+        cancel();
+        return true;
+      }
+    }
+  } finally {
+    signal.removeEventListener("abort", cancel);
+    reader.releaseLock();
+  }
+}
+
 export async function forwardBackend(request: Request, segments: string[]): Promise<Response> {
   if (!["GET", "POST", "PUT"].includes(request.method)) {
     return problem(405, undefined, new Headers({ Allow: "GET, POST, PUT" }));
@@ -45,23 +68,29 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
   const headers = new Headers({ Authorization: authorization });
   const accept = request.headers.get("Accept");
   if (accept) headers.set("Accept", accept);
-  const hasBody = request.method !== "GET" && request.body !== null;
-  if (hasBody) {
-    const contentType = request.headers.get("Content-Type") ?? "";
-    const mediaType = contentType.split(";")[0].trim().toLowerCase();
-    const allowed = mediaType === "application/json" || /^application\/[a-z0-9.+-]+\+json$/.test(mediaType)
-      || mediaType === "application/octet-stream"
-      || mediaType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      || (mediaType === "multipart/form-data" && /;\s*boundary=(?:"[^"]+"|[^;\s]+)/i.test(contentType));
-    if (!allowed) return problem(415);
-    headers.set("Content-Type", contentType);
-  }
-
   try {
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(120_000)]);
+    let body: ReadableStream<Uint8Array> | null = null;
+    if (request.method !== "GET") {
+      const contentType = request.headers.get("Content-Type");
+      if (contentType !== null) {
+        const mediaType = contentType.split(";")[0].trim().toLowerCase();
+        const allowed = mediaType === "application/json" || /^application\/[a-z0-9.+-]+\+json$/.test(mediaType)
+          || mediaType === "application/octet-stream"
+          || mediaType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          || (mediaType === "multipart/form-data" && /;\s*boundary=(?:"[^"]+"|[^;\s]+)/i.test(contentType));
+        if (!allowed) return problem(415);
+        headers.set("Content-Type", contentType);
+        body = request.body;
+      } else if (Number(request.headers.get("Content-Length")) > 0
+        || (request.body && await hasPayload(request.body, signal))) {
+        return problem(415);
+      }
+    }
     const init: RequestInit & { duplex?: "half" } = {
       method: request.method, headers, cache: "no-store", redirect: "error",
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(120_000)]),
-      ...(hasBody ? { body: request.body, duplex: "half" } : {}),
+      signal,
+      ...(body ? { body, duplex: "half" } : {}),
     };
     const response = await fetch(url, init);
     const responseHeaders = new Headers({ "Cache-Control": "no-store", Vary: "Authorization" });

@@ -9,15 +9,17 @@ const upstream = "https://backend.example.test";
 const fetchMock = vi.fn<typeof fetch>();
 const context = (path = ["projects"]) => ({ params: Promise.resolve({ path }) });
 function request(method = "GET", body?: BodyInit, contentType?: string) {
-  return new Request("https://frontend.example.test/api/backend/projects?status=Open&tag=a%2Bb&tag=c", {
+  const init: RequestInit & { duplex?: "half" } = {
     method, body,
+    ...(body instanceof ReadableStream ? { duplex: "half" as const } : {}),
     headers: {
       Authorization: `Bearer ${token}`, Accept: "application/json",
       Cookie: "private=cookie", Host: "untrusted.example", Origin: "https://untrusted.example",
       Referer: "https://untrusted.example/private", Connection: "keep-alive", "X-Internal": "private",
       ...(contentType ? { "Content-Type": contentType } : {}),
     },
-  });
+  };
+  return new Request("https://frontend.example.test/api/backend/projects?status=Open&tag=a%2Bb&tag=c", init);
 }
 
 beforeEach(() => {
@@ -71,6 +73,87 @@ describe("controlled backend bridge", () => {
     expect(new Headers(options.headers).has("Content-Type")).toBe(false);
   });
 
+  it.each([
+    ["POST", 201], ["POST", 409], ["PUT", 204], ["PUT", 409],
+  ] as const)("forwards a Next-style empty stream on %s without inventing a payload (upstream %s)", async (method, status) => {
+    const input = request(method, new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new Uint8Array(0)); controller.close(); },
+    }));
+    expect(input.body).not.toBeNull();
+    expect(input.headers.has("Content-Type")).toBe(false);
+    fetchMock.mockResolvedValue(status === 204 ? new Response(null, { status }) : Response.json({ id: "task-1" }, { status }));
+    const handler = method === "POST" ? POST : PUT;
+    const response = await handler(input, context(["projects", "test-id", "send-to-budgets"]));
+    expect(response.status).toBe(status);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const options = fetchMock.mock.calls[0][1]!;
+    expect(options.method).toBe(method);
+    expect(Object.fromEntries(new Headers(options.headers))).toEqual({ authorization: `Bearer ${token}`, accept: "application/json" });
+    expect(options).not.toHaveProperty("body");
+    expect(options).not.toHaveProperty("duplex");
+  });
+
+  it("accepts an empty stream with explicit Content-Length zero and no Content-Type", async () => {
+    const input = request("POST", new ReadableStream({ start(controller) { controller.close(); } }));
+    input.headers.set("Content-Length", "0");
+    expect((await POST(input, context())).status).toBe(200);
+    expect(fetchMock.mock.calls[0][1]).not.toHaveProperty("body");
+  });
+
+  it.each(["POST", "PUT"])("rejects actual bytes without Content-Type on %s, even after empty chunks", async (method) => {
+    const cancel = vi.fn();
+    const input = request(method, new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new Uint8Array(0)); controller.enqueue(new Uint8Array([1])); },
+      cancel,
+    }));
+    // An untrusted length must not make actual content disappear.
+    input.headers.set("Content-Length", "0");
+    const handler = method === "POST" ? POST : PUT;
+    expect((await handler(input, context())).status).toBe(415);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a declared nonempty payload without Content-Type", async () => {
+    const input = request("POST");
+    input.headers.set("Content-Length", "10");
+    expect((await POST(input, context())).status).toBe(415);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("cancels a pending untyped stream when the request aborts", async () => {
+    const cancel = vi.fn();
+    const controller = new AbortController();
+    const input = new Request(request("POST", new ReadableStream<Uint8Array>({ cancel })), { signal: controller.signal });
+    const result = POST(input, context());
+    await vi.waitFor(() => expect(input.body?.locked).toBe(true));
+    controller.abort();
+    expect((await result).status).toBe(502);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("handles an unreadable untyped stream without forwarding or exposing diagnostics", async () => {
+    const input = request("POST", new ReadableStream({ start(controller) { controller.error(new Error("private diagnostic")); } }));
+    const response = await POST(input, context());
+    expect(response.status).toBe(502);
+    expect(await response.text()).not.toContain("private diagnostic");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "application/vnd.sng+json", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/octet-stream",
+  ])("forwards the original stream without reading or reconstructing %s", async (contentType) => {
+    const bytes = contentType.endsWith("+json") ? new TextEncoder().encode('{ "name": "Prueba" }') : new Uint8Array([80, 75, 0, 255]);
+    const input = request("PUT", bytes, contentType);
+    expect((await PUT(input, context())).status).toBe(200);
+    const options = fetchMock.mock.calls[0][1]!;
+    expect(options.body).toBe(input.body);
+    expect(input.bodyUsed).toBe(false);
+    expect(new Headers(options.headers).get("Content-Type")).toBe(contentType);
+    expect(new Uint8Array(await new Response(options.body).arrayBuffer())).toEqual(bytes);
+  });
+
   it("preserves multipart bytes and original boundary", async () => {
     const multipart = new FormData();
     multipart.set("file", new Blob([new Uint8Array([0, 255, 80, 75, 3, 4])]), "quotation.xlsx");
@@ -80,6 +163,8 @@ describe("controlled backend bridge", () => {
     await POST(input, context(["projects", "test-id", "quotation"]));
     const options = fetchMock.mock.calls[0][1]!;
     expect(new Headers(options.headers).get("Content-Type")).toBe(contentType);
+    expect(options.body).toBe(input.body);
+    expect(input.bodyUsed).toBe(false);
     expect(await new Response(options.body).arrayBuffer()).toEqual(bytes);
   });
 
@@ -185,8 +270,9 @@ describe("controlled backend bridge", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects unexpected upload media types", async () => {
-    expect((await POST(request("POST", "private", "text/html"), context())).status).toBe(415);
+  it.each(["POST", "PUT"])("rejects unexpected upload media types on %s", async (method) => {
+    const handler = method === "POST" ? POST : PUT;
+    expect((await handler(request(method, "private", "text/html"), context())).status).toBe(415);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
