@@ -1,12 +1,13 @@
 "use client";
 
 import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { getGoogleClientId } from "@/lib/config/env";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 
 export function GoogleSignInButton() {
-  const { signIn } = useAuth();
+  const { signIn, status } = useAuth();
+  const pending = useRef(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   let clientId: string;
@@ -14,7 +15,7 @@ export function GoogleSignInButton() {
     clientId = getGoogleClientId();
   } catch {
     return <p role="alert" className="error-message">{process.env.NODE_ENV === "development"
-      ? "Configura NEXT_PUBLIC_GOOGLE_CLIENT_ID en .env.local para habilitar Google Sign-In."
+      ? "Configura NEXT_PUBLIC_GOOGLE_CLIENT_ID en .env para habilitar Google Sign-In."
       : "El inicio de sesión no está disponible. Contacta al administrador."}</p>;
   }
 
@@ -24,8 +25,12 @@ export function GoogleSignInButton() {
         {!ready && !googleError && <p role="status" className="text-sm text-slate-600">Cargando acceso con Google…</p>}
         <GoogleLogin
           onSuccess={({ credential }) => {
+            if (pending.current || status !== "unauthenticated") return;
             setGoogleError(null);
-            if (credential) void signIn(credential);
+            if (credential) {
+              pending.current = true;
+              void signIn(credential).finally(() => { pending.current = false; });
+            }
             else setGoogleError("Google no pudo completar el acceso. Inténtalo de nuevo.");
           }}
           onError={() => setGoogleError("No se pudo iniciar sesión con Google. Inténtalo de nuevo.")}

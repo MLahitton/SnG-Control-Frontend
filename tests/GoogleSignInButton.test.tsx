@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthContext } from "@/features/auth/context/AuthProvider";
 import { GoogleSignInButton } from "@/features/auth/components/GoogleSignInButton";
-import { token } from "./fixtures";
+import { token, testApiClient } from "./fixtures";
 
 vi.mock("@react-oauth/google", () => ({
   GoogleOAuthProvider: ({ children, onScriptLoadError }: { children: ReactNode; onScriptLoadError: () => void }) =>
@@ -16,8 +16,8 @@ vi.mock("@react-oauth/google", () => ({
   </>,
 }));
 
-const signIn = vi.fn();
-const context = { status: "unauthenticated" as const, user: null, error: null, signIn, logout: vi.fn() };
+const signIn = vi.fn().mockResolvedValue(undefined);
+const context = { status: "unauthenticated" as const, user: null, error: null, signIn, logout: vi.fn(), invalidateSession: vi.fn(), apiClient: testApiClient };
 function mount() {
   return render(<AuthContext.Provider value={context}><GoogleSignInButton /></AuthContext.Provider>);
 }

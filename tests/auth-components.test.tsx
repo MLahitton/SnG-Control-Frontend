@@ -5,7 +5,7 @@ import { AuthContext } from "@/features/auth/context/AuthProvider";
 import { AuthGate } from "@/features/auth/components/AuthGate";
 import { UserIdentityCard } from "@/features/auth/components/UserIdentityCard";
 import LoginPage from "@/app/login/page";
-import { user } from "./fixtures";
+import { user, testApiClient } from "./fixtures";
 
 const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
@@ -13,7 +13,7 @@ vi.mock("@/features/auth/components/GoogleSignInButton", () => ({
   GoogleSignInButton: () => <button>Acceso Google</button>,
 }));
 
-const context = { status: "unauthenticated" as const, user: null, error: null, signIn: vi.fn(), logout: vi.fn() };
+const context = { status: "unauthenticated" as const, user: null, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: testApiClient };
 
 describe("AuthGate", () => {
   it("shows loading without revealing protected content", () => {

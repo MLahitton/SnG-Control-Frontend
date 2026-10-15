@@ -9,7 +9,7 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest",
     "test:run": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.5",

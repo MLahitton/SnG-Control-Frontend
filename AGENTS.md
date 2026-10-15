@@ -344,7 +344,7 @@ Update only affected sections plus clearly stale statements discovered during th
 Keep documented: current stack, env variables, authentication, BFF architecture, session behavior, local TLS requirements, testing and current implemented workflow.
 Do not include secrets.
 35. Environment files
-Keep .env.example.
+Keep .env
 Never commit .env, .env.local or .env.*.local.
 Expected concepts include:
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=<GOOGLE_OAUTH_CLIENT_ID>
