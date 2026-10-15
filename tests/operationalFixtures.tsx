@@ -9,15 +9,15 @@ import type { ProjectTask } from "@/features/tasks/types";
 import type { ProjectNotification } from "@/features/notifications/types";
 import { token, user } from "./fixtures";
 
-export const client: Client = { id: "client-1", name: "Cliente de prueba", createdAt: "2026-10-15T15:00:00Z", updatedAt: null };
+export const client: Client = { id: "client-1", name: "Cliente de prueba", createdAt: "2026-10-15T15:00:00Z", updatedAt: "2026-10-15T15:00:00Z" };
 export const project: Project = {
   id: "project-1", clientId: client.id, name: "Proyecto Norte", city: "Bogotá", productLine: "Classic",
-  sgCode: null, createdAt: "2026-10-15T15:00:00Z", updatedAt: null, createdBy: user,
+  sgCode: null, createdAt: "2026-10-15T15:00:00Z", updatedAt: "2026-10-15T15:00:00Z", createdBy: user,
 };
 export const task: ProjectTask = {
   id: "task-1", projectId: project.id, area: "Budgets", type: "PrepareQuotation", status: "Pending",
   assignedAt: "2026-10-15T15:00:00Z", startedAt: null, completedAt: null,
-  assignedToGoogleSubject: "private-assignee-subject", deadlineAt: null, wasOverdue: false, leakTimeStatus: "NotStarted",
+  assignedToGoogleSubject: "private-assignee-subject", deadlineAt: null, wasOverdue: null, leakTimeStatus: "NotStarted",
 };
 export const inProgressTask: ProjectTask = {
   ...task, status: "InProgress", startedAt: "2026-10-15T16:00:00Z", deadlineAt: "2026-10-22T22:00:00Z", leakTimeStatus: "OnTrack",
@@ -25,7 +25,7 @@ export const inProgressTask: ProjectTask = {
 export const notification: ProjectNotification = {
   id: "notification-1", projectId: project.id, projectTaskId: task.id, recipientGoogleSubject: "private-recipient-subject",
   taskType: "PrepareQuotation", kind: "TaskAssigned", state: "Informational", title: "Cotización asignada",
-  message: "Revisa el proyecto asignado.", scheduledAt: null, createdAt: "2026-10-15T15:00:00Z", resolvedAt: null, deadlineAt: null,
+  message: "Revisa el proyecto asignado.", scheduledAt: "2026-10-15T15:00:00Z", createdAt: "2026-10-15T15:00:00Z", resolvedAt: null, deadlineAt: null,
 };
 
 export function renderOperational(children: ReactNode) {

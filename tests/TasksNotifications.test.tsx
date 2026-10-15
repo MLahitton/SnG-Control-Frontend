@@ -39,10 +39,11 @@ describe("Tasks", () => {
     render(<TaskTimingStatus task={{ ...task, leakTimeStatus, deadlineAt: "2020-01-01T22:00:00Z" }} />);
     expect(screen.getByText(label)).toBeInTheDocument();
   });
-  it("shows no invented deadline when preparation has not started", () => {
-    render(<TaskTimingStatus task={task} />);
+  it("shows no invented deadline or overdue evidence for newly assigned preparation", () => {
+    render(<TaskList tasks={[task]} />);
     expect(screen.getByText("Vence: Sin fecha asignada")).toBeInTheDocument();
     expect(screen.getByText("El plazo comienza al asignar el SG.")).toBeInTheDocument();
+    expect(screen.queryByText("Registró atraso.")).not.toBeInTheDocument();
   });
   it("renders supported task types, states and historical overdue evidence", () => {
     render(<TaskList tasks={[

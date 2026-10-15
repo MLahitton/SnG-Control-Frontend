@@ -8,12 +8,12 @@ export interface ProjectTask {
   area: TaskArea;
   type: TaskType;
   status: TaskStatus;
-  assignedAt: string | null;
+  assignedAt: string;
   startedAt: string | null;
   completedAt: string | null;
   assignedToGoogleSubject: string | null;
   deadlineAt: string | null;
-  wasOverdue: boolean;
+  wasOverdue: boolean | null;
   leakTimeStatus: LeakTimeStatus;
 }
 export const taskAreaLabels: Record<TaskArea, string> = { Commercial: "Comercial", Budgets: "Presupuestos" };

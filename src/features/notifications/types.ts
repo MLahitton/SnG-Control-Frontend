@@ -11,7 +11,7 @@ export interface ProjectNotification {
   state: NotificationState;
   title: string;
   message: string;
-  scheduledAt: string | null;
+  scheduledAt: string;
   createdAt: string;
   resolvedAt: string | null;
   deadlineAt: string | null;

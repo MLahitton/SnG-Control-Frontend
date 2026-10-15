@@ -47,7 +47,7 @@ describe("Project detail and send to Budgets", () => {
   });
   it("requires explicit confirmation, blocks double send, then refreshes tasks and notifications", async () => {
     const { state, fetchMock, setMutation } = backend();
-    const pending = deferred<unknown>();
+    const pending = deferred<ProjectTask>();
     setMutation((path, init) => { expect(path).toBe("projects/project-1/send-to-budgets"); expect(init.body).toBeUndefined(); return pending.promise; });
     await openDetail();
     await userEvent.click(screen.getByRole("button", { name: "Enviar a Presupuestos" }));
@@ -65,6 +65,7 @@ describe("Project detail and send to Budgets", () => {
     expect(screen.getByText("Pendiente")).toBeInTheDocument();
     expect(screen.getByText("Sin iniciar")).toBeInTheDocument();
     expect(screen.getByText("Vence: Sin fecha asignada")).toBeInTheDocument();
+    expect(screen.queryByText("Registró atraso.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enviar a Presupuestos" })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("/tasks"))).toHaveLength(2);
     expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("/notifications"))).toHaveLength(2);
