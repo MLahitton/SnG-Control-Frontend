@@ -112,6 +112,9 @@ La configuración local usa `.env` en la raíz, junto a `package.json`, y está 
 | --- | --- | --- |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Pública, incluida en el bundle | OAuth Client ID de una aplicación web Google |
 | `SNG_API_BASE_URL` | Solo servidor | URL absoluta HTTP/HTTPS de SnG-Control-Backend |
+| `SNG_INTELLIGENCE_BASE_URL` | Solo servidor | Origen de SnG Intelligence; ejemplo local `http://127.0.0.1:8001` |
+
+La configuración de Intelligence se prepara independientemente en cada worktree; no se copia `.env` ni credenciales. No agregar OPENAI_API_KEY ni modelos de proveedores al frontend. El BFF de Intelligence solo usa su URL server-only; la UI no la recibe.
 
 No hay valores reales ni fallback de backend. El Client ID identifica la aplicación y es público; no es una contraseña. Este flujo NO usa Client Secret. No se debe solicitar, almacenar ni añadir al entorno frontend.
 
@@ -197,7 +200,7 @@ Este puente específico se mantiene para validar identidad. El navegador solo ll
 
 ### Cliente API y errores
 
-`useApiClient()` obtiene la instancia creada por AuthProvider. Sus métodos son `get<T>`, `post<T>`, `put<T>`, `delete<T = void>`, `upload<T>`, `download` y `downloadStream`. El path es relativo al BFF (ejemplo: `projects`), sin slash inicial ni query embebido; las opciones aceptan `URLSearchParams` y `AbortSignal`. Los genéricos representan el contrato esperado; cada futuro servicio debe validar su contrato si requiere validación runtime.
+`useApiClient()` obtiene la instancia creada por AuthProvider. Sus métodos son `get<T>`, `post<T>`, `put<T>`, `delete<T = void>`, `upload<T>`, `download`, `downloadStream` y `postAudio` (solo speech de Intelligence). El path es relativo al BFF (ejemplo: `projects`), sin slash inicial ni query embebido; las opciones aceptan `URLSearchParams` y `AbortSignal`. Los genéricos representan el contrato esperado; cada futuro servicio debe validar su contrato si requiere validación runtime.
 
 El cliente agrega Bearer, omite cookies, no cachea ni sigue redirects. JSON se serializa centralmente. Para FormData no establece Content-Type: el navegador crea el boundary y el BFF lo conserva. Un 204/205 permite resultados `void`.
 
@@ -267,7 +270,42 @@ El detalle de proyecto sigue usando assignee/estado para SG y capabilities del b
 
 La creación de clientes/proyectos se oculta para `isManagement: true`, incluyendo acceso directo a `/projects/new`, y no se ofrece mediante shortcuts. **Es UX, no seguridad**: el backend todavía acepta creación general por cualquier Google autenticado. El contrato no expone una capability general que distinga Gerencia pura de Gerencia con permiso comercial de creación; esta ocultación también alcanza a identidades mixtas hasta que exista ese contrato. No se intenta inferirlo desde Subject, email, nombre ni tareas. Clientes/proyectos vuelven a consultar al cambiar Subject; la forma de creación de cliente se remonta también si cambia el flag.
 
-SnG Intelligence, IA/chat/voz, Frontend 2C, confirmación de cotizaciones, aprobación y pago están fuera de este bloque.
+Intelligence tiene su bloque separado descrito a continuación. Frontend 2C, confirmación de cotizaciones, aprobación y pago siguen fuera de alcance.
+
+### Intelligence 1C: arquitectura, contratos y voz
+
+La feature `src/features/intelligence/` concentra `types.ts`, `parser.ts`, `paths.ts`, `errors.ts`, `service.ts`, hooks de captura/reproducción, renderer y panel. `AppShell` monta `IntelligenceLauncher` únicamente para una sesión validada con `isManagement === true`; la instancia tiene key por Subject. No se crean roles ni otra sesión. La retirada del flag, logout o cambio de Subject desmonta toda la experiencia y descarta respuestas tardías.
+
+El ApiClient existente reconoce únicamente las cinco combinaciones ruta/método del namespace `intelligence/`, sin query; las dirige a `/api/intelligence/...`. Conserva generación de sesión y protección frente a 401 tardíos. `postAudio` añade POST binario solo para speech, acepta MP3 y reutiliza el mismo Bearer. AuthProvider únicamente delega ese método adicional en su instancia estable. No hay fetch en componentes ni lectura de tokens en la feature.
+
+| Método | Ruta same-origin y upstream | Contrato |
+| --- | --- | --- |
+| GET | `/api/intelligence/session` | `{ authenticated: true, isManagement: true }` |
+| POST | `/api/intelligence/chat` | `{ message }` → IntelligenceResponse |
+| POST | `/api/intelligence/voice/transcribe` | multipart `file` → `{ transcript }` (service disponible, no flujo separado en UI) |
+| POST | `/api/intelligence/voice` | multipart `file` → IntelligenceResponse + transcript |
+| POST | `/api/intelligence/voice/speech` | `{ text: spokenAnswer, responseType }` → audio/mpeg |
+
+El Route Handler dedicado delega en `server/bridge.ts`, marcado server-only. Construye el destino desde `SNG_INTELLIGENCE_BASE_URL`, que debe ser un origen HTTP/HTTPS sin path, credenciales, query ni fragmento; configuración inválida/ausente produce 503. No expone health. Rechaza rutas adicionales, traversal, barras embebidas, query y métodos incorrectos; HEAD no cae en GET automático. Reenvía solo Authorization y Content-Type validado, con Accept definido por operación. Usa no-store, redirect:error, signal combinado con timeout de 180 segundos y no hace retries automáticos.
+
+Chat/speech aceptan application/json; voice/transcribe exigen multipart con boundary. Los bytes JSON/multipart se transmiten sin reconstrucción, con duplex:half. Los tamaños declarados se limitan a 64 KiB JSON o 10 MiB + 64 KiB multipart; el control definitivo de uploads sin Content-Length es el de Intelligence. MP3 se devuelve en streaming, sin buffer del BFF. El navegador crea un Blob temporal para reproducción (máximo aceptado 10 MiB) y revoca su URL al terminar, detener, reemplazar audio o desmontar.
+
+Las respuestas JSON se leen con límite de 512 KiB y pasan por una allowlist de campos tipados. Arrays limitados a 50, IDs UUID, métricas enteras seguras, textos de presentación acotados a 500 caracteres, answer/spokenAnswer a 12000 y transcript a 4000. Campos desconocidos se eliminan; tipos, IDs o discriminadores inválidos producen 502. Se rechazan credenciales/origen interno/paths reconocibles en campos admitidos. Errores solo conservan status y requestId UUID seguro; no se exponen error codes del proveedor, stack, detalles de validación ni headers internos. TLS no se debilita. HTTP loopback es opción local; despliegue puede usar HTTPS.
+
+Contrato observado mediante lectura de `app/contracts/presentation.py`, `app/agent/contracts.py`, `app/agent/presentation.py`, `app/voice/contracts.py` y rutas de SnG Intelligence durante esta implementación:
+- Base: responseType, answer, spokenAnswer, references, presentation. presentation.kind debe coincidir con responseType.
+- direct: metric nullable; management_brief: metrics/items; project_status: project/tasks; list: items; comparison: areas; clarification: candidates; unavailable: reason=data_not_available.
+- ProjectItem: kind/projectId/projectName/sgCode/clientName/city. TaskItem: kind/projectId/projectName/sgCode/taskId/area/task/status/leakTimeStatus/deadlineAt.
+- Las etiquetas de área, tarea, estado y plazo en presentation **ya están localizadas por Intelligence**; se muestran literalmente como texto validado, sin tratarlas como enums de Control.
+- References project/task contienen IDs UUID y label; solo se generan rutas locales `/projects/{projectId}`. No se aceptan href del modelo. Project name/label es principal y SG secundario. Clarification envía nombre e ID en una nueva consulta autocontenida.
+- El renderer central usa siete variantes, texto React sin HTML/Markdown ejecutable, cifras solo recibidas y formatDate de Colombia. Unavailable no se trata como fallo.
+- Contrato en evolución: si Presentation & Voice 1B cambia, sincronizar types/parser/renderer. No hay fallback que adivine un contrato antiguo. El contrato actual limita speech a 4000 caracteres aunque la base permite spokenAnswer hasta 12000; si excede 4000, se informa input inválido sin truncar ni reinterpretar el texto.
+
+`useVoiceRecorder` solicita getUserMedia solo por gesto, selecciona isTypeSupported (WebM/Opus, WebM, MP4), muestra permiso/grabación/segundos, limita 60 s y 10 MiB, y ofrece detener/enviar o cancelar. MP4 siempre genera voice.m4a/audio/mp4. Permisos tardíos tras cancelar/desmontar cierran todas las pistas. No se transcribe ni analiza audio localmente.
+
+`useSpeech` controla request, Audio y object URL. TTS usa exclusivamente spokenAnswer. Autoplay configurable solo para voz; texto requiere botón. Rechazo de autoplay ofrece reanudar; se detiene el audio anterior al enviar otra consulta o reproducir otra respuesta. Todas las operaciones y recursos se cancelan al cerrar, cambiar identidad o salir.
+
+La conversación local contiene hasta 40 mensajes y no se manda como historial. Se mantiene al navegar mientras AppShell/panel permanecen montados; móvil cierra al seguir referencias. Cerrar descarta la conversación explícitamente. El diálogo nativo gestiona foco modal/Escape; al cerrar vuelve al botón. Panel de hasta 480 px en desktop, pantalla móvil con 100dvh/safe areas y visualViewport para teclado; comparación usa scroll horizontal deliberado. No se introducen dependencias, persistencia, Realtime, WebRTC, WebSocket, RAG, LangGraph ni memoria backend.
 
 ### Documentos y handoff de Frontend 2B.1
 
@@ -363,6 +401,8 @@ Las suites verifican:
 - Infraestructura documental: DELETE restringido/204, ZIP y stream intactos, timeout por ruta, cancelación, filename seguro, File System Access y fallback con revocación de object URL.
 - Gerencia: flag obligatorio en ambos extremos de auth, restauración/cambio de identidad, navegación/protección visual, 401/403, cancelación y descarte de datos tardíos con ApiClient estable, overview/áreas/atención/nulos/vacíos, orden/filtros locales/búsqueda, rutas BFF exactas de solo lectura y convivencia de permisos de Gerencia con capacidades operativas.
 
+Las pruebas de Intelligence sustituyen fetch, MediaRecorder, getUserMedia, Audio y ObjectURL. Cubren contratos/renderers, autenticación y requests tardíos, sesión/chat/referencias/candidatos, MIME WebM/MP4, permisos, cancelación/60 s/bytes, spokenAnswer, autoplay/pausa/reanudación/revocación, BFF estricto y streaming. No llaman a FastAPI, Google ni proveedores reales.
+
 No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tailwind.
 
 ## Comprobación local de integración
@@ -386,9 +426,11 @@ Smoke pendiente de Frontend 3A: con una cuenta configurada como Gerencia en back
 
 Sin las dos variables y un backend activo, un 200 de la página solo verifica que Next sirve la UI. Los tests del puente con fetch mock no prueban la integración .NET ni Google real. No confundas esos resultados.
 
+Smoke pendiente de Intelligence: preparar configuración independiente, iniciar sesión Gerencia y abrir el botón; verificar session/chat/references/clarification y unavailable. Probar permiso aceptado/denegado, captura WebM y MP4/M4A según navegador, transcripción, spokenAnswer/TTS, pausa/reanudar, autoplay bloqueado, cancelación y logout con audio/requests activos. Verificar navegación móvil/desktop, teclado y safe areas en 375, 768, 1024 px y desktop amplio. Falta smoke real con audio y servicios; la suite automatizada no lo sustituye. No se incorporan automáticamente cambios posteriores de 3A: la integración futura requiere merge/rebase controlado, tests y smoke.
+
 ## Límites y siguiente bloque
 
-Frontend 3A agrega Gerencia al flujo y sistema visual de 2B.5. No implementa importación/preview de cotizaciones XLSX, edición/confirmación ni revisión comercial de 2C. Tampoco aprobación/pago, SnG Intelligence, roles inventados, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad.
+Frontend 3A agrega Gerencia al flujo y sistema visual de 2B.5. No implementa importación/preview de cotizaciones XLSX, edición/confirmación ni revisión comercial de 2C. Intelligence 1C agrega consulta textual/voz como feature separada. No implementa aprobación/pago, roles inventados, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad.
 
 Deuda funcional: la autorización actual permite crear clientes/proyectos a cualquier Google autenticado. Gerencia tiene una restricción únicamente de UX descrita arriba. La seguridad de estas operaciones y una capability de creación para identidades mixtas requieren futura autorización general de Comercial en backend.
 

@@ -38,6 +38,7 @@ export interface ApiStreamDownload {
 }
 
 export interface ApiClient {
+  postAudio(path: string, body: JsonValue, options?: ApiRequestOptions): Promise<Blob>;
   get<T>(path: string, options?: ApiRequestOptions): Promise<T>;
   post<T>(path: string, body?: JsonValue, options?: ApiRequestOptions): Promise<T>;
   put<T>(path: string, body?: JsonValue, options?: ApiRequestOptions): Promise<T>;

@@ -1,4 +1,6 @@
 const paths = {
+  intelligence: "M12 3 15 9 21 12 15 15 12 21 9 15 3 12 9 9Z",
+  microphone: "M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0V5M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8",
   home: "M3 10 12 3l9 7M5 9v12h5v-7h4v7h5V9",
   clients: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8m6 10v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   projects: "M3 21V3h12v18M15 9h6v12M7 7h4M7 11h4M7 15h4M1 21h22",

@@ -9,6 +9,7 @@
   min-height: 100svh;
   background: #f4f6f6;
 }
+.shell:has([aria-label="Abrir SnG Intelligence"]) .main { padding-bottom: 88px; }
 .main { width: 100%; max-width: 1600px; min-width: 0; margin: auto; padding: 24px 16px; }
 .sidebar { display: none; background: var(--nav-bg); color: var(--nav-text); }
 .sidebar[data-open=true] { display: block; }

@@ -64,7 +64,7 @@ Las notificaciones conservan el historial, incluidas alertas de atraso resueltas
 
 El detalle reúne encabezado, estado actual, documentación, acciones disponibles y actividad en un expediente continuo con divisores. Las tareas del proyecto muestran sus fechas directamente. El shell combina navegación azul pálido y una cabecera discreta; las demás páginas conservan sus componentes actuales.
 
-Todo usa el BFF y cliente API compartidos. Los archivos siguen siendo documentos opacos; no se implementa importación/preview de cotizaciones Excel, confirmaciones, revisión comercial, aprobación o pago. No hay roles inventados, permisos simulados ni métricas inventadas. Frontend 2C y SnG Intelligence permanecen fuera de alcance.
+Todo usa el BFF y cliente API compartidos. Los archivos siguen siendo documentos opacos; no se implementa importación/preview de cotizaciones Excel, confirmaciones, revisión comercial, aprobación o pago. No hay roles inventados, permisos simulados ni métricas inventadas. Frontend 2C permanece fuera de alcance. Intelligence 1C se integra como experiencia separada de consulta.
 
 ## Gerencia — Frontend 3A
 
@@ -79,5 +79,21 @@ Los enlaces abren el detalle existente para consultar datos, tareas, actividad, 
 Deuda conocida: el backend aún permite crear clientes/proyectos a cualquier Google autenticado. La UI oculta creación para cuentas con `isManagement: true`, incluso en `/projects/new`. Es **una restricción de UX, no una barrera de seguridad**. El contrato actual no informa una capability general de creación para distinguir Gerencia pura de una identidad mixta; por ello esta ocultación también aplica a identidades mixtas, sin alterar sus permisos específicos en proyectos. Resolverlo requiere una autorización/capability general de Comercial en backend.
 
 Pendiente de smoke real: login/restauración con Gerencia, navegación y endpoints, consulta/descarga autorizada, ausencia de escrituras para Gerencia pura y cambio de cuenta sin hard refresh. Verificar también 375, 768, 1024 px y desktop amplio. Los tests usan red simulada; no sustituyen esa integración.
+
+## SnG Intelligence — Frontend Intelligence 1C
+
+Solo las cuentas con `user.isManagement === true` ven el botón flotante **Intelligence**, disponible dentro del shell. No se agrega un enlace al Sidebar. Al abrir se verifica el acceso con Intelligence; su autorización real sigue dependiendo del backend. El panel presenta chat, micrófono y referencias a proyectos, con el nombre como dato principal y SG como metadata.
+
+Configura de forma independiente en el entorno del worktree `SNG_INTELLIGENCE_BASE_URL`, solo servidor. Ejemplo de desarrollo: `http://127.0.0.1:8001`. No tiene prefijo NEXT_PUBLIC. El navegador llama únicamente a `/api/intelligence/...` de Next; no recibe URL del servicio ni claves de proveedores. No copies el `.env` de otro worktree; configura el Client ID público y las URLs que correspondan al entorno de prueba.
+
+Chat envía un mensaje por solicitud, sin historial. Enter envía y Shift+Enter agrega una línea. Las respuestas admiten direct, management_brief, project_status, list, comparison, clarification y unavailable. Cifras, estados, áreas y fechas proceden de Intelligence. Seleccionar un candidato genera una pregunta autocontenida con nombre e ID; no presupone memoria del agente. Las referencias de proyectos/tareas abren el proyecto asociado.
+
+El micrófono pide permiso solo al pulsarlo. Graba hasta 60 segundos, con cancelación y límite de 10 MiB; elige WebM/Opus, WebM o MP4 según el navegador, enviando M4A como `audio/mp4`. Al detener, envía el archivo y muestra la transcripción y la respuesta. La reproducción automática está activada inicialmente solo para consultas de voz y se puede desactivar. “Escuchar respuesta” usa `spokenAnswer`; permite pausa, reanudación, detener y volver a escuchar. Se identifica como voz generada por IA. Si el navegador bloquea autoplay, ofrece reanudar mediante un gesto.
+
+La conversación vive en React (hasta 40 mensajes); no se envía a almacenamiento local ni backend. Se conserva al navegar dentro del shell con el panel abierto. Cerrar, recargar, logout o cambio de identidad la elimina y libera solicitudes, micrófono y audio. En móvil, navegar una referencia cierra el panel; en desktop lo mantiene. El panel usa diálogo nativo, scroll propio, safe areas y adaptación al viewport/teclado.
+
+Los errores 401 invalidan la sesión existente; 403 mantiene la sesión; 422, 429 y 503 ofrecen mensajes seguros. Solo se presenta un requestId validado como referencia diagnóstica. Una respuesta unavailable es información normal.
+
+Pendiente: integración controlada con 3A final y smoke real de chat/voz/TTS, permisos, cambio de cuenta, navegación y tamaños 375/768/1024/desktop. Este worktree usa el snapshot de 3A, sin sincronización automática. No implementa Realtime, WebRTC/WebSocket, historial persistente, memoria backend, RAG ni LangGraph.
 
 La integración real requiere un Client ID configurado y un backend disponible con TLS confiable. El procedimiento de comprobación está en el manual técnico.

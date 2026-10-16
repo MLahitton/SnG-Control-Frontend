@@ -120,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = () => client ??= createApiClient({ getSession, invalidateSession });
     return {
       get: (path, options) => current().get(path, options),
+      postAudio: (path, body, options) => current().postAudio(path, body, options),
       post: (path, body, options) => current().post(path, body, options),
       put: (path, body, options) => current().put(path, body, options),
       delete: (path, options) => current().delete(path, options),

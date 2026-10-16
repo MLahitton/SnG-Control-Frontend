@@ -1,4 +1,6 @@
 import { ApiError } from "./apiError";
+import { intelligenceMethod } from "@/features/intelligence/paths";
+import { IntelligenceError } from "@/features/intelligence/errors";
 import { isBackendPath } from "./backendPath";
 import { downloadFilename } from "./contentDisposition";
 import type { ApiClient, ApiRequestOptions, JsonValue } from "./types";
@@ -29,7 +31,10 @@ export function createApiClient(session: SessionAccess): ApiClient {
     options: ApiRequestOptions = {},
     binary = false,
   ): Promise<Response> {
-    if (!isBackendPath(path.split("/"))) throw new ApiError(400);
+    const intelligence = path.startsWith("intelligence/");
+    if (intelligence) {
+      if (intelligenceMethod(path.slice("intelligence/".length)) !== method || options.query?.toString()) throw new IntelligenceError(400);
+    } else if (!isBackendPath(path.split("/"))) throw new ApiError(400);
     const snapshot = session.getSession();
     if (!snapshot.token) {
       invalidate(snapshot.generation);
@@ -37,7 +42,7 @@ export function createApiClient(session: SessionAccess): ApiClient {
     }
     const headers = new Headers({
       Authorization: `Bearer ${snapshot.token}`,
-      Accept: binary ? "application/octet-stream, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/zip" : "application/json",
+      Accept: intelligence && binary ? "audio/mpeg" : binary ? "application/octet-stream, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/zip" : "application/json",
     });
     let requestBody: BodyInit | undefined;
     if (body instanceof FormData) requestBody = body;
@@ -48,7 +53,7 @@ export function createApiClient(session: SessionAccess): ApiClient {
     const query = options.query?.toString();
     let response: Response;
     try {
-      response = await fetch(`/api/backend/${path}${query ? `?${query}` : ""}`, {
+      response = await fetch(`${intelligence ? "/api/" : "/api/backend/"}${path}${query ? `?${query}` : ""}`, {
         method, headers, body: requestBody, signal: options.signal,
         cache: "no-store", credentials: "omit", redirect: "error",
       });
@@ -60,7 +65,7 @@ export function createApiClient(session: SessionAccess): ApiClient {
     if (!response.ok) {
       let payload: unknown;
       try { payload = await response.json(); } catch { /* Non-JSON errors use the safe status message. */ }
-      throw new ApiError(response.status, payload);
+      throw intelligence ? new IntelligenceError(response.status, payload) : new ApiError(response.status, payload);
     }
     return response;
   }
@@ -72,6 +77,15 @@ export function createApiClient(session: SessionAccess): ApiClient {
   }
 
   return {
+    postAudio: async (path, body, options) => {
+      if (path !== "intelligence/voice/speech") throw new IntelligenceError(400);
+      const response = await request("POST", path, body, options, true);
+      if (response.headers.get("Content-Type")?.split(";")[0].trim() !== "audio/mpeg") throw new IntelligenceError(502);
+      const blob = await response.blob();
+      if (options?.signal?.aborted) throw new DOMException("Solicitud cancelada.", "AbortError");
+      if (!blob.size || blob.size > 10 * 1024 * 1024) throw new IntelligenceError(502);
+      return blob;
+    },
     get: <T>(path: string, options?: ApiRequestOptions) => json<T>("GET", path, undefined, options),
     post: <T>(path: string, body?: JsonValue, options?: ApiRequestOptions) => json<T>("POST", path, body, options),
     put: <T>(path: string, body?: JsonValue, options?: ApiRequestOptions) => json<T>("PUT", path, body, options),

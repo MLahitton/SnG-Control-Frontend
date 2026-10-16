@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
+import { IntelligenceLauncher } from "@/features/intelligence/components/IntelligenceLauncher";
 import { AuthGate } from "@/features/auth/components/AuthGate";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -23,6 +24,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main id="main-content" ref={content} tabIndex={-1} className={styles.main}>
           {children}
         </main>
+        <IntelligenceLauncher />
       </div>
     </AuthGate>
   );
