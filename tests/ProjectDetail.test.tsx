@@ -6,6 +6,7 @@ import type { Project } from "@/features/projects/types";
 import type { ProjectTask } from "@/features/tasks/types";
 import { client, project, task, inProgressTask, notification, deferred, mockBackend, renderOperational } from "./operationalFixtures";
 import { user } from "./fixtures";
+import { projectDocuments } from "./documentFixtures";
 
 // Synthetic identities: same email/name, different stable Subjects.
 const assignedUser = { ...user, subject: task.assignedToGoogleSubject! };
@@ -19,6 +20,7 @@ function backend(initialTasks: ProjectTask[] = [], initialProject: Project = pro
     if (path === "clients/client-1") return client;
     if (path === "projects/project-1/tasks") return state.tasks;
     if (path === "projects/project-1/notifications") return state.notifications;
+    if (path === "projects/project-1/documents") return { ...projectDocuments, canSendToBudgets: state.tasks.length === 0 };
     throw new Error("Unexpected test endpoint");
   });
   return { state, fetchMock, setMutation: (handler: typeof mutation) => { mutation = handler; } };
@@ -91,6 +93,7 @@ describe("Project detail and send to Budgets", () => {
     let sent = false; let refreshFails = true;
     const fetchMock = mockBackend((path, init) => {
       if (init.method === "POST") { sent = true; return task; }
+      if (path.endsWith("/documents")) return { ...projectDocuments, canSendToBudgets: !sent };
       if (path.endsWith("/notifications")) return sent && refreshFails ? Response.json({}, { status: 503 }) : [notification];
       if (path.endsWith("/tasks")) return sent ? [task] : [];
       if (path.startsWith("clients/")) return client;

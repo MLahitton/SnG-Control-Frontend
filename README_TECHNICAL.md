@@ -184,34 +184,36 @@ Este puente específico se mantiene para validar identidad. El navegador solo ll
 `/api/backend/[...path]` delega en `backendBridge.ts` y apunta exclusivamente a `{SNG_API_BASE_URL}/api/...`.
 
 - Raíces permitidas: `clients`, `projects`, `project-tasks`, `notifications`. No hay otras raíces ni URLs/hosts/protocolos controlados por el browser.
-- Métodos reenviados: GET, POST y PUT. DELETE/PATCH no se exportan; HEAD responde 405 explícitamente para evitar el GET automático de Next. OPTIONS puede responder localmente por Next, sin llegar al backend.
+- Métodos reenviados: GET, POST y PUT; DELETE únicamente en `projects/{projectId}/documents/{documentId}`, validando los segmentos existentes y rechazando payloads. DELETE en cualquier otra estructura devuelve 405. PATCH no se exporta; HEAD responde 405 explícitamente para evitar el GET automático de Next. OPTIONS puede responder localmente por Next, sin llegar al backend.
 - Segmentos: letras ASCII, números, guiones/guiones bajos y puntos internos entre partes válidas (por ejemplo `confirmed.xlsx`). Rechaza vacíos, puntos solos, barras, backslashes, porcentajes/doble encoding, espacios, query/fragmentos dentro del path y demás caracteres anómalos. Máximo 20 segmentos de 200 caracteres.
 - Usa URL APIs y conserva el querystring, incluidos parámetros repetidos. Ningún query puede cambiar el origen o la ruta construida.
-- Reenvía solo Authorization, Accept y Content-Type si hay body. No Cookie, Host, Connection, Referer, Origin ni cabeceras arbitrarias.
+- Reenvía solo Authorization, Accept y Content-Type permitido en POST/PUT cuando está presente. No Cookie, Host, Connection, Referer, Origin ni cabeceras arbitrarias. No inventa Content-Type ni body para operaciones vacías; reconoce streams vacíos de Next sin Content-Type y rechaza bytes reales sin media type.
 - Acepta JSON, media types JSON, multipart con boundary, XLSX y octet-stream. El body se reenvía como stream con `duplex: "half"` sin leer/reconstruir FormData ni transformar archivos. POST/PUT sin body también funcionan.
-- Fetch con `cache: "no-store"`, `redirect: "error"`, cancelación del request y timeout de 120 segundos para permitir uploads. No reintenta mutaciones automáticamente.
+- Fetch con `cache: "no-store"`, `redirect: "error"` y cancelación del request. Timeout normal: 120 segundos. Solo POST `projects/{id}/documents/batch` y GET `projects/{id}/documents/{documentId}/file`, `current.zip`, `initial-handoff.zip` usan 600 segundos (10 minutos). No reintenta mutaciones automáticamente.
 - Conserva status 2xx y 4xx/5xx, incluidos 201, 204, 401, 403, 409 y 413. Redirects inesperados o respuestas no admitidas producen 502. Configuración ausente/inválida produce 503; red/TLS/timeout antes de responder produce 502.
 - Todas las respuestas llevan `Cache-Control: no-store` y `Vary: Authorization`. Se permiten Content-Type, Content-Disposition validado y Retry-After numérico o fecha HTTP. Se descartan cookies, Location y headers internos.
-- JSON exitoso conserva datos de negocio, eliminando claves de diagnóstico/credenciales y anulando referencias al origen interno, al Bearer recibido o a paths de almacenamiento reconocibles. Descargas XLSX/octet-stream se transmiten sin modificar bytes; su contenido documental es responsabilidad del backend.
+- JSON exitoso conserva datos de negocio, eliminando claves de diagnóstico/credenciales y anulando referencias al origen interno, al Bearer recibido o a paths de almacenamiento reconocibles. Descargas XLSX/octet-stream/ZIP se transmiten sin modificar bytes; su contenido documental es responsabilidad del backend. En GET documental individual, cualquier archivo (incluido HTML/SVG/JSON) es opaco: se fuerza `application/octet-stream`, `Content-Disposition: attachment` y `nosniff`, conservando el filename validado. ZIP conserva `application/zip` y también se fuerza como descarga.
 - Los binarios se transmiten en streaming: una interrupción posterior a enviar las cabeceras aborta la descarga; el cliente la trata como error seguro. No es posible sustituir el status por 502 después de enviar esas cabeceras.
 
 ### Cliente API y errores
 
-`useApiClient()` obtiene la instancia creada por AuthProvider. Sus métodos son `get<T>`, `post<T>`, `put<T>`, `upload<T>` y `download`. El path es relativo al BFF (ejemplo: `projects`), sin slash inicial ni query embebido; las opciones aceptan `URLSearchParams` y `AbortSignal`. Los genéricos representan el contrato esperado; cada futuro servicio debe validar su contrato si requiere validación runtime.
+`useApiClient()` obtiene la instancia creada por AuthProvider. Sus métodos son `get<T>`, `post<T>`, `put<T>`, `delete<T = void>`, `upload<T>`, `download` y `downloadStream`. El path es relativo al BFF (ejemplo: `projects`), sin slash inicial ni query embebido; las opciones aceptan `URLSearchParams` y `AbortSignal`. Los genéricos representan el contrato esperado; cada futuro servicio debe validar su contrato si requiere validación runtime.
 
 El cliente agrega Bearer, omite cookies, no cachea ni sigue redirects. JSON se serializa centralmente. Para FormData no establece Content-Type: el navegador crea el boundary y el BFF lo conserva. Un 204/205 permite resultados `void`.
 
 `download` retorna `{ blob, filename }` y nunca activa una descarga automáticamente. Lee `filename` o `filename*=UTF-8''...` de Content-Disposition, valida que sea un nombre simple (sin paths ni nombres reservados de Windows) y devuelve null si no es seguro o falta. Nunca toma el nombre de un querystring.
 
+`downloadStream` retorna `{ stream, filename }` sin consumir el body y usa el mismo flujo autenticado/error/401. Ambas modalidades aceptan ZIP. `saveDownload` se llama desde el gesto del usuario: si existe `showSaveFilePicker`, solicita primero un destino con suggestedName seguro de la UI y luego conecta el stream autenticado al writable con `pipeTo`. El nombre elegido en el selector pertenece al usuario. Sin esa API, consume un Blob en el browser y usa un enlace con `download`, filename seguro del backend o fallback validado, retirando el enlace y revocando su object URL. Cancelar el selector no llama a la API ni muestra un error de servidor. No hay preview, iframe o almacenamiento de archivos en sessionStorage/localStorage.
+
 `ApiError` expone status, message, code opcional y ProblemDetails seguros. Los mensajes son locales por status: 403 indica “No tienes permiso para esta acción”; 409 conserva el código de negocio sin imponer lógica de UI.
 
-La allowlist de extensiones acepta `code`, `errorCode`, `field`, `fields` (identificadores acotados) y `retryAfterSeconds` (entero no negativo), tanto en la raíz de ProblemDetails como dentro de `extensions`. Se conservan en 4xx; los 5xx usan diagnóstico genérico. Se descartan title/detail/type/instance libres, stack traces, paths y extensiones desconocidas. Agrega extensiones solo al confirmar un contrato seguro del backend; no expongas indiscriminadamente ProblemDetails.
+La allowlist de extensiones acepta `code`, `errorCode`, `field`, `fields` (identificadores acotados) y `retryAfterSeconds` (entero no negativo), tanto en la raíz de ProblemDetails como dentro de `extensions`. Se conservan en 4xx; los 5xx usan diagnóstico genérico salvo el identificador exacto `code: DocumentUnavailable` en status 500, necesario para el mensaje documental local. Esa excepción no conserva ninguna otra extensión. Se descartan title/detail/type/instance libres, stack traces, paths y extensiones desconocidas. Agrega extensiones solo al confirmar un contrato seguro del backend; no expongas indiscriminadamente ProblemDetails.
 
 También acepta `missingItems` y `unexpectedItems` como arrays de `CommercialItemKey`: únicamente `section: "Main" | "Additional"` y `sourceRow` entero seguro positivo. Cada array admite hasta **200 elementos**, incluidos arrays vacíos. Si supera el límite o contiene algún elemento inválido se descarta ese array completo, sin truncarlo; los campos adicionales de los objetos se eliminan. `fileError` acepta solo un identificador ASCII de 1–80 caracteres, iniciado por una letra y seguido de letras, números o guiones bajos. No admite texto libre, URLs ni paths.
 
 Estos tres campos admiten entrada en la raíz o en `extensions`, con la misma precedencia existente: raíz no nula primero. La salida canónica está en `problem.extensions`; `ApiError` además expone propiedades tipadas `missingItems`, `unexpectedItems` y `fileError`. No se permite ningún objeto o extensión arbitrarios.
 
-Los servicios en `features/clients`, `features/projects`, `features/tasks` y `features/notifications` utilizan esta capa con contratos explícitos. Las pantallas obtienen `useApiClient()` y gestionan su estado de envío sin duplicar fetch ni invalidación de sesión.
+Los servicios en `features/clients`, `features/projects`, `features/documents`, `features/tasks` y `features/notifications` utilizan esta capa con contratos explícitos. Las pantallas obtienen `useApiClient()` y gestionan su estado de envío sin duplicar fetch ni invalidación de sesión.
 
 ### Flujo operativo de Frontend 2B
 
@@ -232,7 +234,7 @@ Las rutas `/clients`, `/projects`, `/projects/new`, `/projects/[id]`, `/tasks` y
 
 Crear cliente envía solo `{ name }`; crear proyecto envía `{ clientId, name, city, productLine }`. Los nombres duplicados no se bloquean. La línea acepta Classic, Essential, Bioconfort o Signature. El selector exige un cliente existente; sin clientes ofrece ir a `/clients`. El backend determina `createdBy`; la UI muestra su nombre/email como responsable comercial y no pide ni presenta Subjects en estas pantallas.
 
-El detalle consulta proyecto, cliente, tareas y notificaciones. Solo ofrece enviar a Presupuestos si no existe PrepareQuotation, con confirmación explícita. Al recibir éxito incorpora la tarea y refresca tareas/notificaciones. El envío crea Pending/NotStarted, con inicio y vencimiento nulos: no inicia el plazo de cinco días.
+El detalle consulta proyecto, cliente, tareas y notificaciones; documentos tiene una consulta y estados independientes. Solo ofrece enviar a Presupuestos tras cargar correctamente documentos y recibir `canSendToBudgets=true`, con confirmación explícita. Al recibir éxito incorpora la tarea y refresca documentos/tareas/notificaciones. El envío crea Pending/NotStarted, con inicio y vencimiento nulos: no inicia el plazo de cinco días. Un 409 `DocumentsRequired` muestra la indicación de cargar al menos un documento y refresca documentos/tareas, sin simular éxito.
 
 La gestión visual de SG exige `user.subject === prepareQuotation.assignedToGoogleSubject`, sin roles locales ni comparaciones por email/name. Para ese usuario, la primera asignación se ofrece con PrepareQuotation Pending y SG nulo; la corrección, con SG existente y PrepareQuotation InProgress. Los demás usuarios consultan SG, tareas, plazos e historial sin controles de edición; si está Pending sin SG, ven «Pendiente de asignación de SG por Presupuestos». Esta condición solo controla presentación: la policy `BudgetsAssignee` del backend sigue autorizando el PUT y los rechazos 403 conservan el manejo existente.
 
@@ -245,6 +247,35 @@ Todas las mutaciones tienen bloqueo síncrono contra doble submit y controles de
 `TaskList` y `TaskTimingStatus` presentan los tipos/estados y `leakTimeStatus` del backend en español. `formatDate` usa `Intl.DateTimeFormat` con **America/Bogota**, incluyendo hora para vencimientos. No compara deadlines con el reloj ni reconstruye días hábiles. Cuando PrepareQuotation está NotStarted sin deadline, indica que el plazo comienza al asignar SG.
 
 `NotificationList` conserva Informational, Active y Resolved. Resalta Overdue Active y mantiene Overdue Resolved como historial. Muestra título, mensaje, tipo de tarea, fechas y estado; las personales enlazan al proyecto. No muestra recipientGoogleSubject ni incorpora leído/no leído, contadores o acciones de mutación.
+
+### Documentos y handoff de Frontend 2B.1
+
+El panel `DocumentsPanel` está en `/projects/[id]`, sin nuevas páginas. `documentsService` usa estas rutas relativas al BFF:
+
+| Método | Ruta | Uso |
+| --- | --- | --- |
+| GET | `projects/{id}/documents` | Vigentes, históricos, snapshot inicial y capabilities |
+| POST | `projects/{id}/documents/batch` | Agregar/reemplazar en un batch multipart |
+| DELETE | `projects/{id}/documents/{documentId}` | Quitar del proyecto antes del handoff cuando está permitido |
+| GET | `projects/{id}/documents/{documentId}/file` | Descargar actual o histórico |
+| GET | `projects/{id}/documents/current.zip` | ZIP vigente del backend |
+| GET | `projects/{id}/documents/initial-handoff.zip` | Snapshot inicial del backend |
+
+`ProjectDocuments` contiene `documents`, `initialHandoff | null`, `canModify`, `canRemove` y `canSendToBudgets`. No se deducen permisos documentales del creador, email, área o Subject. Un 403 documental solo afecta este panel. El backend autoriza cada operación y la UI vuelve a consultar capabilities tras conflictos.
+
+La selección permite múltiples archivos por click o drag/drop y exige envío explícito. Valida bytes exactos: 100_000_000 por archivo, 300_000_000 por operación, máximo 15 vigentes contando existentes + additions y rechazo de 0 bytes. No filtra MIME/extensión/nombres duplicados. `formatBytes` presenta B/KB/MB sin modificar los valores de validación. No se leen los archivos para validar, renombrar, transformar o codificar a base64.
+
+`documentBatch` agrega primero `manifest`, Blob `application/json`, con `{ files: [{ partName: "file-0", replacesDocumentId: null | id }, ...] }`; luego añade los File originales en partes `file-0`, `file-1`, etc. El browser genera el boundary global. El service acepta múltiples operaciones, aunque esta UI reemplaza un documento por operación. La respuesta de batch no se usa como contrato de lista: se vuelve a consultar GET documents tras éxito.
+
+Reemplazar exige seleccionar explícitamente un archivo y confirmar que el anterior se conserva en historial; nunca se infiere por nombre. Quitar exige confirmación, `canRemove` y documento vigente; no ofrece retiro en históricos. Después del handoff, `canRemove=false` viene del backend. Se muestran fecha, tamaño, nombre original, uploader name/email, pertenencia al envío inicial y relación de reemplazo; no StorageKey ni Subjects documentales.
+
+El snapshot inicial muestra fecha, actor y cantidad de `documentIds`; se descarga desde backend sin reconstruirlo. PrepareQuotation sin snapshot es un caso legacy: se informa y no se ofrece ZIP inicial. Las bajas lógicas que no devuelve la API no se inventan.
+
+Upload/remove/replace refrescan documentos. Después del handoff (incluido legacy con tarea), upload/replace refrescan también notificaciones, conservando la tarea sin modificarla ni recalcular Leak Time. `ProjectDocumentsUpdated` es un NotificationKind normal y presenta título/mensaje del backend, sin interpretarse como alerta de atraso. Las selecciones permanecen en errores y se limpian en éxito; no hay retries automáticos. Se muestran mensajes locales para FileTooLarge, BatchTooLarge, DocumentLimitExceeded, InvalidDocumentBatch, InvalidReplacement, DocumentRemovalLocked y DocumentUnavailable.
+
+El contenido operativo del detalle tiene key por id de proyecto y `user.subject`. Un cambio de identidad desmonta consultas, selección y acciones anteriores, cancela solicitudes pendientes y vuelve a consultar proyecto/cliente/tareas/notificaciones/documentos incluso si la instancia ApiClient es estable. Las respuestas tardías no restauran capabilities de la cuenta anterior. No se introduce caché global.
+
+Next mantiene streaming de entrada y salida: no consume uploads/ZIP/binarios con arrayBuffer/Blob/Buffer. El fallback Blob existe únicamente en browser y puede necesitar memoria proporcional al archivo completo. El timeout documental de diez minutos también requiere límites compatibles en el entorno de despliegue/proxy; no elimina la cancelación del browser.
 
 ## TLS local
 
@@ -293,6 +324,8 @@ Las suites verifican:
 - Clientes/proyectos: carga, vacío, selección de cliente, cuatro líneas, creación, nombres duplicados, navegación y doble submit.
 - Detalle/SG: cargas relacionadas, 404, confirmación, envío sin body, primera asignación, formato ASCII/ceros, corrección con las mismas fechas, conflictos 409 y recuperación de lecturas fallidas tras éxito.
 - Tareas/notificaciones: filtros completos, lookup sin N+1, respuestas tardías descartadas, ocho estados temporales, timezone, historial activo/resuelto y ausencia de estado leído/no leído. Estas pruebas recorren el cliente API con fetch simulado; no llaman al backend real.
+- Documentos: capabilities, carga/drag-drop, manifest-first, límites exactos, nombres duplicados, reemplazo e históricos, retiro confirmado, handoff y DocumentsRequired, notificación documental sin reinicio temporal, descargas y cambio de Subject con ApiClient estable.
+- Infraestructura documental: DELETE restringido/204, ZIP y stream intactos, timeout por ruta, cancelación, filename seguro, File System Access y fallback con revocación de object URL.
 
 No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tailwind.
 
@@ -307,15 +340,17 @@ No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tai
 7. Cierra sesión y confirma `/login`; la home no debe mostrar identidad al abrirla sin sesión.
 8. Con un token rechazado por el backend, confirma 401, eliminación y mensaje seguro.
 9. Crea un cliente en `/clients` y un proyecto en `/projects/new`; confirma la navegación al detalle.
-10. Envía a Presupuestos tras confirmar; verifica PrepareQuotation Pendiente/Sin iniciar y vencimiento sin fecha.
+10. Verifica que el proyecto sin documentos pida cargarlos; selecciona/arrastra varios, sube, prueba quitar antes del handoff y vuelve a cargar. Envía a Presupuestos tras confirmar; verifica snapshot inicial, PrepareQuotation Pendiente/Sin iniciar y vencimiento sin fecha.
 11. Con la cuenta asignada a PrepareQuotation, asigna SG001; comprueba SG, tarea En curso, inicio/vencimiento reales y notificaciones. Corrige a otro SG disponible y verifica que inicio/vencimiento se conservan según backend. Con otra cuenta, verifica que SG y avance sean de consulta y no existan controles de asignación/corrección.
 12. En `/tasks`, selecciona Presupuestos y el estado correspondiente; comprueba el proyecto y su enlace. Revisa `/notifications` y el historial del proyecto, incluidas alertas resueltas. Verifica navegación móvil y desktop.
+13. Con capacidad de modificación, agrega/reemplaza documentos después del envío. Comprueba historial, notificación ProjectDocumentsUpdated y fechas de tarea sin reinicio. Con Presupuestos, comprueba solo consulta/descargas individual, ZIP actual e inicial.
+14. Cambia de cuenta y vuelve a la misma URL sin Ctrl+F5; verifica que se actualizan datos/capabilities. Prueba descargas con File System Access y fallback según soporte del browser, además de un proyecto legacy sin snapshot.
 
 Sin las dos variables y un backend activo, un 200 de la página solo verifica que Next sirve la UI. Los tests del puente con fetch mock no prueban la integración .NET ni Google real. No confundas esos resultados.
 
 ## Límites y siguiente bloque
 
-Frontend 2B implementa clientes, proyectos, envío a Presupuestos, asignación/corrección de SG, tareas y notificaciones. Termina antes de upload/preview XLSX, edición/confirmación de cotizaciones y revisión comercial. No implementa aprobación/pago, roles, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad. Frontend 2C requiere una instrucción explícita.
+Frontend 2B.1 agrega documentos opacos e historial, snapshot inicial y handoff formal al flujo de clientes, proyectos, SG, tareas y notificaciones. Termina antes del rediseño 2B.5 y de la importación/preview de cotizaciones XLSX, edición/confirmación y revisión comercial de 2C. No implementa aprobación/pago, roles, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad.
 
 Mantener actualizados ambos README cuando cambie el comportamiento. `.gitignore` excluye `.env`, `.env.local`, `.env.*.local`, node_modules, .next, coverage, logs y el almacén local de pnpm. No incluir valores reales en documentación o tests.
 

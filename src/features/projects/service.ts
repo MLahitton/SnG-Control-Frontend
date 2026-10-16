@@ -6,6 +6,6 @@ export const projectsService = {
   list: (api: ApiClient, signal?: AbortSignal) => api.get<Project[]>("projects", { signal }),
   get: (api: ApiClient, id: string, signal?: AbortSignal) => api.get<Project>(`projects/${id}`, { signal }),
   create: (api: ApiClient, input: CreateProject) => api.post<Project>("projects", { ...input }),
-  sendToBudgets: (api: ApiClient, id: string) => api.post<ProjectTask>(`projects/${id}/send-to-budgets`),
-  assignSg: (api: ApiClient, id: string, sgCode: string) => api.put<AssignSgResponse>(`projects/${id}/sg-code`, { sgCode }),
+  sendToBudgets: (api: ApiClient, id: string, signal?: AbortSignal) => api.post<ProjectTask>(`projects/${id}/send-to-budgets`, undefined, { signal }),
+  assignSg: (api: ApiClient, id: string, sgCode: string, signal?: AbortSignal) => api.put<AssignSgResponse>(`projects/${id}/sg-code`, { sgCode }, { signal }),
 };

@@ -32,10 +32,17 @@ export interface ApiDownload {
   filename: string | null;
 }
 
+export interface ApiStreamDownload {
+  stream: ReadableStream<Uint8Array>;
+  filename: string | null;
+}
+
 export interface ApiClient {
   get<T>(path: string, options?: ApiRequestOptions): Promise<T>;
   post<T>(path: string, body?: JsonValue, options?: ApiRequestOptions): Promise<T>;
   put<T>(path: string, body?: JsonValue, options?: ApiRequestOptions): Promise<T>;
+  delete<T = void>(path: string, options?: ApiRequestOptions): Promise<T>;
   upload<T>(path: string, body: FormData, options?: ApiRequestOptions): Promise<T>;
   download(path: string, options?: ApiRequestOptions): Promise<ApiDownload>;
+  downloadStream(path: string, options?: ApiRequestOptions): Promise<ApiStreamDownload>;
 }

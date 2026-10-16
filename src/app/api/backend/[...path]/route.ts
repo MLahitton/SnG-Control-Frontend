@@ -8,7 +8,7 @@ async function handle(request: Request, context: Context) {
   return forwardBackend(request, path);
 }
 
-export { handle as GET, handle as POST, handle as PUT };
+export { handle as GET, handle as POST, handle as PUT, handle as DELETE };
 
 // Next otherwise derives HEAD from GET. Do not forward unsupported methods.
 export function HEAD() {

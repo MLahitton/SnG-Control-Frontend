@@ -122,8 +122,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       get: (path, options) => current().get(path, options),
       post: (path, body, options) => current().post(path, body, options),
       put: (path, body, options) => current().put(path, body, options),
+      delete: (path, options) => current().delete(path, options),
       upload: (path, body, options) => current().upload(path, body, options),
       download: (path, options) => current().download(path, options),
+      downloadStream: (path, options) => current().downloadStream(path, options),
     };
   }, [getSession, invalidateSession]);
 

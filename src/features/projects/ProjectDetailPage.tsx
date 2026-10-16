@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { clientsService } from "@/features/clients/service";
@@ -14,8 +14,18 @@ import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { useResource } from "@/lib/api/useResource";
 import { formatDate } from "@/lib/formatDate";
 import { projectsService } from "./service";
+import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
+import { useProjectDocuments } from "@/features/documents/useProjectDocuments";
+import { documentErrorMessage } from "@/features/documents/validation";
 
 export function ProjectDetailPage({ id }: { id: string }) {
+  const { user } = useAuth();
+  // Remount every permission-dependent resource and action on identity changes,
+  // even when AuthProvider keeps the same API client and the URL stays unchanged.
+  return user ? <ProjectDetailContent key={`${id}:${user.subject}`} id={id} /> : <p role="status">Validando sesión…</p>;
+}
+
+function ProjectDetailContent({ id }: { id: string }) {
   const api = useApiClient();
   const { user } = useAuth();
   const load = useCallback(async (signal: AbortSignal) => {
@@ -26,6 +36,10 @@ export function ProjectDetailPage({ id }: { id: string }) {
     return { project, client, tasks, notifications };
   }, [api, id]);
   const resource = useResource(load);
+  const documents = useProjectDocuments(api, id);
+  const [documentBusy, setDocumentBusy] = useState(false);
+  const operation = useRef<AbortController | null>(null);
+  useEffect(() => () => operation.current?.abort(), []);
   const { data } = resource;
   const [confirmSend, setConfirmSend] = useState(false);
   const [sgCode, setSgCode] = useState("");
@@ -44,8 +58,8 @@ export function ProjectDetailPage({ id }: { id: string }) {
   const canCorrect = isPreparationAssignee && preparation?.status === "InProgress" && !!data?.project.sgCode;
 
   async function mutate(action: "send" | "sg") {
-    if (locked.current || !data) return;
-    if (action === "send" && (!confirmSend || preparation)) return;
+    if (locked.current || documentBusy || !data) return;
+    if (action === "send" && (!confirmSend || !documents.data?.canSendToBudgets)) return;
     const normalizedSg = sgCode.trim().toUpperCase();
     if (action === "sg") {
       if (!canAssign && !canCorrect) return;
@@ -55,18 +69,24 @@ export function ProjectDetailPage({ id }: { id: string }) {
       }
     }
     locked.current = true; setBusy(true); setError(undefined); setRefreshError(undefined); setValidation(""); setConflict(""); setNotice("");
+    const controller = new AbortController();
+    operation.current = controller;
+    const signal = controller.signal;
     try {
       if (action === "send") {
-        const task = await projectsService.sendToBudgets(api, id);
+        const task = await projectsService.sendToBudgets(api, id, signal);
+        if (signal.aborted) return;
         const updated = { ...data, tasks: [...data.tasks, task] };
         resource.update(updated);
+        documents.refresh();
         setConfirmSend(false); setNotice("Proyecto enviado a Presupuestos.");
         try {
-          const [tasks, notifications] = await Promise.all([tasksService.forProject(api, id), notificationsService.forProject(api, id)]);
-          resource.update({ ...updated, tasks, notifications });
-        } catch (failure) { setRefreshError(failure); }
+          const [tasks, notifications] = await Promise.all([tasksService.forProject(api, id, signal), notificationsService.forProject(api, id, signal)]);
+          if (!signal.aborted) resource.update({ ...updated, tasks, notifications });
+        } catch (failure) { if (!signal.aborted) setRefreshError(failure); }
       } else {
-        const response = await projectsService.assignSg(api, id, normalizedSg);
+        const response = await projectsService.assignSg(api, id, normalizedSg, signal);
+        if (signal.aborted) return;
         const updated = {
           ...data, project: response.project,
           tasks: data.tasks.map((task) => task.id === response.prepareQuotationTask.id ? response.prepareQuotationTask : task),
@@ -74,19 +94,28 @@ export function ProjectDetailPage({ id }: { id: string }) {
         resource.update(updated);
         setSgCode(""); setNotice(canCorrect ? "SG corregido." : "SG asignado.");
         try {
-          const notifications = await notificationsService.forProject(api, id);
-          resource.update({ ...updated, notifications });
-        } catch (failure) { setRefreshError(failure); }
+          const notifications = await notificationsService.forProject(api, id, signal);
+          if (!signal.aborted) resource.update({ ...updated, notifications });
+        } catch (failure) { if (!signal.aborted) setRefreshError(failure); }
       }
     } catch (failure) {
+      if (signal.aborted) return;
       setError(failure);
       if (failure instanceof ApiError && failure.status === 409) {
         if (action === "sg") setConflict("No fue posible asignar el SG. El código puede estar en uso o el proyecto ya no permite esta operación.");
+        if (action === "send") {
+          documents.refresh();
+          if (failure.code === "DocumentsRequired") setConflict(documentErrorMessage(failure));
+        }
         setConfirmSend(false); resource.refresh();
       }
-    } finally { locked.current = false; setBusy(false); }
+    } finally { if (!signal.aborted) { locked.current = false; setBusy(false); } }
   }
   function submitSg(event: FormEvent<HTMLFormElement>) { event.preventDefault(); void mutate("sg"); }
+  async function refreshDocumentNotifications(signal: AbortSignal) {
+    const notifications = await notificationsService.forProject(api, id, signal);
+    if (data && !signal.aborted) resource.update({ ...data, notifications });
+  }
 
   return <div className="space-y-6">
     <Link className="text-link" href="/projects">Volver a proyectos</Link>
@@ -109,13 +138,16 @@ export function ProjectDetailPage({ id }: { id: string }) {
           ].map(([label, value]) => <div key={label}><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 font-medium break-words">{value}</dd></div>)}
         </dl>
       </section>
-      {!preparation && <section className="panel" aria-labelledby="send-title">
+      <DocumentsPanel projectId={id} resource={documents} hasPreparation={!!preparation} disabled={busy}
+        onBusyChange={setDocumentBusy} onUpdated={refreshDocumentNotifications} />
+      {documents.data?.canModify && !documents.data.documents.some((document) => document.isCurrent) && <p role="status">Debes cargar al menos un documento del proyecto antes de enviarlo a Presupuestos.</p>}
+      {documents.data?.canSendToBudgets && <section className="panel" aria-labelledby="send-title">
         <h2 id="send-title" className="section-title">Presupuestos</h2>
         <p className="my-3">El envío asigna la preparación de la cotización. El plazo comienza con la primera asignación de SG.</p>
         {confirmSend ? <div role="group" aria-label="Confirmar envío a Presupuestos" className="space-y-3">
           <p>¿Confirmas el envío de este proyecto a Presupuestos?</p>
-          <div className="flex flex-wrap gap-3"><button className="button-primary" disabled={busy} onClick={() => void mutate("send")}>{busy ? "Enviando…" : "Confirmar envío"}</button><button className="button-secondary" disabled={busy} onClick={() => setConfirmSend(false)}>Cancelar</button></div>
-        </div> : <button className="button-primary" disabled={busy} onClick={() => setConfirmSend(true)}>Enviar a Presupuestos</button>}
+          <div className="flex flex-wrap gap-3"><button className="button-primary" disabled={busy || documentBusy} onClick={() => void mutate("send")}>{busy ? "Enviando…" : "Confirmar envío"}</button><button className="button-secondary" disabled={busy || documentBusy} onClick={() => setConfirmSend(false)}>Cancelar</button></div>
+        </div> : <button className="button-primary" disabled={busy || documentBusy} onClick={() => setConfirmSend(true)}>Enviar a Presupuestos</button>}
       </section>}
       {pendingSg && !isPreparationAssignee && <p role="status" className="rounded-lg border border-slate-200 bg-white p-4">Pendiente de asignación de SG por Presupuestos.</p>}
       {(canAssign || canCorrect) && <section className="panel" aria-labelledby="sg-title">
@@ -123,7 +155,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
         <p className="my-3 text-sm text-slate-600">{canCorrect ? "La corrección conserva el inicio y vencimiento de la tarea." : "La primera asignación inicia el plazo de preparación de la cotización."}</p>
         <form onSubmit={submitSg} className="flex flex-wrap items-end gap-4">
           <label className="field-label">Código SG<input className="form-control" required value={sgCode} disabled={busy} aria-invalid={!!validation} aria-describedby={validation ? "sg-error" : undefined} onChange={(e) => { setSgCode(e.target.value); setValidation(""); }} placeholder={data.project.sgCode ?? "SG001"} /></label>
-          <button className="button-primary" disabled={busy || !sgCode.trim()}>{busy ? "Guardando…" : canCorrect ? "Guardar corrección" : "Asignar SG"}</button>
+          <button className="button-primary" disabled={busy || documentBusy || !sgCode.trim()}>{busy ? "Guardando…" : canCorrect ? "Guardar corrección" : "Asignar SG"}</button>
         </form>
         {validation && <p id="sg-error" role="alert" className="error-message mt-3">{validation}</p>}
       </section>}

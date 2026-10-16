@@ -8,6 +8,10 @@ export function downloadFilename(header: string | null): string | null {
   } catch {
     return null;
   }
+  return safeDownloadFilename(filename);
+}
+
+export function safeDownloadFilename(filename: string | null | undefined): string | null {
   if (!filename || filename.length > 200 || filename === "." || filename === ".."
     || /[\\/<>:"|?*\u0000-\u001f\u007f]/.test(filename)
     || /^[. ]|[. ]$/.test(filename)

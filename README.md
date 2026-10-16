@@ -1,6 +1,6 @@
 # SnG Control Frontend
 
-Frontend de Steel & Glass. Incluye acceso con Google y el flujo operativo Cliente → Proyecto → Presupuestos → SG, con tareas y notificaciones de SnG-Control-Backend.
+Frontend de Steel & Glass. Incluye acceso con Google y el flujo operativo Cliente → Proyecto → Documentos → Envío a Presupuestos → SG, con tareas y notificaciones de SnG-Control-Backend.
 
 ## Estado funcional
 
@@ -36,7 +36,7 @@ Abre la URL local que imprime Next.js y entra a `/login`. No se incluyen credenc
 
 ## Alcance actual
 
-Frontend 2B ofrece estas rutas protegidas:
+Frontend 2B.1 ofrece estas rutas protegidas:
 
 | Ruta | Función |
 | --- | --- |
@@ -44,16 +44,22 @@ Frontend 2B ofrece estas rutas protegidas:
 | `/clients` | Listar y crear clientes por nombre |
 | `/projects` | Listado de proyectos con cliente, ciudad, línea, SG y fecha |
 | `/projects/new` | Crear proyecto con un cliente existente y línea Classic, Essential, Bioconfort o Signature |
-| `/projects/[id]` | Datos, responsable comercial, envío a Presupuestos, asignación/corrección de SG, tareas e historial de notificaciones |
+| `/projects/[id]` | Datos, documentos vigentes/históricos, envío inicial a Presupuestos, SG, tareas y notificaciones |
 | `/tasks` | Tareas filtradas explícitamente por área y estado |
 | `/notifications` | Notificaciones personales y alertas activas/resueltas |
 
 Los nombres duplicados de clientes y proyectos están permitidos. El creador autenticado que devuelve el backend es el responsable comercial; no se pide otro responsable al crear.
 
-El envío a Presupuestos exige confirmación y crea la tarea pendiente, sin iniciar el plazo. Asignar/corregir SG corresponde al usuario de Presupuestos asignado a PrepareQuotation; Comercial consulta el SG y el avance sin controles de edición. La primera asignación de SG inicia el Leak Time; una corrección posterior conserva inicio y vencimiento. SG acepta `SG` seguido de dígitos ASCII, normaliza espacios exteriores/mayúsculas y conserva ceros iniciales. Los plazos y estados se muestran exclusivamente desde backend, con fechas y horas en **America/Bogota**.
+Comercial carga documentos mediante selección múltiple o arrastrar/soltar y confirma la carga. Se permiten nombres duplicados y cualquier extensión/MIME: los archivos no se previsualizan. Límites: **100 MB por archivo, 300 MB por operación y 15 documentos vigentes**, con validación final del backend. Antes del envío se pueden quitar documentos cuando el backend lo permite; reemplazar conserva el anterior en el historial.
+
+El envío a Presupuestos exige al menos un documento vigente, capacidad autorizada por backend y confirmación. Crea un snapshot inicial descargable y la tarea pendiente, sin iniciar el plazo. Después, los usuarios con capacidad de modificación pueden agregar/reemplazar documentos; Presupuestos consulta y descarga vigentes, históricos, ZIP actual y envío inicial. La actualización genera `ProjectDocumentsUpdated` y no reinicia tarea ni Leak Time. Los proyectos anteriores sin snapshot muestran una indicación de historial inicial no disponible.
+
+Asignar/corregir SG corresponde al usuario de Presupuestos asignado a PrepareQuotation; Comercial consulta el SG y el avance sin controles de edición. La primera asignación de SG inicia el Leak Time; una corrección posterior conserva inicio y vencimiento. SG acepta `SG` seguido de dígitos ASCII, normaliza espacios exteriores/mayúsculas y conserva ceros iniciales. Los plazos y estados se muestran exclusivamente desde backend, con fechas y horas en **America/Bogota**.
+
+Las acciones documentales dependen de `canModify`, `canRemove` y `canSendToBudgets` recibidos del backend. Al cambiar de cuenta se vuelven a cargar los datos y capacidades del proyecto abierto, sin Ctrl+F5. Las descargas usan escritura directa al archivo cuando el navegador la permite; en otros navegadores usan una descarga estándar que requiere memoria para el archivo completo.
 
 Las notificaciones conservan el historial, incluidas alertas de atraso resueltas. No hay leído/no leído ni acciones de descarte. Las mutaciones bloquean dobles envíos y los conflictos de workflow refrescan el estado real.
 
-Todo usa el BFF y cliente API de Frontend 2A. La infraestructura admite multipart y binarios, pero este bloque no implementa carga/preview de Excel, confirmaciones de cotización, revisión comercial, aprobación o pago. No hay roles, permisos simulados ni métricas inventadas. El alcance termina en **Frontend 2B**.
+Todo usa el BFF y cliente API compartidos. Este bloque carga archivos como documentos opacos; no implementa importación/preview de cotizaciones Excel, confirmaciones, revisión comercial, aprobación o pago. No hay roles, permisos simulados ni métricas inventadas. El alcance termina en **Frontend 2B.1**, antes del rediseño 2B.5 y de 2C.
 
 La integración real requiere un Client ID configurado y un backend disponible con TLS confiable. El procedimiento de comprobación está en el manual técnico.

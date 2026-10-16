@@ -46,6 +46,8 @@ export function safeProblem(status: number, payload?: unknown): SafeProblemDetai
   const source = record(payload);
   const extra = record(source.extensions);
   const extensions: SafeProblemDetails["extensions"] = {};
+  // One documented operational 500 code; all other server diagnostics stay generic.
+  if (status === 500 && (source.code ?? extra.code) === "DocumentUnavailable") extensions.code = "DocumentUnavailable";
   if (status >= 400 && status < 500) {
     for (const key of ["code", "errorCode", "field"] as const) {
       const value = identifier(source[key] ?? extra[key]);

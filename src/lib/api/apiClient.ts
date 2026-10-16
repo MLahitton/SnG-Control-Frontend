@@ -23,7 +23,7 @@ export function createApiClient(session: SessionAccess): ApiClient {
   }
 
   async function request(
-    method: "GET" | "POST" | "PUT",
+    method: "GET" | "POST" | "PUT" | "DELETE",
     path: string,
     body: JsonValue | FormData | undefined,
     options: ApiRequestOptions = {},
@@ -37,7 +37,7 @@ export function createApiClient(session: SessionAccess): ApiClient {
     }
     const headers = new Headers({
       Authorization: `Bearer ${snapshot.token}`,
-      Accept: binary ? "application/octet-stream, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/json",
+      Accept: binary ? "application/octet-stream, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/zip" : "application/json",
     });
     let requestBody: BodyInit | undefined;
     if (body instanceof FormData) requestBody = body;
@@ -65,7 +65,7 @@ export function createApiClient(session: SessionAccess): ApiClient {
     return response;
   }
 
-  async function json<T>(method: "GET" | "POST" | "PUT", path: string, body?: JsonValue | FormData, options?: ApiRequestOptions): Promise<T> {
+  async function json<T>(method: "GET" | "POST" | "PUT" | "DELETE", path: string, body?: JsonValue | FormData, options?: ApiRequestOptions): Promise<T> {
     const response = await request(method, path, body, options);
     if (response.status === 204 || response.status === 205) return undefined as T;
     try { return await response.json() as T; } catch { throw new ApiError(502); }
@@ -75,12 +75,21 @@ export function createApiClient(session: SessionAccess): ApiClient {
     get: <T>(path: string, options?: ApiRequestOptions) => json<T>("GET", path, undefined, options),
     post: <T>(path: string, body?: JsonValue, options?: ApiRequestOptions) => json<T>("POST", path, body, options),
     put: <T>(path: string, body?: JsonValue, options?: ApiRequestOptions) => json<T>("PUT", path, body, options),
+    delete: <T = void>(path: string, options?: ApiRequestOptions) => json<T>("DELETE", path, undefined, options),
     upload: <T>(path: string, body: FormData, options?: ApiRequestOptions) => json<T>("POST", path, body, options),
     download: async (path, options) => {
       const response = await request("GET", path, undefined, options, true);
       try {
         return { blob: await response.blob(), filename: downloadFilename(response.headers.get("Content-Disposition")) };
-      } catch { throw new ApiError(502); }
+      } catch {
+        if (options?.signal?.aborted) throw new DOMException("Solicitud cancelada.", "AbortError");
+        throw new ApiError(502);
+      }
+    },
+    downloadStream: async (path, options) => {
+      const response = await request("GET", path, undefined, options, true);
+      if (!response.body) throw new ApiError(502);
+      return { stream: response.body, filename: downloadFilename(response.headers.get("Content-Disposition")) };
     },
   };
 }

@@ -1,6 +1,6 @@
 import "server-only";
 import { getApiBaseUrl } from "@/lib/config/server-env";
-import { isBackendPath } from "./backendPath";
+import { isBackendPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
 import { safeProblem } from "./apiError";
 import { downloadFilename } from "./contentDisposition";
 import type { JsonValue } from "./types";
@@ -54,7 +54,7 @@ async function hasPayload(body: ReadableStream<Uint8Array>, signal: AbortSignal)
 }
 
 export async function forwardBackend(request: Request, segments: string[]): Promise<Response> {
-  if (!["GET", "POST", "PUT"].includes(request.method)) {
+  if (!["GET", "POST", "PUT"].includes(request.method) && !(request.method === "DELETE" && isDocumentRemovalPath(segments))) {
     return problem(405, undefined, new Headers({ Allow: "GET, POST, PUT" }));
   }
   if (!isBackendPath(segments)) return problem(400);
@@ -69,9 +69,11 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
   const accept = request.headers.get("Accept");
   if (accept) headers.set("Accept", accept);
   try {
-    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(120_000)]);
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(isLargeDocumentTransfer(request.method, segments) ? 600_000 : 120_000)]);
     let body: ReadableStream<Uint8Array> | null = null;
-    if (request.method !== "GET") {
+    if (request.method === "DELETE") {
+      if (Number(request.headers.get("Content-Length")) > 0 || (request.body && await hasPayload(request.body, signal))) return problem(415);
+    } else if (request.method !== "GET") {
       const contentType = request.headers.get("Content-Type");
       if (contentType !== null) {
         const mediaType = contentType.split(";")[0].trim().toLowerCase();
@@ -112,19 +114,25 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
     }
     const contentType = response.headers.get("Content-Type") ?? "";
     const mediaType = contentType.split(";")[0].trim().toLowerCase();
-    if (mediaType === "application/json" || /^application\/[a-z0-9.+-]+\+json$/.test(mediaType)) {
+    const documentFile = request.method === "GET" && isDocumentFilePath(segments);
+    if (!documentFile && (mediaType === "application/json" || /^application\/[a-z0-9.+-]+\+json$/.test(mediaType))) {
       const data = await response.json() as JsonValue;
       responseHeaders.set("Content-Type", mediaType);
       return Response.json(safeJson(data, forbidden), { status: response.status, headers: responseHeaders });
     }
-    if (!["application/octet-stream", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"].includes(mediaType)) return problem(502);
-    responseHeaders.set("Content-Type", mediaType);
+    if (!documentFile && !["application/octet-stream", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/zip"].includes(mediaType)) return problem(502);
+    // Project documents are opaque downloads, including HTML/SVG/JSON files.
+    responseHeaders.set("Content-Type", documentFile ? "application/octet-stream" : mediaType);
     const disposition = response.headers.get("Content-Disposition");
     const filename = downloadFilename(disposition);
     if (disposition && filename && !forbidden.some((text) => filename.toLowerCase().includes(text.toLowerCase()))
       && /^(?:attachment|inline)(?:;\s*filename(?:\*)?\s*=\s*(?:"[^"\\\r\n]*"|[^;\s]+)){1,2}\s*$/i.test(disposition)
       && !forbidden.some((text) => disposition.toLowerCase().includes(text.toLowerCase()))) {
       responseHeaders.set("Content-Disposition", disposition);
+    }
+    if (documentFile || mediaType === "application/zip") {
+      responseHeaders.set("Content-Disposition", responseHeaders.get("Content-Disposition")?.replace(/^inline/i, "attachment") ?? "attachment");
+      responseHeaders.set("X-Content-Type-Options", "nosniff");
     }
     return new Response(response.body, { status: response.status, headers: responseHeaders });
   } catch {
