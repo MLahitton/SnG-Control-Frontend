@@ -163,7 +163,7 @@ GoogleLogin → credential → AuthProvider.signIn
   → authService.getCurrentUser
   → GET Next.js /api/auth/me
   → GET {SNG_API_BASE_URL}/api/auth/me
-  → .NET valida Google → { subject, email, name }
+  → .NET valida Google → { subject, email, name, isManagement }
 ```
 
 `authService` centraliza el fetch de mismo origen. Envía `Authorization: Bearer <ID_TOKEN>`, desactiva caché y no envía cookies. Valida el contrato de identidad y convierte errores de red, JSON y status en errores controlados; no muestra el cuerpo de error del backend.
@@ -172,7 +172,7 @@ El Route Handler:
 - Exige una cabecera Bearer no vacía y con formato de token HTTP; no valida ni decodifica el JWT.
 - Reenvía la misma cabecera Authorization exclusivamente al endpoint fijo.
 - Usa `cache: "no-store"`, un timeout de 10 segundos y `redirect: "error"` para no seguir redirecciones con credenciales.
-- En 200, exige subject no vacío, email y name de tipo string o null; devuelve únicamente esos tres campos.
+- En 200, exige subject no vacío, email y name de tipo string o null e `isManagement` boolean requerido; devuelve únicamente esos cuatro campos. Tanto BFF como authService rechazan flags ausentes, null o de otro tipo. AuthProvider conserva el flag de la identidad validada sin persistir identidad aparte del token.
 - En 401 devuelve 401 y un mensaje seguro.
 - Conserva status 400–599 con JSON controlado. Respuestas inesperadas, JSON inválido, error de red, timeout o TLS producen 502.
 - Nunca devuelve URL interna, cabeceras del backend, tokens, claims extra ni detalles técnicos. Las respuestas llevan `Cache-Control: no-store` y `Vary: Authorization`.
@@ -183,7 +183,7 @@ Este puente específico se mantiene para validar identidad. El navegador solo ll
 
 `/api/backend/[...path]` delega en `backendBridge.ts` y apunta exclusivamente a `{SNG_API_BASE_URL}/api/...`.
 
-- Raíces permitidas: `clients`, `projects`, `project-tasks`, `notifications`. No hay otras raíces ni URLs/hosts/protocolos controlados por el browser.
+- Raíces operativas permitidas: `clients`, `projects`, `project-tasks`, `notifications`. Para Gerencia solo se aceptan las rutas exactas `management/overview` y `management/tasks`, exclusivamente mediante GET; otros métodos devuelven 405 con Allow: GET. No se permite la raíz management genérica ni subrutas adicionales. No hay URLs/hosts/protocolos controlados por el browser.
 - Métodos reenviados: GET, POST y PUT; DELETE únicamente en `projects/{projectId}/documents/{documentId}`, validando los segmentos existentes y rechazando payloads. DELETE en cualquier otra estructura devuelve 405. PATCH no se exporta; HEAD responde 405 explícitamente para evitar el GET automático de Next. OPTIONS puede responder localmente por Next, sin llegar al backend.
 - Segmentos: letras ASCII, números, guiones/guiones bajos y puntos internos entre partes válidas (por ejemplo `confirmed.xlsx`). Rechaza vacíos, puntos solos, barras, backslashes, porcentajes/doble encoding, espacios, query/fragmentos dentro del path y demás caracteres anómalos. Máximo 20 segmentos de 200 caracteres.
 - Usa URL APIs y conserva el querystring, incluidos parámetros repetidos. Ningún query puede cambiar el origen o la ruta construida.
@@ -247,6 +247,27 @@ Todas las mutaciones tienen bloqueo síncrono contra doble submit y controles de
 `TaskList` y `TaskTimingStatus` presentan los tipos/estados y `leakTimeStatus` del backend en español. `formatDate` usa `Intl.DateTimeFormat` con **America/Bogota**, incluyendo hora para vencimientos. No compara deadlines con el reloj ni reconstruye días hábiles. Cuando PrepareQuotation está NotStarted sin deadline, indica que el plazo comienza al asignar SG.
 
 `NotificationList` conserva Informational, Active y Resolved. Resalta Overdue Active y mantiene Overdue Resolved como historial. Muestra título, mensaje, tipo de tarea, fechas y estado; las personales enlazan al proyecto. No muestra recipientGoogleSubject ni incorpora leído/no leído, contadores o acciones de mutación.
+
+### Gerencia — Frontend 3A
+
+`features/management` contiene contratos, service, protección visual y las dos páginas. `ManagementOverview` reproduce totalProjects, tasks, leakTime, areas y attention (total y hasta diez items). `ManagementTask` conserva datos de proyecto/cliente/SG/ciudad/línea, área, type string, status, assignedAt requerido, startedAt/completedAt/deadlineAt nullable, wasOverdue boolean nullable y leakTimeStatus. Reutiliza TaskArea, TaskStatus, LeakTimeStatus, labels/badges y formatDate en America/Bogota; tipos futuros de tarea muestran “Otra tarea”. No calcula plazos ni prioridad.
+
+| Ruta frontend | Endpoint backend mediante ApiClient/BFF | Presentación |
+| --- | --- | --- |
+| `/management` | GET `/api/management/overview` | KPIs, trabajo por estado, comparación por área y atención |
+| `/management/tasks` | GET `/api/management/tasks` | Operación actual e histórica, conservando orden del backend |
+
+La suma de tareas activas es pending + inProgress y se explica en pantalla. Attention conserva el orden recibido, muestra la cantidad visible frente al total cuando está truncada y enlaza a operación/proyectos. Los estados vacíos no inventan áreas ni tareas. La tabla de operación filtra localmente por área, estado y los ocho estados temporales; busca sin distinguir mayúsculas en proyecto, cliente, SG y ciudad. No agrega query params, requests ni debounce por filtros y permite restablecerlos.
+
+`ManagementAccess` exige sesión autenticada y `user.isManagement === true` antes de montar contenido o consultar la API. Cambiar Subject remonta los recursos con key; retirar el flag desmonta contenido incluso conservando Subject. `useResource` cancela solicitudes y descarta respuestas tardías. No hay caché global de datos gerenciales. Un 401 usa invalidación global; un 403 muestra “No tienes acceso a la vista de Gerencia” sin logout; red/5xx usan ErrorNotice con recarga explícita.
+
+La sección GERENCIA del Sidebar contiene Resumen y Operación con estado activo exacto; la home incorpora un acceso sin redirigir. Los cinco enlaces operativos, menú móvil, foco y skip-link se mantienen. KPIs y filtros se reorganizan mediante grid; atención pasa de una a dos columnas. Las tablas conservan scroll horizontal explícito y enfocable en pantallas pequeñas.
+
+El detalle de proyecto sigue usando assignee/estado para SG y capabilities del backend para carga/reemplazo/retiro/envío. `isManagement` no concede ni retira esos permisos. Consultas y descargas mantienen autorización backend y errores 403 existentes. Una identidad mixta conserva permisos específicos reales.
+
+La creación de clientes/proyectos se oculta para `isManagement: true`, incluyendo acceso directo a `/projects/new`, y no se ofrece mediante shortcuts. **Es UX, no seguridad**: el backend todavía acepta creación general por cualquier Google autenticado. El contrato no expone una capability general que distinga Gerencia pura de Gerencia con permiso comercial de creación; esta ocultación también alcanza a identidades mixtas hasta que exista ese contrato. No se intenta inferirlo desde Subject, email, nombre ni tareas. Clientes/proyectos vuelven a consultar al cambiar Subject; la forma de creación de cliente se remonta también si cambia el flag.
+
+SnG Intelligence, IA/chat/voz, Frontend 2C, confirmación de cotizaciones, aprobación y pago están fuera de este bloque.
 
 ### Documentos y handoff de Frontend 2B.1
 
@@ -340,6 +361,7 @@ Las suites verifican:
 - Tareas/notificaciones: filtros completos, lookup sin N+1, respuestas tardías descartadas, ocho estados temporales, timezone, historial activo/resuelto y ausencia de estado leído/no leído. Estas pruebas recorren el cliente API con fetch simulado; no llaman al backend real.
 - Documentos: capabilities, carga/drag-drop, manifest-first, límites exactos, nombres duplicados, reemplazo e históricos, retiro confirmado, handoff y DocumentsRequired, notificación documental sin reinicio temporal, descargas y cambio de Subject con ApiClient estable.
 - Infraestructura documental: DELETE restringido/204, ZIP y stream intactos, timeout por ruta, cancelación, filename seguro, File System Access y fallback con revocación de object URL.
+- Gerencia: flag obligatorio en ambos extremos de auth, restauración/cambio de identidad, navegación/protección visual, 401/403, cancelación y descarte de datos tardíos con ApiClient estable, overview/áreas/atención/nulos/vacíos, orden/filtros locales/búsqueda, rutas BFF exactas de solo lectura y convivencia de permisos de Gerencia con capacidades operativas.
 
 No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tailwind.
 
@@ -360,13 +382,15 @@ No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tai
 13. Con capacidad de modificación, agrega/reemplaza documentos después del envío. Comprueba historial, notificación ProjectDocumentsUpdated y fechas de tarea sin reinicio. Con Presupuestos, comprueba solo consulta/descargas individual, ZIP actual e inicial.
 14. Cambia de cuenta y vuelve a la misma URL sin Ctrl+F5; verifica que se actualizan datos/capabilities. Prueba descargas con File System Access y fallback según soporte del browser, además de un proyecto legacy sin snapshot.
 
+Smoke pendiente de Frontend 3A: con una cuenta configurada como Gerencia en backend, comprobar `isManagement: true` en `/api/auth/me`, restauración, sección GERENCIA, `/management` y `/management/tasks`; probar filtros y enlaces a proyecto. Verificar consulta de actividad/documentos/históricos/snapshot y descargas autorizadas, sin controles SG/escritura/envío cuando no existen capabilities/assignee. Cambiar a una cuenta no Gerencia sin hard refresh: desaparecen enlaces/datos y el acceso directo queda denegado. Verificar 403 sin logout y layouts/foco a 375, 768, 1024 px y desktop amplio. No se realizó smoke con credenciales reales ni inspección visual de estos tamaños en el entorno automatizado; requiere navegador y backend disponibles.
+
 Sin las dos variables y un backend activo, un 200 de la página solo verifica que Next sirve la UI. Los tests del puente con fetch mock no prueban la integración .NET ni Google real. No confundas esos resultados.
 
 ## Límites y siguiente bloque
 
-Frontend 2B.5 aplica el sistema visual al flujo existente de clientes, proyectos, documentos/historial, snapshot inicial, handoff, SG, tareas y notificaciones. Termina antes de la importación/preview de cotizaciones XLSX, edición/confirmación y revisión comercial de 2C. No implementa aprobación/pago, roles, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad.
+Frontend 3A agrega Gerencia al flujo y sistema visual de 2B.5. No implementa importación/preview de cotizaciones XLSX, edición/confirmación ni revisión comercial de 2C. Tampoco aprobación/pago, SnG Intelligence, roles inventados, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad.
 
-Deuda funcional: la autorización actual permite crear proyectos a cualquier Google autenticado. La acción continúa visible; su restricción requiere una futura autorización general de Comercial en backend, no condiciones de email, Subject, nombre o asignación de tareas en frontend.
+Deuda funcional: la autorización actual permite crear clientes/proyectos a cualquier Google autenticado. Gerencia tiene una restricción únicamente de UX descrita arriba. La seguridad de estas operaciones y una capability de creación para identidades mixtas requieren futura autorización general de Comercial en backend.
 
 Mantener actualizados ambos README cuando cambie el comportamiento. `.gitignore` excluye `.env`, `.env.local`, `.env.*.local`, node_modules, .next, coverage, logs y el almacén local de pnpm. No incluir valores reales en documentación o tests.
 

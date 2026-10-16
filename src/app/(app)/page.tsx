@@ -18,6 +18,7 @@ export default function Home() {
   return (
     <div className="page-stack">
       <PageHeader title="SnG Control" description="Control operativo de proyectos Steel & Glass." />
+      {user?.isManagement === true && <Link href="/management" className="quick-link"><Icon name="home" /><div><p className="font-semibold">Gerencia</p><p className="metadata">Resumen ejecutivo y operación transversal</p></div></Link>}
       <nav aria-label="Accesos rápidos" className="quick-links">{shortcuts.map((item) => <Link key={item.href} href={item.href} className="quick-link"><Icon name={item.icon} /><div><p className="font-semibold">{item.name}</p><p className="metadata">{item.description}</p></div></Link>)}</nav>
       {user && <UserIdentityCard user={user} />}
       <p className="metadata">Esta sesión permanece en la pestaña actual.</p>

@@ -13,6 +13,21 @@ const context = {
 };
 
 describe("operational shell", () => {
+  it.each(["/management", "/management/tasks"])("shows management navigation with one active link at %s and clears it on account change", (pathname) => {
+    location.pathname = pathname;
+    try {
+      const view = render(<AuthContext.Provider value={{ ...context, user: { ...user, isManagement: true } }}><AppShell>Contenido</AppShell></AuthContext.Provider>);
+      const navigation = screen.getByRole("navigation", { name: "Principal" });
+      expect(within(navigation).getByRole("link", { name: "Resumen" })).toHaveAttribute("href", "/management");
+      expect(within(navigation).getByRole("link", { name: "Operación" })).toHaveAttribute("href", "/management/tasks");
+      const active = within(navigation).getAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page");
+      expect(active).toHaveLength(1);
+      expect(active[0]).toHaveAttribute("href", pathname);
+      view.rerender(<AuthContext.Provider value={context}><AppShell>Contenido</AppShell></AuthContext.Provider>);
+      expect(screen.queryByRole("link", { name: "Resumen" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Operación" })).not.toBeInTheDocument();
+    } finally { location.pathname = "/"; }
+  });
   it.each(["/projects/new", "/projects/project-1"])("marks only Projects active for %s", (pathname) => {
     location.pathname = pathname;
     try {

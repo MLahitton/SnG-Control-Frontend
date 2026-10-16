@@ -9,6 +9,14 @@ beforeEach(() => {
 });
 
 describe("authService", () => {
+  it.each([true, false])("preserves the required management flag %s", async (isManagement) => {
+    fetchMock.mockResolvedValue(Response.json({ ...user, isManagement }));
+    expect(await getCurrentUser(token)).toEqual({ ...user, isManagement });
+  });
+  it.each([undefined, null, "true", 1])("rejects missing or non-boolean isManagement %j", async (isManagement) => {
+    fetchMock.mockResolvedValue(Response.json({ ...user, isManagement }));
+    await expect(getCurrentUser(token)).rejects.toMatchObject({ kind: "backend" });
+  });
   it("sends the Bearer only in the header to the same-origin endpoint", async () => {
     fetchMock.mockResolvedValue(Response.json(user));
     await getCurrentUser(token);
@@ -48,7 +56,7 @@ describe("authService", () => {
   });
 
   it("accepts nullable name and email", async () => {
-    const identity = { subject: user.subject, name: null, email: null };
+    const identity = { ...user, name: null, email: null };
     fetchMock.mockResolvedValue(Response.json(identity));
     expect(await getCurrentUser(token)).toEqual(identity);
   });

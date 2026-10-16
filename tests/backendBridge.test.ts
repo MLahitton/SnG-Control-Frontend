@@ -30,6 +30,25 @@ beforeEach(() => {
 });
 
 describe("controlled backend bridge", () => {
+  it.each(["overview", "tasks"])("allows GET management/%s with existing query/header handling", async (endpoint) => {
+    expect((await GET(request(), context(["management", endpoint]))).status).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe(`${upstream}/api/management/${endpoint}?status=Open&tag=a%2Bb&tag=c`);
+    expect(init).toMatchObject({ method: "GET", cache: "no-store" });
+    const headers = new Headers(init?.headers);
+    expect(headers.get("Authorization")).toBe(`Bearer ${token}`);
+    expect(headers.get("Cookie")).toBeNull();
+  });
+  it.each(["POST", "PUT", "DELETE", "PATCH"])("rejects %s on management endpoints", async (method) => {
+    const response = await forwardBackend(request(method), ["management", "tasks"]);
+    expect(response.status).toBe(405);
+    expect(response.headers.get("Allow")).toBe("GET");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it.each([["management"], ["management", "users"], ["management", "tasks", "id"], ["management", "../projects"]])("keeps management paths exact: %j", async (...path) => {
+    expect((await GET(request(), context(path))).status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it.each(["clients", "projects", "project-tasks", "notifications"])("allows only the fixed origin and root %s", async (root) => {
     expect((await GET(request(), context([root, "test-id"]))).status).toBe(200);
     expect(String(fetchMock.mock.calls[0][0])).toBe(`${upstream}/api/${root}/test-id?status=Open&tag=a%2Bb&tag=c`);

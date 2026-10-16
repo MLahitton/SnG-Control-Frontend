@@ -18,6 +18,7 @@
 .brandControl { margin-top: 9px; font-size: 12px; font-weight: 600; letter-spacing: .3em; color: var(--nav-text-strong); }
 .brandCompany { margin-top: 20px; font-size: 10px; letter-spacing: .13em; text-transform: uppercase; color: var(--nav-text); }
 .navigation { padding: 20px 12px; }
+.navSection { margin: 24px 16px 8px; font-size: 10px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; }
 .navLink { display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 10px 14px; border-left: 2px solid transparent; color: var(--nav-text); font-size: 13px; }
 .navLink:hover { background: var(--nav-bg-hover); color: var(--nav-text-strong); }
 .navLink[aria-current=page] { background: var(--nav-active); color: var(--nav-text-strong); border-left-color: var(--nav-accent); font-weight: 600; }

@@ -1,0 +1,19 @@
+.kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.kpis > div { min-width: 0; }
+.kpis dt { color: var(--ink-soft); }
+.kpis dd { font-size: 32px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 8px; }
+.overdue dd { color: var(--danger); }
+.due dd { color: var(--warning); }
+.work { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 20px; }
+.work dt { color: var(--ink-soft); }
+.work dd { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.attention { margin-top: 16px; }
+.attention li { display: grid; gap: 16px; padding: 18px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.filters { display: grid; gap: 12px; }
+.filters > * { min-width: 0; }
+@media (min-width: 768px) {
+  .kpis, .work { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .attention li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) { .filters { grid-template-columns: 2fr repeat(3, 1fr) auto; align-items: end; } }

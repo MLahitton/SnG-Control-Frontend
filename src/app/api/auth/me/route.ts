@@ -38,7 +38,7 @@ export async function GET(request: Request): Promise<Response> {
     }
     const data: unknown = await response.json();
     if (!isCurrentUser(data)) return json({ error: "Respuesta de identidad no válida." }, 502);
-    return json({ subject: data.subject, email: data.email, name: data.name }, 200);
+    return json({ subject: data.subject, email: data.email, name: data.name, isManagement: data.isManagement }, 200);
   } catch {
     return json({ error: "El servicio de acceso no está disponible." }, 502);
   }

@@ -23,3 +23,7 @@ export const taskTypeLabels: Record<TaskType, string> = {
   ReviewQuotation: "Revisar cotización",
   PresentQuotationToClient: "Presentar cotización al cliente",
 };
+
+export function taskTypeLabel(type: string): string {
+  return Object.hasOwn(taskTypeLabels, type) ? taskTypeLabels[type as TaskType] : "Otra tarea";
+}

@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, type FormEvent } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { useResource } from "@/lib/api/useResource";
 import { formatDate } from "@/lib/formatDate";
@@ -10,6 +11,13 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export function ClientsPage() {
+  const { user } = useAuth();
+  return <ClientsContent key={`${user?.subject}:${user?.isManagement}`} />;
+}
+
+function ClientsContent() {
+  const { user } = useAuth();
+  const showCreation = user?.isManagement === false;
   const api = useApiClient();
   const load = useCallback((signal: AbortSignal) => clientsService.list(api, signal), [api]);
   const resource = useResource(load);
@@ -20,7 +28,7 @@ export function ClientsPage() {
   const [notice, setNotice] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (locked.current || !name.trim()) return;
+    if (!showCreation || locked.current || !name.trim()) return;
     locked.current = true;
     setBusy(true); setError(undefined); setNotice("");
     try {
@@ -31,8 +39,8 @@ export function ClientsPage() {
   }
   return <div className="page-stack">
     <PageHeader title="Clientes" description="Registro de clientes para tus proyectos." />
-    <div className="split-layout">
-    <section className="panel lg:col-start-2 lg:row-start-1" aria-labelledby="create-client-title">
+    <div className={showCreation ? "split-layout" : "stack"}>
+    {showCreation && <section className="panel lg:col-start-2 lg:row-start-1" aria-labelledby="create-client-title">
       <h2 id="create-client-title" className="section-title">Crear cliente</h2>
       <form onSubmit={submit} className="mt-4 stack">
         <label className="field-label flex-1">Nombre del cliente *
@@ -41,12 +49,12 @@ export function ClientsPage() {
         <button className="button-primary" disabled={busy || !name.trim()}>{busy ? "Creando…" : "Crear cliente"}</button>
       </form>
       <div className="mt-4"><ErrorNotice error={error} />{notice && <p role="status" className="success-notice">{notice}</p>}</div>
-    </section>
+    </section>}
     <section className="panel lg:col-start-1 lg:row-start-1" aria-labelledby="clients-title">
       <h2 id="clients-title" className="section-title">Clientes registrados</h2>
       {resource.loading && <p role="status" className="mt-4">Cargando clientes…</p>}
       <ErrorNotice error={resource.error} retry={resource.refresh} />
-      {resource.data?.length === 0 && <EmptyState title="Todavía no hay clientes. Crea el primero para registrar proyectos." />}
+      {resource.data?.length === 0 && <EmptyState title={showCreation ? "Todavía no hay clientes. Crea el primero para registrar proyectos." : "Todavía no hay clientes."} />}
       {resource.data && resource.data.length > 0 && <ul className="mt-3 dense-list">
         {resource.data.map((client) => <li key={client.id} className="section-header"><p className="font-semibold break-words">{client.name}</p><p className="metadata">Creado: {formatDate(client.createdAt)}</p></li>)}
       </ul>}

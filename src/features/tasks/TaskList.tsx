@@ -14,11 +14,11 @@ const timingTones: Record<LeakTimeStatus, StatusTone> = {
   Overdue: "danger", CompletedOnTime: "success", CompletedLate: "warning", UntrackedLegacy: "neutral",
 };
 
-export function TaskStatusBadge({ task, technical = false }: { task: ProjectTask; technical?: boolean }) {
+export function TaskStatusBadge({ task, technical = false }: { task: Pick<ProjectTask, "status">; technical?: boolean }) {
   return <StatusBadge tone={task.status === "Completed" ? "success" : task.status === "InProgress" && !technical ? "info" : "neutral"}>{taskStatusLabels[task.status]}</StatusBadge>;
 }
 
-export function TaskTimingBadge({ task, technical = false }: { task: ProjectTask; technical?: boolean }) {
+export function TaskTimingBadge({ task, technical = false }: { task: Pick<ProjectTask, "leakTimeStatus">; technical?: boolean }) {
   return <StatusBadge tone={technical && task.leakTimeStatus === "OnTrack" ? "success" : timingTones[task.leakTimeStatus]}>{timingLabels[task.leakTimeStatus]}</StatusBadge>;
 }
 

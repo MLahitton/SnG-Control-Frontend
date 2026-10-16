@@ -21,7 +21,7 @@ export async function getCurrentUser(idToken: string, signal?: AbortSignal): Pro
     if (response.status !== 200) throw new AuthError("backend");
     const data: unknown = await response.json();
     if (!isCurrentUser(data)) throw new AuthError("backend");
-    return { subject: data.subject, email: data.email, name: data.name };
+    return { subject: data.subject, email: data.email, name: data.name, isManagement: data.isManagement };
   } catch (error) {
     if (error instanceof AuthError) throw error;
     throw new AuthError("backend");

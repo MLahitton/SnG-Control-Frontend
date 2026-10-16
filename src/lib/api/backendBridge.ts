@@ -54,6 +54,9 @@ async function hasPayload(body: ReadableStream<Uint8Array>, signal: AbortSignal)
 }
 
 export async function forwardBackend(request: Request, segments: string[]): Promise<Response> {
+  if (segments[0] === "management" && request.method !== "GET") {
+    return problem(405, undefined, new Headers({ Allow: "GET" }));
+  }
   if (!["GET", "POST", "PUT"].includes(request.method) && !(request.method === "DELETE" && isDocumentRemovalPath(segments))) {
     return problem(405, undefined, new Headers({ Allow: "GET, POST, PUT" }));
   }

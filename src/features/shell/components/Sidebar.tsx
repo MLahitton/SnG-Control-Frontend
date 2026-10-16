@@ -36,6 +36,13 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
             </li>
           ))}
         </ul>
+        {user?.isManagement === true && <>
+          <p className={styles.navSection}>Gerencia</p>
+          <ul className="space-y-1">
+            <li><Link className={styles.navLink} href="/management" aria-current={pathname === "/management" ? "page" : undefined} onClick={onNavigate}><Icon name="home" />Resumen</Link></li>
+            <li><Link className={styles.navLink} href="/management/tasks" aria-current={pathname === "/management/tasks" ? "page" : undefined} onClick={onNavigate}><Icon name="tasks" />Operación</Link></li>
+          </ul>
+        </>}
       </nav>
       <div className={styles.account}><p className={styles.accountLabel}>Sesión activa</p><p className={styles.accountName}>{user?.name ?? "Cuenta Google"}</p></div>
     </aside>

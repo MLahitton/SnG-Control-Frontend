@@ -1,12 +1,12 @@
 # SnG Control Frontend
 
-Frontend de Steel & Glass. Incluye acceso con Google y el flujo operativo Cliente → Proyecto → Documentos → Envío a Presupuestos → SG, con tareas y notificaciones de SnG-Control-Backend.
+Frontend de Steel & Glass. Incluye acceso con Google, el flujo operativo Cliente → Proyecto → Documentos → Envío a Presupuestos → SG y Frontend 3A — Gerencia, con resumen ejecutivo y consulta transversal de tareas de SnG-Control-Backend.
 
 ## Estado funcional
 
 - Inicio de sesión con el botón oficial de Google Identity Services.
-- Durante desarrollo se permite cualquier cuenta Google válida que el backend acepte, sin restricciones de dominio, roles ni permisos en el frontend. La configuración de audiencia y usuarios de prueba del proyecto Google también debe permitir esa cuenta.
-- Google entrega un ID Token. El backend .NET valida ese token y devuelve Subject, Email y Name.
+- Durante desarrollo se permite cualquier cuenta Google válida que el backend acepte. La configuración de audiencia y usuarios de prueba del proyecto Google también debe permitir esa cuenta. Los permisos operativos siguen siendo autoridad del backend.
+- Google entrega un ID Token. El backend .NET valida ese token y devuelve Subject, Email, Name e `isManagement` (boolean requerido). Solo `isManagement === true` habilita la experiencia de Gerencia; no se infiere por email, nombre o Subject.
 - El shell incluye navegación responsive a Inicio, Clientes, Proyectos, Tareas y Notificaciones, nombre/email y cierre de sesión.
 - Inicio ofrece accesos rápidos a proyectos, clientes, tareas y notificaciones. La identidad confirmada conserva Copiar Subject dentro de “Identidad técnica de la sesión”. El login permanece fuera del shell.
 - El token se guarda en `sessionStorage` en la pestaña actual, después de una validación exitosa. No se guardan los datos de identidad como autoridad separada.
@@ -36,7 +36,7 @@ Abre la URL local que imprime Next.js y entra a `/login`. No se incluyen credenc
 
 ## Alcance actual
 
-Frontend 2B.5 ofrece estas rutas protegidas:
+Frontend 3A conserva el flujo de 2B.5 y ofrece estas rutas protegidas:
 
 | Ruta | Función |
 | --- | --- |
@@ -47,6 +47,8 @@ Frontend 2B.5 ofrece estas rutas protegidas:
 | `/projects/[id]` | Datos, documentos vigentes/históricos, envío inicial a Presupuestos, SG, tareas y notificaciones |
 | `/tasks` | Tareas filtradas explícitamente por área y estado |
 | `/notifications` | Notificaciones personales y alertas activas/resueltas |
+| `/management` | Resumen ejecutivo, solo Gerencia |
+| `/management/tasks` | Operación transversal actual e histórica, solo Gerencia |
 
 Los nombres duplicados de clientes y proyectos están permitidos. El creador autenticado que devuelve el backend es el responsable comercial; no se pide otro responsable al crear.
 
@@ -62,8 +64,20 @@ Las notificaciones conservan el historial, incluidas alertas de atraso resueltas
 
 El detalle reúne encabezado, estado actual, documentación, acciones disponibles y actividad en un expediente continuo con divisores. Las tareas del proyecto muestran sus fechas directamente. El shell combina navegación azul pálido y una cabecera discreta; las demás páginas conservan sus componentes actuales.
 
-Todo usa el BFF y cliente API compartidos. Los archivos siguen siendo documentos opacos; no se implementa importación/preview de cotizaciones Excel, confirmaciones, revisión comercial, aprobación o pago. No hay roles, permisos simulados ni métricas inventadas. El alcance termina en **Frontend 2B.5**, antes de 2C.
+Todo usa el BFF y cliente API compartidos. Los archivos siguen siendo documentos opacos; no se implementa importación/preview de cotizaciones Excel, confirmaciones, revisión comercial, aprobación o pago. No hay roles inventados, permisos simulados ni métricas inventadas. Frontend 2C y SnG Intelligence permanecen fuera de alcance.
 
-Pendiente funcional: crear proyectos continúa disponible para cualquier usuario autenticado, según la autorización actual del backend. No se oculta esta acción mediante email, Subject o inferencias de rol.
+## Gerencia — Frontend 3A
+
+Gerencia ve una sección adicional en la barra lateral azul pálido, con Resumen y Operación, y un acceso desde Inicio. La home general se conserva. Las URLs gerenciales muestran una denegación segura a otras cuentas sin consultar esos endpoints. Un 403 no cierra sesión.
+
+El resumen consume `GET /api/management/overview`: proyectos, tareas activas (pendientes + en curso), atrasadas, vencimientos de hoy/próximos, estado del trabajo, comparación por área y tareas que requieren atención. Conserva el orden del backend e indica cuántas muestra si el total supera los elementos recibidos (máximo 10). No inventa tendencias ni calcula plazos.
+
+Operación consume `GET /api/management/tasks`. Muestra tareas actuales e históricas, proyecto/cliente/SG, ciudad/línea, área, estado, situación y fechas en Colombia. Los filtros por área, estado y situación y la búsqueda por proyecto/cliente/SG/ciudad son locales, conservan el orden recibido y se pueden restablecer.
+
+Los enlaces abren el detalle existente para consultar datos, tareas, actividad, documentos, históricos y snapshot inicial. Las descargas siguen sujetas al backend. Gerencia no recibe permisos de escritura por el flag: SG depende del assignee y del estado; documentos y envío a Presupuestos dependen de capabilities. Si una identidad gerencial también tiene esos permisos reales, los conserva. Cambiar de cuenta cancela consultas y limpia datos gerenciales anteriores.
+
+Deuda conocida: el backend aún permite crear clientes/proyectos a cualquier Google autenticado. La UI oculta creación para cuentas con `isManagement: true`, incluso en `/projects/new`. Es **una restricción de UX, no una barrera de seguridad**. El contrato actual no informa una capability general de creación para distinguir Gerencia pura de una identidad mixta; por ello esta ocultación también aplica a identidades mixtas, sin alterar sus permisos específicos en proyectos. Resolverlo requiere una autorización/capability general de Comercial en backend.
+
+Pendiente de smoke real: login/restauración con Gerencia, navegación y endpoints, consulta/descarga autorizada, ausencia de escrituras para Gerencia pura y cambio de cuenta sin hard refresh. Verificar también 375, 768, 1024 px y desktop amplio. Los tests usan red simulada; no sustituyen esa integración.
 
 La integración real requiere un Client ID configurado y un backend disponible con TLS confiable. El procedimiento de comprobación está en el manual técnico.

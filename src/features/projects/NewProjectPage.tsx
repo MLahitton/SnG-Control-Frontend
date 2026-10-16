@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, type FormEvent } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import { clientsService } from "@/features/clients/service";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { useResource } from "@/lib/api/useResource";
@@ -12,6 +13,13 @@ import { productLines, type ProductLine } from "./types";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export function NewProjectPage() {
+  const { user } = useAuth();
+  // UX only: the current identity contract has no general creation capability.
+  if (user?.isManagement !== false) return <div className="page-stack"><p role="status" className="info-notice">La vista de Gerencia permite consultar los proyectos.</p><Link className="text-link" href="/projects">Ver proyectos</Link></div>;
+  return <NewProjectContent key={user.subject} />;
+}
+
+function NewProjectContent() {
   const api = useApiClient();
   const router = useRouter();
   const load = useCallback((signal: AbortSignal) => clientsService.list(api, signal), [api]);

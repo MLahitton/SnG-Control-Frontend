@@ -9,6 +9,7 @@ export const testApiClient = createApiClient({
 // Opaque test input: intentionally not a JWT or a real Google credential.
 export const token = "test-only-opaque-credential";
 export const user: CurrentUser = {
+  isManagement: false,
   subject: "test-subject-123",
   name: "Persona de prueba",
   email: "persona@example.test",
