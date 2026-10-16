@@ -297,7 +297,7 @@ Contrato observado mediante lectura de `app/contracts/presentation.py`, `app/age
 - direct: metric nullable; management_brief: metrics/items; project_status: project/tasks; list: items; comparison: areas; clarification: candidates; unavailable: reason=data_not_available.
 - ProjectItem: kind/projectId/projectName/sgCode/clientName/city. TaskItem: kind/projectId/projectName/sgCode/taskId/area/task/status/leakTimeStatus/deadlineAt.
 - Las etiquetas de área, tarea, estado y plazo en presentation **ya están localizadas por Intelligence**; se muestran literalmente como texto validado, sin tratarlas como enums de Control.
-- References project/task contienen IDs UUID y label; solo se generan rutas locales `/projects/{projectId}`. No se aceptan href del modelo. Project name/label es principal y SG secundario. Clarification envía nombre e ID en una nueva consulta autocontenida.
+- References project/task contienen IDs UUID y label; solo se generan rutas locales `/projects/{projectId}`. No se aceptan href del modelo. Project name/label es principal y SG secundario. Clarification envía el nombre oficial del proyecto en una nueva consulta autocontenida, sin depender de memoria backend.
 - El renderer central usa siete variantes, texto React sin HTML/Markdown ejecutable, cifras solo recibidas y formatDate de Colombia. Unavailable no se trata como fallo.
 - Contrato en evolución: si Presentation & Voice 1B cambia, sincronizar types/parser/renderer. No hay fallback que adivine un contrato antiguo. El contrato actual limita speech a 4000 caracteres aunque la base permite spokenAnswer hasta 12000; si excede 4000, se informa input inválido sin truncar ni reinterpretar el texto.
 
@@ -359,7 +359,7 @@ No se desactiva validación TLS global ni por request. No se usan agentes que ac
 
 `AuthGate` muestra loading, redirige no autenticados a `/login` y renderiza children únicamente con sesión validada.
 
-`AppShell` agrupa Sidebar, TopBar y el contenido principal. Sidebar enlaza Inicio, Clientes, Proyectos, Tareas y Notificaciones; Proyectos permanece activo en creación y detalle. TopBar muestra nombre/email y logout. En móvil/tablet, el botón de menú controla la navegación con aria-expanded/aria-controls; en desktop permanece visible. Hay enlace para saltar al contenido y el foco vuelve al contenido al navegar. No existen enlaces a módulos pendientes.
+`AppShell` agrupa Sidebar, TopBar y el contenido principal. Sidebar enlaza Inicio, Clientes, Proyectos, Tareas y Notificaciones; Proyectos permanece activo en creación y detalle. Gerencia añade Resumen y Operación cuando el backend valida isManagement; Intelligence usa ese mismo flag para su botón flotante fuera del Sidebar. TopBar muestra nombre/email y logout. En móvil/tablet, el botón de menú controla la navegación con aria-expanded/aria-controls; en desktop permanece visible. Hay enlace para saltar al contenido y el foco vuelve al contenido al navegar. No existen enlaces a módulos pendientes.
 
 La home presenta accesos reales a proyectos, clientes, tareas y notificaciones, sin consultas adicionales ni métricas. Nombre/email permanecen visibles; Google Subject y Copiar Subject se agrupan en el disclosure secundario “Identidad técnica de la sesión”. Los valores nulos se presentan como “No disponible”. Copiar Subject invoca `navigator.clipboard.writeText(user.subject)`. La API requiere contexto seguro (HTTPS o localhost) y permisos del navegador; el fallo indica cómo copiar manualmente.
 
@@ -426,7 +426,7 @@ Smoke pendiente de Frontend 3A: con una cuenta configurada como Gerencia en back
 
 Sin las dos variables y un backend activo, un 200 de la página solo verifica que Next sirve la UI. Los tests del puente con fetch mock no prueban la integración .NET ni Google real. No confundas esos resultados.
 
-Smoke pendiente de Intelligence: preparar configuración independiente, iniciar sesión Gerencia y abrir el botón; verificar session/chat/references/clarification y unavailable. Probar permiso aceptado/denegado, captura WebM y MP4/M4A según navegador, transcripción, spokenAnswer/TTS, pausa/reanudar, autoplay bloqueado, cancelación y logout con audio/requests activos. Verificar navegación móvil/desktop, teclado y safe areas en 375, 768, 1024 px y desktop amplio. Falta smoke real con audio y servicios; la suite automatizada no lo sustituye. No se incorporan automáticamente cambios posteriores de 3A: la integración futura requiere merge/rebase controlado, tests y smoke.
+Smoke pendiente de Intelligence: preparar configuración independiente, iniciar sesión Gerencia y abrir el botón; verificar session/chat/references/clarification y unavailable. Probar permiso aceptado/denegado, captura WebM y MP4/M4A según navegador, transcripción, spokenAnswer/TTS, pausa/reanudar, autoplay bloqueado, cancelación y logout con audio/requests activos. Verificar navegación móvil/desktop, teclado y safe areas en 375, 768, 1024 px y desktop amplio. Falta smoke real con audio y servicios; la suite automatizada no lo sustituye. La integración parte del Frontend 3A final (2580289) y aplica únicamente el delta Intelligence 1C; el snapshot temporal no forma parte de su historia. Los tests conjuntos cubren navegación del shell, limpieza por identidad y 403 independientes sin cerrar sesión. El smoke manual conjunto queda para el siguiente bloque.
 
 ## Límites y siguiente bloque
 

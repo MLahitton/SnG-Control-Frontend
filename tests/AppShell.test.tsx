@@ -22,10 +22,13 @@ describe("operational shell", () => {
       expect(within(navigation).getByRole("link", { name: "Operación" })).toHaveAttribute("href", "/management/tasks");
       const active = within(navigation).getAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page");
       expect(active).toHaveLength(1);
+      expect(screen.getByRole("button", { name: "Abrir SnG Intelligence" })).toBeInTheDocument();
+      expect(within(navigation).queryByText("Intelligence")).not.toBeInTheDocument();
       expect(active[0]).toHaveAttribute("href", pathname);
       view.rerender(<AuthContext.Provider value={context}><AppShell>Contenido</AppShell></AuthContext.Provider>);
       expect(screen.queryByRole("link", { name: "Resumen" })).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Operación" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Abrir SnG Intelligence" })).not.toBeInTheDocument();
     } finally { location.pathname = "/"; }
   });
   it.each(["/projects/new", "/projects/project-1"])("marks only Projects active for %s", (pathname) => {

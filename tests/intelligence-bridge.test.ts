@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 import { GET, POST, HEAD, PUT, PATCH, DELETE } from "@/app/api/intelligence/[...path]/route";
 import { intelligenceResponse, requestId } from "./intelligenceFixtures";
 import { token } from "./fixtures";
+import { GET as controlGET } from "@/app/api/backend/[...path]/route";
 const fetchMock = vi.fn<typeof fetch>();
 const context = (path: string) => ({ params: Promise.resolve({ path: path.split("/") }) });
 function request(method = "GET", body?: BodyInit, type?: string, query = "") {
@@ -16,6 +17,19 @@ beforeEach(() => {
   fetchMock.mockResolvedValue(Response.json(intelligenceResponse));
 });
 describe("Intelligence BFF", () => {
+  it("keeps Management and Intelligence on separate configured origins", async () => {
+    vi.stubEnv("SNG_API_BASE_URL", "https://control.example.test");
+    vi.stubEnv("SNG_INTELLIGENCE_BASE_URL", "https://intelligence.example.test");
+    fetchMock.mockResolvedValueOnce(Response.json({ totalProjects: 12 }));
+    await controlGET(new Request("https://frontend.example.test/api/backend/management/overview", {
+      headers: { Authorization: `Bearer ${token}` },
+    }), context("management/overview"));
+    await POST(request("POST", '{"message":"consulta"}', "application/json"), context("chat"));
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://control.example.test/api/management/overview",
+      "https://intelligence.example.test/api/intelligence/chat",
+    ]);
+  });
   it("forwards session to the fixed origin with Bearer only and safe cache headers", async () => {
     fetchMock.mockResolvedValue(Response.json({ authenticated: true, isManagement: true, token: "remove" }));
     const response = await GET(request(), context("session"));

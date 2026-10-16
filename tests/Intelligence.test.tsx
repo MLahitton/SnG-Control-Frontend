@@ -130,13 +130,13 @@ describe("Intelligence shell", () => {
     expect(router.replace).toHaveBeenCalledWith("/login");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
-  it("submits an autocontained clarification including the validated project identity", async () => {
+  it("submits an autocontained clarification using the official project name", async () => {
     const fetchMock = backend(() => intelligenceResponses[5]);
     render(<AuthContext.Provider value={context()}><IntelligenceLauncher /></AuthContext.Provider>);
     await open(); await userEvent.type(screen.getByLabelText("Tu consulta"), "Cómo va Casa{Enter}");
     await userEvent.click(await screen.findByRole("button", { name: "Consultar Casa Ximena" }));
     await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/chat"))).toHaveLength(2));
-    expect(JSON.parse(fetchMock.mock.calls[2][1].body as string).message).toBe(`¿Cómo va el proyecto "Casa Ximena" (ID ${projectId})?`);
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body as string).message).toBe("¿Cómo va Casa Ximena?");
   });
   it("shows transcript, uses spokenAnswer for MP3, pauses/resumes/stops and revokes audio on close", async () => {
     FakeRecorder.supported = "audio/mp4";

@@ -86,7 +86,7 @@ Solo las cuentas con `user.isManagement === true` ven el botón flotante **Intel
 
 Configura de forma independiente en el entorno del worktree `SNG_INTELLIGENCE_BASE_URL`, solo servidor. Ejemplo de desarrollo: `http://127.0.0.1:8001`. No tiene prefijo NEXT_PUBLIC. El navegador llama únicamente a `/api/intelligence/...` de Next; no recibe URL del servicio ni claves de proveedores. No copies el `.env` de otro worktree; configura el Client ID público y las URLs que correspondan al entorno de prueba.
 
-Chat envía un mensaje por solicitud, sin historial. Enter envía y Shift+Enter agrega una línea. Las respuestas admiten direct, management_brief, project_status, list, comparison, clarification y unavailable. Cifras, estados, áreas y fechas proceden de Intelligence. Seleccionar un candidato genera una pregunta autocontenida con nombre e ID; no presupone memoria del agente. Las referencias de proyectos/tareas abren el proyecto asociado.
+Chat envía un mensaje por solicitud, sin historial. Enter envía y Shift+Enter agrega una línea. Las respuestas admiten direct, management_brief, project_status, list, comparison, clarification y unavailable. Cifras, estados, áreas y fechas proceden de Intelligence. Seleccionar un candidato genera una pregunta autocontenida con el nombre oficial del proyecto; no presupone memoria del agente. Las referencias de proyectos/tareas abren el proyecto asociado.
 
 El micrófono pide permiso solo al pulsarlo. Graba hasta 60 segundos, con cancelación y límite de 10 MiB; elige WebM/Opus, WebM o MP4 según el navegador, enviando M4A como `audio/mp4`. Al detener, envía el archivo y muestra la transcripción y la respuesta. La reproducción automática está activada inicialmente solo para consultas de voz y se puede desactivar. “Escuchar respuesta” usa `spokenAnswer`; permite pausa, reanudación, detener y volver a escuchar. Se identifica como voz generada por IA. Si el navegador bloquea autoplay, ofrece reanudar mediante un gesto.
 
@@ -94,6 +94,6 @@ La conversación vive en React (hasta 40 mensajes); no se envía a almacenamient
 
 Los errores 401 invalidan la sesión existente; 403 mantiene la sesión; 422, 429 y 503 ofrecen mensajes seguros. Solo se presenta un requestId validado como referencia diagnóstica. Una respuesta unavailable es información normal.
 
-Pendiente: integración controlada con 3A final y smoke real de chat/voz/TTS, permisos, cambio de cuenta, navegación y tamaños 375/768/1024/desktop. Este worktree usa el snapshot de 3A, sin sincronización automática. No implementa Realtime, WebRTC/WebSocket, historial persistente, memoria backend, RAG ni LangGraph.
+Intelligence 1C está integrado sobre Frontend 3A final, conservando Gerencia y sus permisos. Pendiente: smoke real conjunto de chat/voz/TTS, permisos, cambio de cuenta, navegación y tamaños 375/768/1024/desktop; no se ejecuta como parte de la validación automatizada. No implementa Realtime, WebRTC/WebSocket, historial persistente, memoria backend, RAG ni LangGraph.
 
 La integración real requiere un Client ID configurado y un backend disponible con TLS confiable. El procedimiento de comprobación está en el manual técnico.
