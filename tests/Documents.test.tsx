@@ -43,6 +43,8 @@ describe("document panel and capabilities", () => {
   it("renders nullable MIME and historical filenames without exposing document IDs", async () => {
     setup({ ...projectDocuments, documents: [{ ...projectDocument, contentType: null, isCurrent: false, replacedByDocumentId: "private-missing-successor" }] });
     await open();
+    expect(documentPanel()).not.toHaveClass("panel");
+    expect(documentPanel().querySelector(".panel, .subtle-panel, .action-panel")).toBeNull();
     expect(screen.getByRole("heading", { name: projectDocument.originalFileName })).toBeInTheDocument();
     expect(screen.getByText("Reemplazado por: No disponible")).toBeInTheDocument();
     expect(documentPanel()).not.toHaveTextContent("private-missing-successor");

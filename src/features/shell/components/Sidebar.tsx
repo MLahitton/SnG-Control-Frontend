@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import styles from "./Shell.module.css";
 
 const navigation = [
   { href: "/", label: "Inicio", icon: "home" },
@@ -14,25 +16,28 @@ const navigation = [
 
 export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
   const pathname = usePathname();
+  const { user } = useAuth();
   return (
     <aside id="app-navigation" aria-label="Navegación de SnG Control"
-      className="app-sidebar" data-open={open}>
-      <div className="sidebar-brand">
-        <span className="brand-mark" aria-hidden="true">SG</span>
-        <div><p className="font-semibold">Steel &amp; Glass</p><p className="metadata">SnG Control</p></div>
+      className={styles.sidebar} data-open={open}>
+      <div className={styles.brand}>
+        <p className={styles.wordmark}>S&amp;G</p>
+        <p className={styles.brandControl}>CONTROL</p>
+        <p className={styles.brandCompany}>Steel &amp; Glass</p>
       </div>
-      <nav aria-label="Principal" className="sidebar-nav">
+      <nav aria-label="Principal" className={styles.navigation}>
         <ul className="space-y-1">
           {navigation.map(({ href, label, icon }) => (
             <li key={href}>
               <Link href={href} aria-current={pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)) ? "page" : undefined} onClick={onNavigate}
-                className="nav-link">
+                className={styles.navLink}>
                 <Icon name={icon} />{label}
               </Link>
             </li>
           ))}
         </ul>
       </nav>
+      <div className={styles.account}><p className={styles.accountLabel}>Sesión activa</p><p className={styles.accountName}>{user?.name ?? "Cuenta Google"}</p></div>
     </aside>
   );
 }

@@ -38,7 +38,7 @@ describe("operational shell", () => {
   it("shows identity and the five real operational navigation links", () => {
     render(<AuthContext.Provider value={context}><AppShell><h1>Inicio</h1></AppShell></AuthContext.Provider>);
     expect(screen.getByRole("main")).toHaveTextContent("Inicio");
-    expect(screen.getByText(user.name!)).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Usuario actual")).getByText(user.name!)).toBeInTheDocument();
     expect(screen.getByText(user.email!)).toBeInTheDocument();
     const links = within(screen.getByRole("navigation", { name: "Principal" })).getAllByRole("link");
     expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([

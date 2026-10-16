@@ -12,7 +12,6 @@ import { documentErrorMessage, validateDocumentBatch } from "./validation";
 import type { DocumentActor, ProjectDocument } from "./types";
 import type { useProjectDocuments } from "./useProjectDocuments";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import styles from "./DocumentsPanel.module.css";
 
@@ -126,19 +125,19 @@ export function DocumentsPanel({ projectId, resource, hasPreparation, disabled, 
       </div>
       </div></div>
       <div className={styles.actions}>
-        <button className="button-ghost" disabled={blocked} onClick={() => download(document.originalFileName, (signal) => documentsService.download(api, projectId, document.id, signal))}>Descargar</button>
-        {document.isCurrent && data?.canModify && <button className="button-ghost" disabled={blocked} onClick={() => {
+        <button className={styles.rowAction} disabled={blocked} onClick={() => download(document.originalFileName, (signal) => documentsService.download(api, projectId, document.id, signal))}>Descargar</button>
+        {document.isCurrent && data?.canModify && <button className={styles.rowAction} disabled={blocked} onClick={() => {
           setReplacement(document); setFiles([]); setRemoval(null); setError(""); setNotice("");
           if (replaceFile.current) { replaceFile.current.value = ""; replaceFile.current.click(); }
         }}>Reemplazar</button>}
-        {document.isCurrent && data?.canRemove && <button className="button-danger" disabled={blocked} onClick={() => { setRemoval(document); setError(""); }}>Quitar</button>}
+        {document.isCurrent && data?.canRemove && <button className={`${styles.rowAction} ${styles.removeAction}`} disabled={blocked} onClick={() => { setRemoval(document); setError(""); }}>Quitar</button>}
       </div>
     </li>;
   }
 
-  return <section className="panel space-y-5" aria-labelledby="documents-title">
-    <div className="section-header"><div><h2 id="documents-title" tabIndex={-1} className="section-title">Documentos del proyecto</h2>{data && <p className="metadata mt-1">{current.length} vigente(s) · {historical.length} en historial</p>}</div>
-      {current.length > 0 && <button className="button-secondary" disabled={blocked} onClick={() => download("current.zip", (signal) => documentsService.downloadCurrentZip(api, projectId, signal))}>Descargar documentos actuales</button>}
+  return <section className={styles.documents} aria-labelledby="documents-title">
+    <div className={styles.heading}><div><h2 id="documents-title" tabIndex={-1} className={styles.sectionTitle}>Documentos del proyecto</h2>{data && <p className={styles.sectionCount}>{current.length} vigente(s) · {historical.length} en historial</p>}</div>
+      {current.length > 0 && <button className={styles.downloadAll} disabled={blocked} onClick={() => download("current.zip", (signal) => documentsService.downloadCurrentZip(api, projectId, signal))}>Descargar documentos actuales</button>}
     </div>
     {resource.loading && <p role="status" className="loading-notice">Cargando documentos…</p>}
     {!!resource.error && <div role="alert" className="error-message"><p>{documentErrorMessage(resource.error)}</p><button className="button-secondary mt-3" disabled={blocked} onClick={resource.refresh}>Volver a cargar documentos</button></div>}
@@ -151,11 +150,10 @@ export function DocumentsPanel({ projectId, resource, hasPreparation, disabled, 
           onDragOver={(event) => { event.preventDefault(); }} onDrop={(event) => {
             event.preventDefault(); choose(Array.from(event.dataTransfer.files), null);
           }}>
-          <div className="section-header"><p className="font-medium">Arrastra archivos aquí</p><button type="button" className="button-secondary" disabled={blocked} onClick={() => selectFiles.current?.click()}>Seleccionar archivos</button></div>
-          <p className="metadata mt-2">Hasta 15 documentos vigentes · 100 MB por archivo · 300 MB por carga</p>
+          <div className={styles.dropzoneHeader}><div><p className="font-medium">Arrastra archivos aquí</p><p className={styles.limits}>Hasta 15 documentos vigentes · 100 MB por archivo · 300 MB por carga</p></div><button type="button" className="button-secondary" disabled={blocked} onClick={() => selectFiles.current?.click()}>Seleccionar archivos</button></div>
           <input ref={selectFiles} type="file" multiple hidden aria-label="Archivos del proyecto" disabled={blocked} onChange={(event) => choose(Array.from(event.target.files ?? []), null)} />
           <input ref={replaceFile} type="file" hidden aria-label="Archivo de reemplazo" disabled={blocked} onChange={(event) => choose(Array.from(event.target.files ?? []))} />
-        {replacement && <div className="subtle-panel mt-3"><p className="metadata">Reemplazando</p><p className="font-semibold break-all">{replacement.originalFileName}</p><p className="metadata mt-2">El documento anterior se conservará en el historial.</p></div>}
+        {replacement && <div className={styles.confirmation}><p className="metadata">Reemplazando</p><p className="font-semibold break-all">{replacement.originalFileName}</p><p className="metadata mt-2">El documento anterior se conservará en el historial.</p></div>}
         {files.length > 0 && <div className={styles.selection}>
           {replacement && <p className="metadata">Nuevo archivo</p>}
           <ul>{files.map((file, index) => <li key={index}><span>{file.name}</span><span className="metadata">{formatBytes(file.size)}</span></li>)}</ul>
@@ -168,22 +166,23 @@ export function DocumentsPanel({ projectId, resource, hasPreparation, disabled, 
           {(files.length > 0 || replacement) && <button type="button" className="button-secondary" disabled={blocked} onClick={clearSelection}>Cancelar selección</button>}
         </div>
       </form>}
-      {removal && data.canRemove && <div role="group" aria-label="Confirmar quitar documento" className="subtle-panel space-y-3">
+      {removal && data.canRemove && <div role="group" aria-label="Confirmar quitar documento" className={`${styles.confirmation} space-y-3`}>
         <p>¿Quitar del proyecto «{removal.originalFileName}»?</p>
         <div className="flex flex-wrap gap-3"><button className="button-danger" disabled={blocked} onClick={remove}>Confirmar quitar</button><button className="button-secondary" disabled={blocked} onClick={() => setRemoval(null)}>Cancelar</button></div>
       </div>}
-      <div className="space-y-3"><h3 className="font-semibold">Documentos vigentes</h3>
-        {current.length === 0 ? <EmptyState title="No hay documentos vigentes." /> : <ul>{current.map(documentRow)}</ul>}
+      <div><h3 className={styles.groupTitle}>Documentos vigentes</h3>
+        {current.length === 0 ? <p className={styles.empty}>No hay documentos vigentes.</p> : <ul>{current.map(documentRow)}</ul>}
       </div>
       <div className={styles.history}><h3 className="font-semibold">Historial documental</h3>
         {historical.length ? <ul>{historical.map(documentRow)}</ul> : <p className="metadata mt-2">No hay documentos reemplazados.</p>}
       </div>
-      {data.initialHandoff ? <div className={`${styles.handoff} space-y-2 metadata`}>
-        <h3 className="font-semibold">Envío inicial a Presupuestos</h3>
-        <p>Enviado: {formatDate(data.initialHandoff.sentAt)}</p><p>Por: {actorName(data.initialHandoff.sentBy)}</p>
+      {data.initialHandoff ? <div className={styles.handoff}>
+        <div className={styles.handoffHeader}><h3 className={styles.sectionTitle}>Envío inicial a Presupuestos</h3>
+        <button className={styles.downloadAll} disabled={blocked} onClick={() => download("initial-handoff.zip", (signal) => documentsService.downloadInitialZip(api, projectId, signal))}>Descargar documentos del envío inicial</button></div>
+        <div className={styles.audit}><p>Enviado: {formatDate(data.initialHandoff.sentAt)}</p><p>Por: {actorName(data.initialHandoff.sentBy)}</p>
         <p>{data.initialHandoff.documentIds.length} documento(s) en el envío inicial.</p>
-        <button className="button-secondary" disabled={blocked} onClick={() => download("initial-handoff.zip", (signal) => documentsService.downloadInitialZip(api, projectId, signal))}>Descargar documentos del envío inicial</button>
-      </div> : hasPreparation && <p>Este proyecto fue enviado antes de habilitar el historial documental inicial.</p>}
+        </div>
+      </div> : hasPreparation && <p className="metadata">Este proyecto fue enviado antes de habilitar el historial documental inicial.</p>}
     </>}
   </section>;
 }

@@ -1,0 +1,15 @@
+.activity { margin: 0; padding: 0; }
+.event { position: relative; padding: 0 0 24px 22px; min-width: 0; }
+.event::before { content: ""; position: absolute; top: 6px; bottom: -6px; left: 3px; width: 1px; background: var(--border); }
+.event:last-child { padding-bottom: 0; }
+.event:last-child::before { display: none; }
+.event::after { content: ""; position: absolute; top: 5px; left: 0; width: 7px; height: 7px; border-radius: 50%; background: #71878e; }
+.overdue::after { background: var(--danger); }
+.date { display: block; margin-bottom: 6px; color: var(--ink-soft); font-size: 11px; font-variant-numeric: tabular-nums; }
+.heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.heading h3 { min-width: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+.overdue .heading h3, .overdue .alert { color: var(--danger); }
+.alert { margin-top: 6px; color: var(--ink-soft); font-size: 12px; font-weight: 600; }
+.message { margin-top: 5px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; color: #425860; }
+.metadata { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 11px; color: var(--ink-soft); }
+.empty { color: var(--ink-soft); font-size: 13px; }

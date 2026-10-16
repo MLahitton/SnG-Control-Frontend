@@ -60,7 +60,7 @@ Las acciones documentales dependen de `canModify`, `canRemove` y `canSendToBudge
 
 Las notificaciones conservan el historial, incluidas alertas de atraso resueltas. No hay leído/no leído ni acciones de descarte. Las mutaciones bloquean dobles envíos y los conflictos de workflow refrescan el estado real.
 
-El detalle reúne encabezado, estado actual, documentación, acciones disponibles y actividad en un espacio de trabajo responsive. El historial de tareas conserva las fechas en “Fechas y seguimiento”. Las listas y formularios comparten estados, botones y tipografía Steel & Glass.
+El detalle reúne encabezado, estado actual, documentación, acciones disponibles y actividad en un expediente continuo con divisores. Las tareas del proyecto muestran sus fechas directamente. El shell combina navegación azul pálido y una cabecera discreta; las demás páginas conservan sus componentes actuales.
 
 Todo usa el BFF y cliente API compartidos. Los archivos siguen siendo documentos opacos; no se implementa importación/preview de cotizaciones Excel, confirmaciones, revisión comercial, aprobación o pago. No hay roles, permisos simulados ni métricas inventadas. El alcance termina en **Frontend 2B.5**, antes de 2C.
 

@@ -1,27 +1,25 @@
 "use client";
 
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import styles from "./Shell.module.css";
 
 export function TopBar({ menuOpen, onToggleMenu }: { menuOpen: boolean; onToggleMenu: () => void }) {
   const { user, logout } = useAuth();
   return (
-    <header className="topbar">
-      <div className="flex items-center gap-3">
-        <button className="button-secondary lg:hidden" aria-expanded={menuOpen} aria-controls="app-navigation" onClick={onToggleMenu}>
+    <header className={styles.topbar}>
+      <div className={styles.mobileContext}>
+        <button className={styles.menu} aria-expanded={menuOpen} aria-controls="app-navigation" onClick={onToggleMenu}>
           {menuOpen ? "Cerrar menú" : "Abrir menú"}
         </button>
-        <div>
-          <p className="font-semibold">SnG Control</p>
-          <p className="metadata">Control operativo</p>
-        </div>
+        <p className={styles.productName}>SnG Control</p>
       </div>
-      <div className="topbar-user">
-        <span className="avatar" aria-hidden="true">{(user?.name ?? "G").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>
-        <div className="topbar-identity" aria-label="Usuario actual">
-          <p className="break-words text-sm font-semibold">{user?.name ?? "Cuenta Google"}</p>
-          {user?.email && <p className="break-all text-xs text-slate-600">{user.email}</p>}
+      <div className={styles.user}>
+        <span className={styles.avatar} aria-hidden="true">{(user?.name ?? "G").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>
+        <div className={styles.identity} aria-label="Usuario actual">
+          <p className="font-medium">{user?.name ?? "Cuenta Google"}</p>
+          {user?.email && <p>{user.email}</p>}
         </div>
-        <button className="button-ghost shrink-0" onClick={logout}>Cerrar sesión</button>
+        <button className={styles.logout} onClick={logout}>Cerrar sesión</button>
       </div>
     </header>
   );
