@@ -12,7 +12,9 @@ import { TaskList } from "@/features/tasks/TaskList";
 import { ApiError } from "@/lib/api/apiError";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { useResource } from "@/lib/api/useResource";
-import { formatDate } from "@/lib/formatDate";
+import { ProjectHeader } from "./ProjectHeader";
+import { ProjectStatusStrip } from "./ProjectStatusStrip";
+import styles from "./ProjectDetail.module.css";
 import { projectsService } from "./service";
 import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
 import { useProjectDocuments } from "@/features/documents/useProjectDocuments";
@@ -117,51 +119,48 @@ function ProjectDetailContent({ id }: { id: string }) {
     if (data && !signal.aborted) resource.update({ ...data, notifications });
   }
 
-  return <div className="space-y-6">
+  return <div className="page-stack">
     <Link className="text-link" href="/projects">Volver a proyectos</Link>
-    <h1 className="page-title">{data?.project.name ?? "Detalle del proyecto"}</h1>
-    {resource.loading && <p role="status">Cargando proyecto…</p>}
+    {!data && <h1 className="page-title">Detalle del proyecto</h1>}
+    {resource.loading && <p role="status" className="loading-notice">Cargando proyecto…</p>}
     {resource.error instanceof ApiError && resource.error.status === 404
       ? <p role="alert" className="error-message">No se encontró el proyecto o uno de sus recursos asociados.</p>
       : <ErrorNotice error={resource.error} retry={resource.refresh} />}
     {conflict ? <div role="alert" className="error-message"><p>{conflict}</p>{error instanceof ApiError && error.code && <p>Código: {error.code}</p>}</div> : <ErrorNotice error={error} />}
-    {notice && <p role="status" className="rounded-lg border border-cyan-200 bg-cyan-50 p-4">{notice}</p>}
+    {notice && <p role="status" className="success-notice">{notice}</p>}
     {!!refreshError && <div className="space-y-2"><p>La operación se guardó, pero no se pudo actualizar toda la información relacionada.</p><ErrorNotice error={refreshError} retry={() => { setRefreshError(undefined); resource.refresh(); }} /></div>}
     {data && <>
-      <section className="panel" aria-labelledby="project-info-title">
-        <h2 id="project-info-title" className="section-title">Datos del proyecto</h2>
-        <dl className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            ["Cliente", data.client.name], ["Ciudad", data.project.city], ["Línea", data.project.productLine], ["SG", data.project.sgCode ?? "Sin asignar"],
-            ["Responsable comercial", [data.project.createdBy?.name, data.project.createdBy?.email].filter(Boolean).join(" · ") || "No disponible"],
-            ["Creación", formatDate(data.project.createdAt)],
-          ].map(([label, value]) => <div key={label}><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 font-medium break-words">{value}</dd></div>)}
-        </dl>
-      </section>
-      <DocumentsPanel projectId={id} resource={documents} hasPreparation={!!preparation} disabled={busy}
-        onBusyChange={setDocumentBusy} onUpdated={refreshDocumentNotifications} />
-      {documents.data?.canModify && !documents.data.documents.some((document) => document.isCurrent) && <p role="status">Debes cargar al menos un documento del proyecto antes de enviarlo a Presupuestos.</p>}
-      {documents.data?.canSendToBudgets && <section className="panel" aria-labelledby="send-title">
-        <h2 id="send-title" className="section-title">Presupuestos</h2>
-        <p className="my-3">El envío asigna la preparación de la cotización. El plazo comienza con la primera asignación de SG.</p>
+      <ProjectHeader project={data.project} clientName={data.client.name} />
+      <ProjectStatusStrip tasks={data.tasks} />
+      <div className={styles.workspace}>
+      <div className={styles.actions}>
+      {documents.data?.canModify && !documents.data.documents.some((document) => document.isCurrent) && <section className="panel action-panel" aria-labelledby="upload-action-title"><h2 id="upload-action-title" className="section-title">Cargar documentación</h2><p role="status" className="my-3 metadata">Debes cargar al menos un documento del proyecto antes de enviarlo a Presupuestos.</p><a className="text-link" href="#documents-title">Ir a documentos</a></section>}
+      {documents.data?.canSendToBudgets && <section className="panel action-panel" aria-labelledby="send-title">
+        <p className="eyebrow mb-2">Siguiente acción</p><h2 id="send-title" className="section-title">Presupuestos</h2>
+        <p className="my-3 metadata">El plazo de Presupuestos comenzará cuando se asigne el SG.</p>
         {confirmSend ? <div role="group" aria-label="Confirmar envío a Presupuestos" className="space-y-3">
           <p>¿Confirmas el envío de este proyecto a Presupuestos?</p>
           <div className="flex flex-wrap gap-3"><button className="button-primary" disabled={busy || documentBusy} onClick={() => void mutate("send")}>{busy ? "Enviando…" : "Confirmar envío"}</button><button className="button-secondary" disabled={busy || documentBusy} onClick={() => setConfirmSend(false)}>Cancelar</button></div>
         </div> : <button className="button-primary" disabled={busy || documentBusy} onClick={() => setConfirmSend(true)}>Enviar a Presupuestos</button>}
       </section>}
-      {pendingSg && !isPreparationAssignee && <p role="status" className="rounded-lg border border-slate-200 bg-white p-4">Pendiente de asignación de SG por Presupuestos.</p>}
-      {(canAssign || canCorrect) && <section className="panel" aria-labelledby="sg-title">
+      {pendingSg && !isPreparationAssignee && <p role="status" className="info-notice">Pendiente de asignación de SG por Presupuestos.</p>}
+      {(canAssign || canCorrect) && <section className="panel action-panel" aria-labelledby="sg-title">
+        <p className="eyebrow mb-2">Siguiente acción</p>
         <h2 id="sg-title" className="section-title">{canCorrect ? "Corregir SG" : "Asignar SG"}</h2>
         <p className="my-3 text-sm text-slate-600">{canCorrect ? "La corrección conserva el inicio y vencimiento de la tarea." : "La primera asignación inicia el plazo de preparación de la cotización."}</p>
-        <form onSubmit={submitSg} className="flex flex-wrap items-end gap-4">
+        <form onSubmit={submitSg} className="stack">
           <label className="field-label">Código SG<input className="form-control" required value={sgCode} disabled={busy} aria-invalid={!!validation} aria-describedby={validation ? "sg-error" : undefined} onChange={(e) => { setSgCode(e.target.value); setValidation(""); }} placeholder={data.project.sgCode ?? "SG001"} /></label>
           <button className="button-primary" disabled={busy || documentBusy || !sgCode.trim()}>{busy ? "Guardando…" : canCorrect ? "Guardar corrección" : "Asignar SG"}</button>
         </form>
         {validation && <p id="sg-error" role="alert" className="error-message mt-3">{validation}</p>}
       </section>}
-      <p className="text-sm text-slate-600">Fechas y horas de Colombia (America/Bogota).</p>
-      <section aria-labelledby="project-tasks-title" className="space-y-4"><h2 id="project-tasks-title" className="section-title">Tareas del proyecto</h2><TaskList tasks={data.tasks} /></section>
-      <section aria-labelledby="project-notifications-title" className="space-y-4"><h2 id="project-notifications-title" className="section-title">Historial de notificaciones</h2><NotificationList notifications={data.notifications} /></section>
+      </div>
+      <div className={styles.documents}><DocumentsPanel projectId={id} resource={documents} hasPreparation={!!preparation} disabled={busy}
+        onBusyChange={setDocumentBusy} onUpdated={refreshDocumentNotifications} /></div>
+      <section aria-labelledby="project-notifications-title" className={`${styles.activity} panel stack`}><h2 id="project-notifications-title" className="section-title">Actividad del proyecto</h2><NotificationList notifications={data.notifications} /></section>
+      <section aria-labelledby="project-tasks-title" className={`${styles.tasks} stack`}><h2 id="project-tasks-title" className="section-title">Tareas del proyecto</h2><TaskList tasks={data.tasks} compact /></section>
+      </div>
+      <p className="metadata">Fechas y horas de Colombia (America/Bogota).</p>
     </>}
   </div>;
 }

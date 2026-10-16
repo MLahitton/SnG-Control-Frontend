@@ -5,7 +5,7 @@ export interface DocumentActor {
 export interface ProjectDocument {
   id: string;
   originalFileName: string;
-  contentType: string;
+  contentType: string | null;
   sizeBytes: number;
   uploadedAt: string;
   uploadedBy: DocumentActor;

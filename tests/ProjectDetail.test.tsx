@@ -29,6 +29,7 @@ async function openDetail(currentUser = user) {
   renderOperational(<ProjectDetailPage id="project-1" />, currentUser);
   await screen.findByRole("heading", { name: project.name });
 }
+const taskHistory = () => within(screen.getByRole("region", { name: "Tareas del proyecto" }));
 const mutationCalls = (fetchMock: ReturnType<typeof mockBackend>) => fetchMock.mock.calls.filter(([, init]) => init.method !== "GET");
 
 describe("Project detail and send to Budgets", () => {
@@ -37,12 +38,12 @@ describe("Project detail and send to Budgets", () => {
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(expect.arrayContaining([
       "/api/backend/projects/project-1", "/api/backend/clients/client-1", "/api/backend/projects/project-1/tasks", "/api/backend/projects/project-1/notifications",
     ]));
-    for (const text of [client.name, notification.title, "Sin iniciar"]) expect(screen.getByText(text)).toBeInTheDocument();
+    for (const text of [client.name, notification.title]) expect(screen.getByText(text)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Preparar cotización" })).toBeInTheDocument();
     expect(screen.getByText(/Persona de prueba · persona@example.test/)).toBeInTheDocument();
     expect(screen.queryByText(/private-|test-subject/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enviar a Presupuestos" })).not.toBeInTheDocument();
-    expect(screen.getByText("El plazo comienza al asignar el SG.")).toBeInTheDocument();
+    expect(taskHistory().getByText("El plazo comienza al asignar el SG.")).toBeInTheDocument();
   });
   it("shows a safe 404 without mutation actions", async () => {
     mockBackend(() => Response.json({ detail: "internal storage" }, { status: 404 }));
@@ -68,9 +69,9 @@ describe("Project detail and send to Budgets", () => {
     state.tasks = [task]; state.notifications = [{ ...notification, title: "Nueva asignación" }];
     await act(async () => pending.resolve(task));
     await screen.findByText("Nueva asignación");
-    expect(screen.getByText("Pendiente")).toBeInTheDocument();
-    expect(screen.getByText("Sin iniciar")).toBeInTheDocument();
-    expect(screen.getByText("Vence: Sin fecha asignada")).toBeInTheDocument();
+    expect(taskHistory().getByText("Pendiente")).toBeInTheDocument();
+    expect(taskHistory().getByText("Sin iniciar")).toBeInTheDocument();
+    expect(taskHistory().getByText("Vence: Sin fecha asignada")).toBeInTheDocument();
     expect(screen.queryByText("Registró atraso.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enviar a Presupuestos" })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("/tasks"))).toHaveLength(2);
@@ -125,11 +126,11 @@ describe("SG assignment and correction", () => {
     state.notifications = [{ ...notification, title: "Plazo iniciado" }];
     await act(async () => pending.resolve({ project: { ...project, sgCode: "SG001" }, prepareQuotationTask: inProgressTask }));
     expect(await screen.findByText("SG001")).toBeInTheDocument();
-    expect(screen.getByText("En curso")).toBeInTheDocument();
-    expect(screen.getByText("En tiempo")).toBeInTheDocument();
+    expect(taskHistory().getByText("En curso")).toBeInTheDocument();
+    expect(taskHistory().getByText("En tiempo")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Corregir SG" })).toBeInTheDocument();
     expect(await screen.findByText("Plazo iniciado")).toBeInTheDocument();
-    expect(screen.getByText(/Vence:.*22\/10\/2026.*5:00/)).toBeInTheDocument();
+    expect(taskHistory().getByText(/Vence:.*22\/10\/2026.*5:00/)).toBeInTheDocument();
     expect(screen.queryByText("El plazo comienza al asignar el SG.")).not.toBeInTheDocument();
   });
   it.each(["SG", "SG-12", "ABC12", "SG１２", "SG1 2"])("does not submit invalid SG %s", async (value) => {
@@ -175,7 +176,7 @@ describe("SG assignment and correction", () => {
     await userEvent.click(screen.getByRole("button", { name: "Asignar SG" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("El código puede estar en uso o el proyecto ya no permite esta operación");
     await screen.findByText("SG55");
-    expect(screen.getByText("En curso")).toBeInTheDocument();
+    expect(taskHistory().getByText("En curso")).toBeInTheDocument();
     expect(screen.queryByText(/duplicate secret/)).not.toBeInTheDocument();
     await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => url.endsWith("/tasks"))).toHaveLength(2));
   });
@@ -195,7 +196,7 @@ describe("SG controls follow PrepareQuotation assignment", () => {
     await openDetail(user);
     expect(screen.getByText("Pendiente de asignación de SG por Presupuestos.")).toBeInTheDocument();
     expectReadOnlySg();
-    expect(screen.getByText("Sin iniciar")).toBeInTheDocument();
+    expect(taskHistory().getByText("Sin iniciar")).toBeInTheDocument();
     expect(screen.getByText(notification.title)).toBeInTheDocument();
     expect(mutationCalls(fetchMock)).toHaveLength(0);
   });
@@ -204,8 +205,9 @@ describe("SG controls follow PrepareQuotation assignment", () => {
     const { fetchMock } = backend([inProgressTask], { ...project, sgCode: "SG001" });
     await openDetail(user);
     expectReadOnlySg();
-    for (const label of ["SG001", "En curso", "En tiempo", notification.title]) expect(screen.getByText(label)).toBeInTheDocument();
-    expect(screen.getByText(/Vence:.*22\/10\/2026.*5:00/)).toBeInTheDocument();
+    for (const label of ["SG001", notification.title]) expect(screen.getByText(label)).toBeInTheDocument();
+    for (const label of ["En curso", "En tiempo"]) expect(taskHistory().getByText(label)).toBeInTheDocument();
+    expect(taskHistory().getByText(/Vence:.*22\/10\/2026.*5:00/)).toBeInTheDocument();
     expect(screen.queryByText("Pendiente de asignación de SG por Presupuestos.")).not.toBeInTheDocument();
     expect(mutationCalls(fetchMock)).toHaveLength(0);
   });

@@ -8,6 +8,9 @@ import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { useResource } from "@/lib/api/useResource";
 import { formatDate } from "@/lib/formatDate";
 import { projectsService } from "./service";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export function ProjectsPage() {
   const api = useApiClient();
@@ -16,17 +19,17 @@ export function ProjectsPage() {
     return { projects, clients: new Map(clients.map((client) => [client.id, client.name])) };
   }, [api]);
   const { data, loading, error, refresh } = useResource(load);
-  return <div className="space-y-6">
-    <div className="flex flex-wrap items-center justify-between gap-4"><h1 className="page-title">Proyectos</h1><Link className="button-primary" href="/projects/new">Crear proyecto</Link></div>
-    {loading && <p role="status">Cargando proyectos…</p>}
+  return <div className="page-stack">
+    <PageHeader title="Proyectos" description="Seguimiento de proyectos comerciales y operativos." action={<Link className="button-primary" href="/projects/new">Crear proyecto</Link>} />
+    {loading && <p role="status" className="loading-notice">Cargando proyectos…</p>}
     <ErrorNotice error={error} retry={refresh} />
-    {data?.projects.length === 0 && <p className="panel">Todavía no hay proyectos.</p>}
-    {data && data.projects.length > 0 && <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    {data?.projects.length === 0 && <EmptyState title="Todavía no hay proyectos." description="Crea el primer proyecto para comenzar." />}
+    {data && data.projects.length > 0 && <div className="table-scroll" role="region" aria-label="Lista de proyectos" tabIndex={0}>
       <table className="data-table"><caption className="sr-only">Proyectos registrados. Fechas en hora de Colombia.</caption>
         <thead><tr>{["Proyecto", "Cliente", "Ciudad", "Línea", "SG", "Creación"].map((title) => <th key={title} scope="col">{title}</th>)}</tr></thead>
         <tbody>{data.projects.map((project) => <tr key={project.id}>
           <td><Link className="text-link" href={`/projects/${encodeURIComponent(project.id)}`}>{project.name}</Link></td>
-          <td>{data.clients.get(project.clientId) ?? "Cliente no disponible"}</td><td>{project.city}</td><td>{project.productLine}</td><td>{project.sgCode ?? "Sin asignar"}</td><td>{formatDate(project.createdAt)}</td>
+          <td>{data.clients.get(project.clientId) ?? "Cliente no disponible"}</td><td>{project.city}</td><td><StatusBadge>{project.productLine}</StatusBadge></td><td><StatusBadge code tone={project.sgCode ? "info" : "neutral"}>{project.sgCode ?? "Sin SG"}</StatusBadge></td><td className="whitespace-nowrap metadata">{formatDate(project.createdAt)}</td>
         </tr>)}</tbody>
       </table>
     </div>}

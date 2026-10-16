@@ -11,6 +11,10 @@ import { documentsService } from "./service";
 import { documentErrorMessage, validateDocumentBatch } from "./validation";
 import type { DocumentActor, ProjectDocument } from "./types";
 import type { useProjectDocuments } from "./useProjectDocuments";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Icon } from "@/components/ui/Icon";
+import styles from "./DocumentsPanel.module.css";
 
 const actorName = (actor: DocumentActor) => [actor.name, actor.email].filter(Boolean).join(" · ") || "No disponible";
 
@@ -48,6 +52,12 @@ export function DocumentsPanel({ projectId, resource, hasPreparation, disabled, 
     setFiles(selected); setReplacement(replace); setError(""); setNotice("");
   }
 
+  function clearSelection() {
+    setFiles([]); setReplacement(null);
+    if (selectFiles.current) selectFiles.current.value = "";
+    if (replaceFile.current) replaceFile.current.value = "";
+  }
+
   async function run(label: string, action: (signal: AbortSignal) => Promise<void>) {
     if (locked.current || disabled) return;
     locked.current = true;
@@ -82,9 +92,7 @@ export function DocumentsPanel({ projectId, resource, hasPreparation, disabled, 
     void run("Subiendo...", async (signal) => {
       await documentsService.uploadBatch(api, projectId, operations, signal);
       if (signal.aborted) return;
-      setFiles([]); setReplacement(null);
-      if (selectFiles.current) selectFiles.current.value = "";
-      if (replaceFile.current) replaceFile.current.value = "";
+      clearSelection();
       await afterMutation(signal, "Documentos guardados.");
     });
   }
@@ -107,68 +115,70 @@ export function DocumentsPanel({ projectId, resource, hasPreparation, disabled, 
 
   function documentRow(document: ProjectDocument) {
     const successor = data?.documents.find((item) => item.id === document.replacedByDocumentId);
-    return <li key={document.id} className="rounded-lg border border-slate-200 p-4">
+    return <li key={document.id} className={styles.row}>
+      <div className={styles.file}><Icon name="file" /><div>
       <h4 className="font-semibold break-words">{document.originalFileName}</h4>
-      <div className="mt-2 space-y-1 text-sm text-slate-600">
+      <div className="mt-1 space-y-1 metadata">
         <p>{formatBytes(document.sizeBytes)} · Cargado: {formatDate(document.uploadedAt)}</p>
         <p>Subido por: {actorName(document.uploadedBy)}</p>
-        {document.inInitialHandoff && <p className="font-semibold text-cyan-900">Incluido en el envío inicial</p>}
-        {!document.isCurrent && <><p>Reemplazado: {formatDate(document.replacedAt)}</p><p>Reemplazado por: {successor?.originalFileName ?? document.replacedByDocumentId ?? "No disponible"}</p></>}
+        {document.inInitialHandoff && <StatusBadge>Incluido en el envío inicial</StatusBadge>}
+        {!document.isCurrent && <><p>Reemplazado: {formatDate(document.replacedAt)}</p><p>Reemplazado por: {successor?.originalFileName ?? "No disponible"}</p></>}
       </div>
-      <div className="mt-3 flex flex-wrap gap-3">
-        <button className="button-secondary" disabled={blocked} onClick={() => download(document.originalFileName, (signal) => documentsService.download(api, projectId, document.id, signal))}>Descargar</button>
-        {document.isCurrent && data?.canModify && <button className="button-secondary" disabled={blocked} onClick={() => {
+      </div></div>
+      <div className={styles.actions}>
+        <button className="button-ghost" disabled={blocked} onClick={() => download(document.originalFileName, (signal) => documentsService.download(api, projectId, document.id, signal))}>Descargar</button>
+        {document.isCurrent && data?.canModify && <button className="button-ghost" disabled={blocked} onClick={() => {
           setReplacement(document); setFiles([]); setRemoval(null); setError(""); setNotice("");
           if (replaceFile.current) { replaceFile.current.value = ""; replaceFile.current.click(); }
         }}>Reemplazar</button>}
-        {document.isCurrent && data?.canRemove && <button className="button-secondary" disabled={blocked} onClick={() => { setRemoval(document); setError(""); }}>Quitar</button>}
+        {document.isCurrent && data?.canRemove && <button className="button-danger" disabled={blocked} onClick={() => { setRemoval(document); setError(""); }}>Quitar</button>}
       </div>
     </li>;
   }
 
   return <section className="panel space-y-5" aria-labelledby="documents-title">
-    <h2 id="documents-title" className="section-title">Documentos del proyecto</h2>
-    {resource.loading && <p role="status">Cargando documentos…</p>}
+    <div className="section-header"><div><h2 id="documents-title" tabIndex={-1} className="section-title">Documentos del proyecto</h2>{data && <p className="metadata mt-1">{current.length} vigente(s) · {historical.length} en historial</p>}</div>
+      {current.length > 0 && <button className="button-secondary" disabled={blocked} onClick={() => download("current.zip", (signal) => documentsService.downloadCurrentZip(api, projectId, signal))}>Descargar documentos actuales</button>}
+    </div>
+    {resource.loading && <p role="status" className="loading-notice">Cargando documentos…</p>}
     {!!resource.error && <div role="alert" className="error-message"><p>{documentErrorMessage(resource.error)}</p><button className="button-secondary mt-3" disabled={blocked} onClick={resource.refresh}>Volver a cargar documentos</button></div>}
     {error && <p role="alert" className="error-message">{error}</p>}
-    {notice && <p role="status">{notice}</p>}
-    {busy && <p role="status">{busy}</p>}
+    {notice && <p role="status" className="success-notice">{notice}</p>}
+    {busy && <p role="status" className="loading-notice">{busy}</p>}
     {data && <>
       {data.canModify && <form onSubmit={upload} className="space-y-4">
-        <div role="group" aria-label="Carga de documentos" className="rounded-lg border-2 border-dashed border-slate-300 p-5"
+        <div role="group" aria-label="Carga de documentos" className={styles.dropzone}
           onDragOver={(event) => { event.preventDefault(); }} onDrop={(event) => {
             event.preventDefault(); choose(Array.from(event.dataTransfer.files), null);
           }}>
-          <p>Arrastra archivos aquí o selecciónalos. Hasta 100 MB por archivo, 300 MB por carga y 15 documentos vigentes.</p>
-          <button type="button" className="button-secondary mt-3" disabled={blocked} onClick={() => selectFiles.current?.click()}>Seleccionar archivos</button>
+          <div className="section-header"><p className="font-medium">Arrastra archivos aquí</p><button type="button" className="button-secondary" disabled={blocked} onClick={() => selectFiles.current?.click()}>Seleccionar archivos</button></div>
+          <p className="metadata mt-2">Hasta 15 documentos vigentes · 100 MB por archivo · 300 MB por carga</p>
           <input ref={selectFiles} type="file" multiple hidden aria-label="Archivos del proyecto" disabled={blocked} onChange={(event) => choose(Array.from(event.target.files ?? []), null)} />
           <input ref={replaceFile} type="file" hidden aria-label="Archivo de reemplazo" disabled={blocked} onChange={(event) => choose(Array.from(event.target.files ?? []))} />
-        </div>
-        {replacement && <p>Reemplazar: <strong>{replacement.originalFileName}</strong>. El documento anterior se conservará en el historial.</p>}
-        {files.length > 0 && <div className="space-y-2">
-          <ul>{files.map((file, index) => <li key={index} className="break-words">{file.name} — {formatBytes(file.size)}</li>)}</ul>
-          <p>{files.length} archivo(s) seleccionado(s) · Total: {formatBytes(files.reduce((sum, file) => sum + file.size, 0))}</p>
+        {replacement && <div className="subtle-panel mt-3"><p className="metadata">Reemplazando</p><p className="font-semibold break-all">{replacement.originalFileName}</p><p className="metadata mt-2">El documento anterior se conservará en el historial.</p></div>}
+        {files.length > 0 && <div className={styles.selection}>
+          {replacement && <p className="metadata">Nuevo archivo</p>}
+          <ul>{files.map((file, index) => <li key={index}><span>{file.name}</span><span className="metadata">{formatBytes(file.size)}</span></li>)}</ul>
+          <p className="metadata mt-2">{files.length} archivo(s) seleccionado(s) · Total: {formatBytes(files.reduce((sum, file) => sum + file.size, 0))}</p>
         </div>}
+        </div>
         {validation && <p role="alert" className="error-message">{validation}</p>}
         <div className="flex flex-wrap gap-3">
           <button className="button-primary" disabled={blocked || !files.length || !!validation}>{replacement ? "Confirmar reemplazo" : "Subir documentos"}</button>
-          {(files.length > 0 || replacement) && <button type="button" className="button-secondary" disabled={blocked} onClick={() => { setFiles([]); setReplacement(null); }}>Cancelar selección</button>}
+          {(files.length > 0 || replacement) && <button type="button" className="button-secondary" disabled={blocked} onClick={clearSelection}>Cancelar selección</button>}
         </div>
       </form>}
-      {removal && data.canRemove && <div role="group" aria-label="Confirmar quitar documento" className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+      {removal && data.canRemove && <div role="group" aria-label="Confirmar quitar documento" className="subtle-panel space-y-3">
         <p>¿Quitar del proyecto «{removal.originalFileName}»?</p>
-        <div className="flex flex-wrap gap-3"><button className="button-primary" disabled={blocked} onClick={remove}>Confirmar quitar</button><button className="button-secondary" disabled={blocked} onClick={() => setRemoval(null)}>Cancelar</button></div>
+        <div className="flex flex-wrap gap-3"><button className="button-danger" disabled={blocked} onClick={remove}>Confirmar quitar</button><button className="button-secondary" disabled={blocked} onClick={() => setRemoval(null)}>Cancelar</button></div>
       </div>}
       <div className="space-y-3"><h3 className="font-semibold">Documentos vigentes</h3>
-        {current.length === 0 ? <p>No hay documentos vigentes.</p> : <>
-          <button className="button-secondary" disabled={blocked} onClick={() => download("current.zip", (signal) => documentsService.downloadCurrentZip(api, projectId, signal))}>Descargar documentos actuales</button>
-          <ul className="space-y-3">{current.map(documentRow)}</ul>
-        </>}
+        {current.length === 0 ? <EmptyState title="No hay documentos vigentes." /> : <ul>{current.map(documentRow)}</ul>}
       </div>
-      <div className="space-y-3"><h3 className="font-semibold">Historial documental</h3>
-        {historical.length ? <ul className="space-y-3">{historical.map(documentRow)}</ul> : <p>No hay documentos reemplazados.</p>}
+      <div className={styles.history}><h3 className="font-semibold">Historial documental</h3>
+        {historical.length ? <ul>{historical.map(documentRow)}</ul> : <p className="metadata mt-2">No hay documentos reemplazados.</p>}
       </div>
-      {data.initialHandoff ? <div className="space-y-2 border-t border-slate-200 pt-4">
+      {data.initialHandoff ? <div className={`${styles.handoff} space-y-2 metadata`}>
         <h3 className="font-semibold">Envío inicial a Presupuestos</h3>
         <p>Enviado: {formatDate(data.initialHandoff.sentAt)}</p><p>Por: {actorName(data.initialHandoff.sentBy)}</p>
         <p>{data.initialHandoff.documentIds.length} documento(s) en el envío inicial.</p>

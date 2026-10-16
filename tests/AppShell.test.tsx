@@ -5,14 +5,22 @@ import { AuthContext, AuthProvider, SESSION_TOKEN_KEY } from "@/features/auth/co
 import { AppShell } from "@/features/shell/components/AppShell";
 import { testApiClient, token, user } from "./fixtures";
 
-const { router } = vi.hoisted(() => ({ router: { replace: vi.fn() } }));
-vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/" }));
+const { router, location } = vi.hoisted(() => ({ router: { replace: vi.fn() }, location: { pathname: "/" } }));
+vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => location.pathname }));
 const context = {
   status: "authenticated" as const, user, error: null,
   signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: testApiClient,
 };
 
 describe("operational shell", () => {
+  it.each(["/projects/new", "/projects/project-1"])("marks only Projects active for %s", (pathname) => {
+    location.pathname = pathname;
+    try {
+      render(<AuthContext.Provider value={context}><AppShell>Proyecto</AppShell></AuthContext.Provider>);
+      const links = within(screen.getByRole("navigation", { name: "Principal" })).getAllByRole("link");
+      expect(links.filter((link) => link.getAttribute("aria-current") === "page")).toEqual([screen.getByRole("link", { name: "Proyectos" })]);
+    } finally { location.pathname = "/"; }
+  });
   it("redirects unauthenticated users without revealing protected content", () => {
     render(<AuthContext.Provider value={{ ...context, status: "unauthenticated", user: null }}><AppShell>Contenido protegido</AppShell></AuthContext.Provider>);
     expect(router.replace).toHaveBeenCalledWith("/login");

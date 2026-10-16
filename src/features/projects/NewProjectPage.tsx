@@ -9,6 +9,7 @@ import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { useResource } from "@/lib/api/useResource";
 import { projectsService } from "./service";
 import { productLines, type ProductLine } from "./types";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export function NewProjectPage() {
   const api = useApiClient();
@@ -32,22 +33,22 @@ export function NewProjectPage() {
       // Keep the form locked until navigation completes.
     } catch (failure) { setError(failure); locked.current = false; setBusy(false); }
   }
-  return <div className="space-y-6">
+  return <div className="page-stack">
     <Link className="text-link" href="/projects">Volver a proyectos</Link>
-    <h1 className="page-title">Crear proyecto</h1>
+    <PageHeader title="Crear proyecto" description="Registra el cliente, la ubicación y la línea del proyecto." />
     {clients.loading && <p role="status">Cargando clientes…</p>}
     <ErrorNotice error={clients.error} retry={clients.refresh} />
     {clients.data?.length === 0 && <div className="panel"><p>Primero debes crear un cliente para registrar el proyecto.</p><Link className="text-link mt-3 inline-block" href="/clients">Crear cliente</Link></div>}
-    {!!clients.data?.length && <form onSubmit={submit} className="panel max-w-3xl space-y-5">
-      <fieldset disabled={busy} className="space-y-5">
-        <legend className="sr-only">Datos del proyecto</legend>
+    {!!clients.data?.length && <form onSubmit={submit} className="panel space-y-5">
+      <fieldset disabled={busy} className="form-grid">
+        <legend className="section-title mb-5">Datos del proyecto</legend>
         <label className="field-label">Cliente *<select className="form-control" required value={clientId} onChange={(e) => setClientId(e.target.value)}><option value="">Selecciona un cliente</option>{clients.data.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
         <label className="field-label">Nombre del proyecto *<input className="form-control" required value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label className="field-label">Ciudad *<input className="form-control" required value={city} onChange={(e) => setCity(e.target.value)} /></label>
         <label className="field-label">Línea de producto *<select className="form-control" value={productLine} onChange={(e) => setProductLine(e.target.value as ProductLine)}>{productLines.map((line) => <option key={line}>{line}</option>)}</select></label>
       </fieldset>
       <ErrorNotice error={error} />
-      <button className="button-primary" disabled={busy || !clientId || !name.trim() || !city.trim()}>{busy ? "Creando proyecto…" : "Crear proyecto"}</button>
+      <div className="action-bar border-t border-[var(--border)] pt-4"><p className="metadata">* Campos obligatorios</p><button className="button-primary" disabled={busy || !clientId || !name.trim() || !city.trim()}>{busy ? "Creando proyecto…" : "Crear proyecto"}</button></div>
     </form>}
   </div>;
 }

@@ -263,6 +263,8 @@ El panel `DocumentsPanel` está en `/projects/[id]`, sin nuevas páginas. `docum
 
 `ProjectDocuments` contiene `documents`, `initialHandoff | null`, `canModify`, `canRemove` y `canSendToBudgets`. No se deducen permisos documentales del creador, email, área o Subject. Un 403 documental solo afecta este panel. El backend autoriza cada operación y la UI vuelve a consultar capabilities tras conflictos.
 
+`ProjectDocument.contentType` admite `string | null` y no se usa para renderizar archivos. Cancelar selección o reemplazo limpia tanto el estado React como los valores de ambos inputs file, permitiendo volver a elegir inmediatamente el mismo archivo.
+
 La selección permite múltiples archivos por click o drag/drop y exige envío explícito. Valida bytes exactos: 100_000_000 por archivo, 300_000_000 por operación, máximo 15 vigentes contando existentes + additions y rechazo de 0 bytes. No filtra MIME/extensión/nombres duplicados. `formatBytes` presenta B/KB/MB sin modificar los valores de validación. No se leen los archivos para validar, renombrar, transformar o codificar a base64.
 
 `documentBatch` agrega primero `manifest`, Blob `application/json`, con `{ files: [{ partName: "file-0", replacesDocumentId: null | id }, ...] }`; luego añade los File originales en partes `file-0`, `file-1`, etc. El browser genera el boundary global. El service acepta múltiples operaciones, aunque esta UI reemplaza un documento por operación. La respuesta de batch no se usa como contrato de lista: se vuelve a consultar GET documents tras éxito.
@@ -300,9 +302,19 @@ No se desactiva validación TLS global ni por request. No se usan agentes que ac
 
 `AppShell` agrupa Sidebar, TopBar y el contenido principal. Sidebar enlaza Inicio, Clientes, Proyectos, Tareas y Notificaciones; Proyectos permanece activo en creación y detalle. TopBar muestra nombre/email y logout. En móvil/tablet, el botón de menú controla la navegación con aria-expanded/aria-controls; en desktop permanece visible. Hay enlace para saltar al contenido y el foco vuelve al contenido al navegar. No existen enlaces a módulos pendientes.
 
-La home muestra Name, Email y Google Subject, incluidos valores nulos tratados como “No disponible”. Copiar Subject invoca `navigator.clipboard.writeText(user.subject)`. La API requiere contexto seguro (HTTPS o localhost) y permisos del navegador; el fallo indica cómo copiar manualmente.
+La home presenta accesos reales a proyectos, clientes, tareas y notificaciones, sin consultas adicionales ni métricas. Nombre/email permanecen visibles; Google Subject y Copiar Subject se agrupan en el disclosure secundario “Identidad técnica de la sesión”. Los valores nulos se presentan como “No disponible”. Copiar Subject invoca `navigator.clipboard.writeText(user.subject)`. La API requiere contexto seguro (HTTPS o localhost) y permisos del navegador; el fallo indica cómo copiar manualmente.
 
-Diseño responsive con fuentes del sistema, grises, blanco y acento cyan moderado. Los botones tienen focus visible y los mensajes utilizan `role="status"` o `role="alert"`. No hay datos o métricas ficticias.
+### Sistema visual Steel & Glass
+
+`globals.css` centraliza tokens en `:root`: background/surface/surface-subtle, ink/ink-soft, border/border-strong, brand/brand-hover/brand-soft, accent/accent-soft y pares semánticos success/warning/danger/neutral. Los componentes compartidos usan `@layer components` para botones, formularios, tablas, panels, toolbar y feedback. La stack Inter/system-ui/Segoe UI no descarga fuentes; el cuerpo operativo es de 14 px, con encabezados compactos y metadatos secundarios. Panels de 12 px de radio y padding aproximado de 19 px priorizan líneas y superficies sobre sombras.
+
+`src/components/ui/` contiene únicamente PageHeader, StatusBadge (neutral/info/success/warning/danger), EmptyState e Icon (SVG internos decorativos). Los badges de tareas, Leak Time y notificaciones comparten la semántica; las etiquetas siguen siendo las del estado backend. ErrorNotice conserva sanitización y mensajes; códigos diagnósticos tienen menor jerarquía visual.
+
+Sidebar fija de 232 px desde 1024 px, navegación activa con indicador lateral y TopBar compacta con iniciales, identidad y logout. Main ocupa el ancho disponible hasta 1600 px, con padding de 16/24/28–32 px. Por debajo de desktop la navegación usa el menú existente. Proyectos mantiene una tabla en una región desplazable por teclado; clientes dispone lista y formulario lateral; crear proyecto usa dos columnas desde 640 px. Tareas usa toolbar y filas; notificaciones muestra eventos por fecha de creación descendente, sin introducir leído/no leído.
+
+ProjectHeader agrupa identidad, contexto, SG y responsable. ProjectStatusStrip presenta una tarea InProgress, luego Pending o una existente, usando exclusivamente sus campos y sin inferir plazos/transiciones. El detalle usa CSS Module para documentación/acciones/actividad/historial: una columna hasta 1199 px y dos desde 1200 px, con lateral de 320–350 px. El historial de tareas compacto conserva fechas y seguimiento en un disclosure nativo. DocumentsPanel usa su CSS Module para filas que se ajustan al espacio, selección dentro de la dropzone, histórico sutil y snapshot como auditoría. No muestra IDs, MIME ni UploadBatchId.
+
+Se conservan landmarks, labels, aria-current/expanded/controls, skip-link y foco tras navegar. Los controles usan focus-visible; disabled real y cursor-not-allowed; loading/status, éxito y errores son mensajes accesibles. Los iconos son aria-hidden. Las tablas tienen scroll deliberado, archivos largos usan wrap y las acciones se distribuyen en varias líneas; reduced-motion elimina transiciones. La verificación manual debe cubrir 375, 768, 1024 px y desktop amplio; los tests estructurales no sustituyen esa inspección visual.
 
 ## Tests
 
@@ -335,8 +347,8 @@ No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tai
 2. Inicia el backend en su entorno habitual y verifica el certificado confiable para Node.
 3. Ejecuta `pnpm dev` y abre `/login`; comprueba que aparece el botón oficial.
 4. Inicia sesión con una cuenta permitida por Google y el backend.
-5. Confirma redirección a `/`, Name, Email y Google Subject.
-6. Usa Copiar Subject, recarga y confirma restauración.
+5. Confirma redirección a `/`, accesos rápidos, nombre y correo.
+6. Abre “Identidad técnica de la sesión”, usa Copiar Subject, recarga y confirma restauración.
 7. Cierra sesión y confirma `/login`; la home no debe mostrar identidad al abrirla sin sesión.
 8. Con un token rechazado por el backend, confirma 401, eliminación y mensaje seguro.
 9. Crea un cliente en `/clients` y un proyecto en `/projects/new`; confirma la navegación al detalle.
@@ -350,7 +362,9 @@ Sin las dos variables y un backend activo, un 200 de la página solo verifica qu
 
 ## Límites y siguiente bloque
 
-Frontend 2B.1 agrega documentos opacos e historial, snapshot inicial y handoff formal al flujo de clientes, proyectos, SG, tareas y notificaciones. Termina antes del rediseño 2B.5 y de la importación/preview de cotizaciones XLSX, edición/confirmación y revisión comercial de 2C. No implementa aprobación/pago, roles, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad.
+Frontend 2B.5 aplica el sistema visual al flujo existente de clientes, proyectos, documentos/historial, snapshot inicial, handoff, SG, tareas y notificaciones. Termina antes de la importación/preview de cotizaciones XLSX, edición/confirmación y revisión comercial de 2C. No implementa aprobación/pago, roles, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad.
+
+Deuda funcional: la autorización actual permite crear proyectos a cualquier Google autenticado. La acción continúa visible; su restricción requiere una futura autorización general de Comercial en backend, no condiciones de email, Subject, nombre o asignación de tareas en frontend.
 
 Mantener actualizados ambos README cuando cambie el comportamiento. `.gitignore` excluye `.env`, `.env.local`, `.env.*.local`, node_modules, .next, coverage, logs y el almacén local de pnpm. No incluir valores reales en documentación o tests.
 

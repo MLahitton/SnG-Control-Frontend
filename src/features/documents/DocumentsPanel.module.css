@@ -1,0 +1,13 @@
+.row { display: flex; flex-wrap: wrap; align-items: start; gap: .75rem 1rem; padding: 1rem 0; border-bottom: 1px solid var(--border); }
+.row:last-child { border-bottom: 0; }
+.file { flex: 1 1 240px; min-width: 0; display: flex; gap: .75rem; }
+.file > div { min-width: 0; }
+.file h4 { overflow-wrap: anywhere; font-weight: 600; }
+.file svg { color: var(--ink-soft); margin-top: .15rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .25rem; }
+.dropzone { padding: 1rem; border: 1px dashed var(--border-strong); border-radius: 8px; background: var(--surface-subtle); }
+.dropzone:focus-within { border-color: var(--brand); }
+.selection { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--border); }
+.selection li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; padding: .3rem 0; overflow-wrap: anywhere; }
+.history { padding: 1rem; background: var(--surface-subtle); border-radius: 8px; }
+.handoff { padding-top: 1rem; border-top: 1px solid var(--border); }

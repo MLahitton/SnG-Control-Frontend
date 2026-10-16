@@ -1,0 +1,13 @@
+.workspace { display: grid; gap: 1.5rem; align-items: start; min-width: 0; }
+.documents, .actions, .activity, .tasks { min-width: 0; }
+.actions { display: grid; gap: 1rem; }
+.actions:empty { display: none; }
+@media (min-width: 1200px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) 320px; }
+  .documents { grid-column: 1; grid-row: 1; }
+  .actions { grid-column: 2; grid-row: 1; }
+  .activity { grid-column: 1; grid-row: 2; }
+  .tasks { grid-column: 2; grid-row: 2; }
+  .workspace:has(.actions:empty) .tasks { grid-row: 1; }
+}
+@media (min-width: 1600px) { .workspace { grid-template-columns: minmax(0, 1fr) 350px; } }

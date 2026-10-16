@@ -8,7 +8,7 @@ Frontend de Steel & Glass. Incluye acceso con Google y el flujo operativo Client
 - Durante desarrollo se permite cualquier cuenta Google válida que el backend acepte, sin restricciones de dominio, roles ni permisos en el frontend. La configuración de audiencia y usuarios de prueba del proyecto Google también debe permitir esa cuenta.
 - Google entrega un ID Token. El backend .NET valida ese token y devuelve Subject, Email y Name.
 - El shell incluye navegación responsive a Inicio, Clientes, Proyectos, Tareas y Notificaciones, nombre/email y cierre de sesión.
-- Inicio muestra la identidad confirmada y permite copiar el Google Subject. El login permanece fuera del shell.
+- Inicio ofrece accesos rápidos a proyectos, clientes, tareas y notificaciones. La identidad confirmada conserva Copiar Subject dentro de “Identidad técnica de la sesión”. El login permanece fuera del shell.
 - El token se guarda en `sessionStorage` en la pestaña actual, después de una validación exitosa. No se guardan los datos de identidad como autoridad separada.
 - Al recargar, la identidad se consulta otra vez al backend. Mientras se verifica, no se muestra contenido autenticado.
 - Un 401 de la API limpia globalmente la sesión y lleva a login. Un 403 muestra falta de permiso sin cerrar sesión; un 409 conserva el código de conflicto del backend.
@@ -36,11 +36,11 @@ Abre la URL local que imprime Next.js y entra a `/login`. No se incluyen credenc
 
 ## Alcance actual
 
-Frontend 2B.1 ofrece estas rutas protegidas:
+Frontend 2B.5 ofrece estas rutas protegidas:
 
 | Ruta | Función |
 | --- | --- |
-| `/` | Identidad validada |
+| `/` | Accesos rápidos e identidad validada |
 | `/clients` | Listar y crear clientes por nombre |
 | `/projects` | Listado de proyectos con cliente, ciudad, línea, SG y fecha |
 | `/projects/new` | Crear proyecto con un cliente existente y línea Classic, Essential, Bioconfort o Signature |
@@ -60,6 +60,10 @@ Las acciones documentales dependen de `canModify`, `canRemove` y `canSendToBudge
 
 Las notificaciones conservan el historial, incluidas alertas de atraso resueltas. No hay leído/no leído ni acciones de descarte. Las mutaciones bloquean dobles envíos y los conflictos de workflow refrescan el estado real.
 
-Todo usa el BFF y cliente API compartidos. Este bloque carga archivos como documentos opacos; no implementa importación/preview de cotizaciones Excel, confirmaciones, revisión comercial, aprobación o pago. No hay roles, permisos simulados ni métricas inventadas. El alcance termina en **Frontend 2B.1**, antes del rediseño 2B.5 y de 2C.
+El detalle reúne encabezado, estado actual, documentación, acciones disponibles y actividad en un espacio de trabajo responsive. El historial de tareas conserva las fechas en “Fechas y seguimiento”. Las listas y formularios comparten estados, botones y tipografía Steel & Glass.
+
+Todo usa el BFF y cliente API compartidos. Los archivos siguen siendo documentos opacos; no se implementa importación/preview de cotizaciones Excel, confirmaciones, revisión comercial, aprobación o pago. No hay roles, permisos simulados ni métricas inventadas. El alcance termina en **Frontend 2B.5**, antes de 2C.
+
+Pendiente funcional: crear proyectos continúa disponible para cualquier usuario autenticado, según la autorización actual del backend. No se oculta esta acción mediante email, Subject o inferencias de rol.
 
 La integración real requiere un Client ID configurado y un backend disponible con TLS confiable. El procedimiento de comprobación está en el manual técnico.

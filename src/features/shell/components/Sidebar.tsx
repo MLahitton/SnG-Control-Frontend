@@ -2,31 +2,32 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Icon } from "@/components/ui/Icon";
 
 const navigation = [
-  { href: "/", label: "Inicio" },
-  { href: "/clients", label: "Clientes" },
-  { href: "/projects", label: "Proyectos" },
-  { href: "/tasks", label: "Tareas" },
-  { href: "/notifications", label: "Notificaciones" },
-];
+  { href: "/", label: "Inicio", icon: "home" },
+  { href: "/clients", label: "Clientes", icon: "clients" },
+  { href: "/projects", label: "Proyectos", icon: "projects" },
+  { href: "/tasks", label: "Tareas", icon: "tasks" },
+  { href: "/notifications", label: "Notificaciones", icon: "notifications" },
+] as const;
 
 export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
   const pathname = usePathname();
   return (
     <aside id="app-navigation" aria-label="Navegación de SnG Control"
-      className={`border-b border-slate-200 bg-white lg:row-span-2 lg:row-start-1 lg:flex lg:flex-col lg:border-r lg:border-b-0 ${open ? "block" : "hidden"}`}>
-      <div className="hidden border-b border-slate-100 px-6 py-7 lg:block">
-        <p className="text-xl font-semibold tracking-tight">SnG Control</p>
-        <p className="eyebrow mt-2">Steel &amp; Glass</p>
+      className="app-sidebar" data-open={open}>
+      <div className="sidebar-brand">
+        <span className="brand-mark" aria-hidden="true">SG</span>
+        <div><p className="font-semibold">Steel &amp; Glass</p><p className="metadata">SnG Control</p></div>
       </div>
-      <nav aria-label="Principal" className="p-4">
+      <nav aria-label="Principal" className="sidebar-nav">
         <ul className="space-y-1">
-          {navigation.map(({ href, label }) => (
+          {navigation.map(({ href, label, icon }) => (
             <li key={href}>
               <Link href={href} aria-current={pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)) ? "page" : undefined} onClick={onNavigate}
-                className="block rounded-lg px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 aria-[current=page]:bg-cyan-50 aria-[current=page]:text-cyan-900">
-                {label}
+                className="nav-link">
+                <Icon name={icon} />{label}
               </Link>
             </li>
           ))}

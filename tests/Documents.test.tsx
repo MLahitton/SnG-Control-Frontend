@@ -40,6 +40,15 @@ async function manifest(body: FormData) {
 }
 
 describe("document panel and capabilities", () => {
+  it("renders nullable MIME and historical filenames without exposing document IDs", async () => {
+    setup({ ...projectDocuments, documents: [{ ...projectDocument, contentType: null, isCurrent: false, replacedByDocumentId: "private-missing-successor" }] });
+    await open();
+    expect(screen.getByRole("heading", { name: projectDocument.originalFileName })).toBeInTheDocument();
+    expect(screen.getByText("Reemplazado por: No disponible")).toBeInTheDocument();
+    expect(documentPanel()).not.toHaveTextContent("private-missing-successor");
+    expect(documentPanel()).not.toHaveTextContent(projectDocument.uploadBatchId);
+    expect(screen.getByRole("button", { name: "Descargar" })).toBeEnabled();
+  });
   it("loads documents independently while the rest of the project is already visible", async () => {
     const pending = deferred<unknown>();
     mockBackend((path) => path.endsWith("/documents") ? pending.promise : path === "projects/project-1" ? project : path === "clients/client-1" ? client : []);
@@ -55,7 +64,7 @@ describe("document panel and capabilities", () => {
     renderOperational(<ProjectDetailPage id="project-1" />);
     expect(await screen.findByRole("alert")).toHaveTextContent("No tienes permiso");
     expect(screen.getByText("SG001")).toBeInTheDocument();
-    expect(screen.getByText("En tiempo")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Tareas del proyecto" })).getByText("En tiempo")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enviar a Presupuestos" })).not.toBeInTheDocument();
   });
   it("requires documents before handoff and shows an empty state", async () => {
@@ -103,6 +112,29 @@ describe("document panel and capabilities", () => {
 });
 
 describe("document upload and replacement", () => {
+  it.each([false, true])("clears both file inputs on cancel and reselects the exact same file (replacement=%s)", async (replacement) => {
+    const { fetchMock } = setup(); await open();
+    const file = new File(["same bytes"], "same.pdf");
+    const upload = screen.getByLabelText("Archivos del proyecto") as HTMLInputElement;
+    const replace = screen.getByLabelText("Archivo de reemplazo") as HTMLInputElement;
+    await userEvent.upload(upload, file);
+    if (replacement) {
+      await userEvent.click(screen.getByRole("button", { name: "Reemplazar" }));
+      await userEvent.upload(replace, file);
+    }
+    expect((replacement ? replace : upload).value).not.toBe("");
+    await userEvent.click(screen.getByRole("button", { name: "Cancelar selección" }));
+    expect(upload.value).toBe(""); expect(replace.value).toBe("");
+    expect(upload.files).toHaveLength(0); expect(replace.files).toHaveLength(0);
+    expect(screen.queryByText("same.pdf")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Subir documentos" })).toBeDisabled();
+    if (replacement) await userEvent.click(screen.getByRole("button", { name: "Reemplazar" }));
+    await userEvent.upload(replacement ? replace : upload, file);
+    expect((replacement ? replace : upload).files?.[0]).toBe(file);
+    expect(screen.getByText("same.pdf")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: replacement ? "Confirmar reemplazo" : "Subir documentos" })).toBeEnabled();
+    expect(changes(fetchMock)).toHaveLength(0);
+  });
   it("selects multiple original files, waits for submit, blocks double submit and refreshes", async () => {
     const { state, fetchMock, setMutation } = setup();
     const pending = deferred<unknown>(); setMutation(() => pending.promise);
@@ -183,7 +215,7 @@ describe("document upload and replacement", () => {
     await userEvent.click(screen.getByRole("button", { name: "Subir documentos" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
     await waitFor(() => expect(screen.getByRole("button", { name: "Subir documentos" })).toBeEnabled());
-    expect(screen.getByText("retry.bin — 1 B")).toBeInTheDocument();
+    expect(screen.getByText("retry.bin").closest("li")).toHaveTextContent("1 B");
     expect(screen.queryByText(/private diagnostic/)).not.toBeInTheDocument();
   });
 });
@@ -214,7 +246,7 @@ describe("document removal and handoff", () => {
     expect(changes(fetchMock)).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "Confirmar envío" }));
     await screen.findByRole("heading", { name: "Envío inicial a Presupuestos" });
-    expect(await screen.findByText(notification.title)).toBeInTheDocument(); expect(screen.getByText("Sin iniciar")).toBeInTheDocument();
+    expect(await screen.findByText(notification.title)).toBeInTheDocument(); expect(within(screen.getByRole("region", { name: "Tareas del proyecto" })).getByText("Sin iniciar")).toBeInTheDocument();
     for (const suffix of ["/documents", "/tasks", "/notifications"]) expect(fetchMock.mock.calls.filter(([path]) => path.endsWith(suffix))).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Quitar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enviar a Presupuestos" })).not.toBeInTheDocument();
@@ -264,7 +296,8 @@ describe("document downloads and identity changes", () => {
       "/api/backend/projects/project-1/documents/document-1/file", "/api/backend/projects/project-1/documents/current.zip", "/api/backend/projects/project-1/documents/initial-handoff.zip",
       "/api/backend/projects/project-1/documents/old/file",
     ]));
-    expect(document.querySelector("iframe,object,embed,svg")).toBeNull();
+    expect(document.querySelector("iframe,object,embed,img,svg:not([aria-hidden=\"true\"]),svg image,svg use,svg script,svg foreignObject")).toBeNull();
+    expect(documentPanel().querySelectorAll("svg")).toHaveLength(2); // Static decorative file icons only.
   });
   it("reloads all project resources for a new Subject even with the same API client and URL", async () => {
     let currentSubject = "test-budgets-subject";
