@@ -2,6 +2,7 @@ import "server-only";
 import { intelligenceMethod } from "../paths";
 import { parseResponse, parseSession, parseTranscript, parseVoice } from "../parser";
 import { safeRequestId } from "../errors";
+import { MAX_LIVE_BODY_BYTES, parseLiveRequest, parseLiveResponse, parseLiveSession } from "../live/contracts";
 
 function baseUrl(): URL {
   const url = new URL(process.env.SNG_INTELLIGENCE_BASE_URL?.trim() ?? "");
@@ -14,20 +15,25 @@ function error(status: number, requestId?: string, allow?: string) {
   if (allow) headers.set("Allow", allow);
   return Response.json({ status, ...(requestId ? { requestId } : {}) }, { status, headers });
 }
-async function jsonLimited(response: Response): Promise<unknown> {
+class BodyTooLarge extends Error {}
+async function jsonLimited(response: Response | Request, limit = 512 * 1024): Promise<unknown> {
   if (!response.body) throw new Error("Missing response");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
+  const signal = response instanceof Request ? AbortSignal.any([response.signal, AbortSignal.timeout(10_000)]) : undefined;
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal?.addEventListener("abort", cancel, { once: true });
   try {
+    if (signal?.aborted) throw new Error("Request cancelled");
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 512 * 1024) { await reader.cancel(); throw new Error("Response too large"); }
+      if (size > limit) { void reader.cancel().catch(() => {}); throw new BodyTooLarge(); }
       chunks.push(value);
     }
-  } finally { reader.releaseLock(); }
+  } finally { signal?.removeEventListener("abort", cancel); reader.releaseLock(); }
   const bytes = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
@@ -39,6 +45,13 @@ function containsPrivateData(value: unknown, forbidden: string[]): boolean {
   if (Array.isArray(value)) return value.some((item) => containsPrivateData(item, forbidden));
   if (value && typeof value === "object") return Object.values(value).some((item) => containsPrivateData(item, forbidden));
   return false;
+}
+function containsSessionCredentials(sdp: string, authorization: string): boolean {
+  // SDP carries network addresses and ICE passwords (which may start with '/').
+  // Those are transport data, not filesystem paths or leaked backend hosts.
+  // Still reject the caller's credential, bearer/API keys and embedded service URLs.
+  return sdp.includes(authorization.replace(/^Bearer /i, ""))
+    || /(?:\bBearer\s+\S+|\bsk-[A-Za-z0-9_-]{8,}|\bAuthorization\s*[:=]|\bOPENAI_API_KEY\b|https?:\/\/)/i.test(sdp);
 }
 export async function forwardIntelligence(request: Request, segments: string[]): Promise<Response> {
   const path = segments.join("/");
@@ -63,11 +76,18 @@ export async function forwardIntelligence(request: Request, segments: string[]):
     headers.set("Content-Type", type);
   }
   const forbidden = [base.origin, base.hostname, authorization, authorization.replace(/^Bearer /i, "")];
+  const live = path.startsWith("live/");
+  let liveBody: string | undefined;
+  if (live) {
+    try {
+      liveBody = JSON.stringify(parseLiveRequest(path, await jsonLimited(request, MAX_LIVE_BODY_BYTES)));
+    } catch (cause) { return error(cause instanceof BodyTooLarge ? 413 : 422); }
+  }
   try {
     const init: RequestInit & { duplex?: "half" } = {
       method, headers, cache: "no-store", redirect: "error",
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(180_000)]),
-      ...(method === "POST" && request.body ? { body: request.body, duplex: "half" } : {}),
+      ...(liveBody !== undefined ? { body: liveBody } : method === "POST" && request.body ? { body: request.body, duplex: "half" } : {}),
     };
     const upstream = await fetch(new URL("/api/intelligence/" + path, base), init);
     if (!upstream.ok) {
@@ -88,8 +108,13 @@ export async function forwardIntelligence(request: Request, segments: string[]):
     }
     if (mediaType !== "application/json") return error(502);
     const raw = await jsonLimited(upstream);
-    const result = path === "session" ? parseSession(raw) : path === "voice" ? parseVoice(raw) : path === "voice/transcribe" ? parseTranscript(raw) : parseResponse(raw);
+    if (path === "live/session") {
+      const session = parseLiveSession(raw);
+      if (containsPrivateData(session.sessionId, forbidden) || containsSessionCredentials(session.sdp, authorization)) return error(502);
+      return Response.json(session, { status: upstream.status, headers: responseHeaders() });
+    }
+    const result = live ? parseLiveResponse(path, raw) : path === "session" ? parseSession(raw) : path === "voice" ? parseVoice(raw) : path === "voice/transcribe" ? parseTranscript(raw) : parseResponse(raw);
     if (containsPrivateData(result, forbidden)) return error(502);
-    return Response.json(result, { headers: responseHeaders() });
+    return Response.json(result, { status: live ? upstream.status : 200, headers: responseHeaders() });
   } catch { return error(502); }
 }

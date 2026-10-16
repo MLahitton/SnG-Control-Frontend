@@ -77,6 +77,11 @@ export function createApiClient(session: SessionAccess): ApiClient {
   }
 
   return {
+    // Live cleanup must use its original identity, never a newly signed-in account.
+    forCurrentSession: () => {
+      const snapshot = session.getSession();
+      return createApiClient({ getSession: () => snapshot, invalidateSession: invalidate });
+    },
     postAudio: async (path, body, options) => {
       if (path !== "intelligence/voice/speech") throw new IntelligenceError(400);
       const response = await request("POST", path, body, options, true);

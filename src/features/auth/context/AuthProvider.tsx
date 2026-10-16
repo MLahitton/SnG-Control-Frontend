@@ -119,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Bind session access on the first request, never during React rendering.
     const current = () => client ??= createApiClient({ getSession, invalidateSession });
     return {
+      forCurrentSession: () => current().forCurrentSession(),
       get: (path, options) => current().get(path, options),
       postAudio: (path, body, options) => current().postAudio(path, body, options),
       post: (path, body, options) => current().post(path, body, options),

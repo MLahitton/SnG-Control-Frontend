@@ -57,7 +57,7 @@ describe("Intelligence shell", () => {
     expect(input).toHaveValue("Hola\nequipo");
     await userEvent.keyboard("{Enter}");
     fireEvent.submit(input.closest("form")!);
-    expect(screen.getByRole("status")).toHaveTextContent("Analizando");
+    expect(screen.getByText("Analizando…")).toHaveAttribute("role", "status");
     expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/chat"))).toHaveLength(1);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({ message: "Hola\nequipo" });
     await act(async () => pending.resolve(intelligenceResponse));
@@ -147,6 +147,7 @@ describe("Intelligence shell", () => {
     });
     render(<AuthContext.Provider value={context()}><IntelligenceLauncher /></AuthContext.Provider>);
     await open();
+    await userEvent.click(screen.getByRole("button", { name: "Usar modo de voz básico" }));
     await userEvent.click(screen.getByRole("button", { name: "Iniciar consulta por voz" }));
     await screen.findByRole("button", { name: "Detener grabación" });
     await userEvent.click(screen.getByRole("button", { name: "Detener grabación" }));
@@ -168,6 +169,7 @@ describe("Intelligence shell", () => {
     render(<AuthContext.Provider value={state}><IntelligenceLauncher /></AuthContext.Provider>);
     await open();
     getUserMedia.mockRejectedValueOnce(new DOMException("Denied", "NotAllowedError"));
+    await userEvent.click(screen.getByRole("button", { name: "Usar modo de voz básico" }));
     await userEvent.click(screen.getByRole("button", { name: "Iniciar consulta por voz" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Revisa el permiso");
     expect(screen.getByLabelText("Tu consulta")).toBeEnabled();

@@ -80,7 +80,7 @@ Deuda conocida: el backend aún permite crear clientes/proyectos a cualquier Goo
 
 Pendiente de smoke real: login/restauración con Gerencia, navegación y endpoints, consulta/descarga autorizada, ausencia de escrituras para Gerencia pura y cambio de cuenta sin hard refresh. Verificar también 375, 768, 1024 px y desktop amplio. Los tests usan red simulada; no sustituyen esa integración.
 
-## SnG Intelligence — Frontend Intelligence 1C
+## SnG Intelligence — Intelligence 1C + Realtime Voice 2B
 
 Solo las cuentas con `user.isManagement === true` ven el botón flotante **Intelligence**, disponible dentro del shell. No se agrega un enlace al Sidebar. Al abrir se verifica el acceso con Intelligence; su autorización real sigue dependiendo del backend. El panel presenta chat, micrófono y referencias a proyectos, con el nombre como dato principal y SG como metadata.
 
@@ -88,12 +88,16 @@ Configura de forma independiente en el entorno del worktree `SNG_INTELLIGENCE_BA
 
 Chat envía un mensaje por solicitud, sin historial. Enter envía y Shift+Enter agrega una línea. Las respuestas admiten direct, management_brief, project_status, list, comparison, clarification y unavailable. Cifras, estados, áreas y fechas proceden de Intelligence. Seleccionar un candidato genera una pregunta autocontenida con el nombre oficial del proyecto; no presupone memoria del agente. Las referencias de proyectos/tareas abren el proyecto asociado.
 
-El micrófono pide permiso solo al pulsarlo. Graba hasta 60 segundos, con cancelación y límite de 10 MiB; elige WebM/Opus, WebM o MP4 según el navegador, enviando M4A como `audio/mp4`. Al detener, envía el archivo y muestra la transcripción y la respuesta. La reproducción automática está activada inicialmente solo para consultas de voz y se puede desactivar. “Escuchar respuesta” usa `spokenAnswer`; permite pausa, reanudación, detener y volver a escuchar. Se identifica como voz generada por IA. Si el navegador bloquea autoplay, ofrece reanudar mediante un gesto.
+El micrófono principal inicia **Voice Live**: un clic solicita permiso, conecta WebRTC y permite conversar continuamente, sin grabar un Blob ni pulsar Enviar. GPT-Live mantiene contexto durante esa conexión y gestiona la conversación/interrupciones; el panel muestra transcripciones, información consultada y estados accesibles. Incluye silenciar/activar micrófono, finalizar conversación y activar audio mediante un gesto si el navegador bloquea autoplay. Requiere HTTPS o localhost y soporte de WebRTC.
 
-La conversación vive en React (hasta 40 mensajes); no se envía a almacenamiento local ni backend. Se conserva al navegar dentro del shell con el panel abierto. Cerrar, recargar, logout o cambio de identidad la elimina y libera solicitudes, micrófono y audio. En móvil, navegar una referencia cierra el panel; en desktop lo mantiene. El panel usa diálogo nativo, scroll propio, safe areas y adaptación al viewport/teclado.
+“Usar modo de voz básico” conserva el fallback explícito MediaRecorder: hasta 60 segundos y 10 MiB, WebM/Opus, WebM o MP4/M4A. Detener envía a `/voice` y muestra la transcripción/respuesta; la reproducción opcional usa `/voice/speech`. No se cambia de modo automáticamente. “Escuchar respuesta” conserva pausa/reanudación para texto y voz básica; se deshabilita mientras Live está activo para evitar dos audios simultáneos.
+
+El historial visual vive en memoria (hasta 40 mensajes de texto/básicos y 160 fragmentos Live); no se persiste. El audio Live viaja directamente por WebRTC a GPT-Live y sus consultas empresariales pasan por el BFF. La sesión sobrevive navegación interna mientras el panel/shell continúan montados. Cerrar, recargar, logout o cambiar de identidad libera solicitudes, micrófono y audio. En móvil, seguir una referencia cierra el panel. El panel conserva diálogo nativo, scroll, safe areas y adaptación al teclado.
+
+Voz Live y chat textual **no comparten memoria**: “La de Ximena” conserva su contexto dentro de Live, sin reescritura del frontend; un mensaje textual sigue siendo una consulta independiente. Reiniciar Live comienza otro hilo. No se persisten sessionId, SDP, transcripciones ni audio. Backend conserva autoridad de acceso y datos.
 
 Los errores 401 invalidan la sesión existente; 403 mantiene la sesión; 422, 429 y 503 ofrecen mensajes seguros. Solo se presenta un requestId validado como referencia diagnóstica. Una respuesta unavailable es información normal.
 
-Intelligence 1C está integrado sobre Frontend 3A final, conservando Gerencia y sus permisos. Pendiente: smoke real conjunto de chat/voz/TTS, permisos, cambio de cuenta, navegación y tamaños 375/768/1024/desktop; no se ejecuta como parte de la validación automatizada. No implementa Realtime, WebRTC/WebSocket, historial persistente, memoria backend, RAG ni LangGraph.
+Realtime Voice 2B usa los tres POST `/api/intelligence/live/session`, `/live/delegate` y `/live/close` a través del BFF, sobre Intelligence 2A. No agrega claves de OpenAI al frontend, relay de audio WebSocket, ElevenLabs, historial persistente, RAG ni LangGraph. Pendiente: smoke real conjunto con audio, interrupciones, cierre, permisos, cambio de cuenta y tamaños 375/768/1024/desktop. Los tests usan WebRTC y red simulados; no sustituyen esa integración.
 
 La integración real requiere un Client ID configurado y un backend disponible con TLS confiable. El procedimiento de comprobación está en el manual técnico.

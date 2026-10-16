@@ -101,6 +101,7 @@ describe("Management and Intelligence integration", () => {
     await userEvent.type(screen.getByLabelText("Tu consulta"), "Consulta anterior{Enter}");
     await screen.findByText(intelligenceResponse.answer);
     if (resource === "recording") {
+      await userEvent.click(screen.getByRole("button", { name: "Usar modo de voz básico" }));
       await userEvent.click(screen.getByRole("button", { name: "Iniciar consulta por voz" }));
       await screen.findByRole("button", { name: "Detener grabación" });
     } else {
