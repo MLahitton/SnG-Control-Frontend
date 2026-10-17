@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthContext, AuthProvider, SESSION_TOKEN_KEY } from "@/features/auth/context/AuthProvider";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -39,6 +40,30 @@ async function start() {
 }
 beforeEach(() => { mockLiveBrowser(); network(); });
 describe("continuous voice in the existing panel", () => {
+  it.each([201, 502])("one microphone click creates exactly one session under StrictMode, including HTTP %s", async (status) => {
+    const fetchMock = network();
+    const normal = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (path, init) => path.endsWith("/live/session")
+      ? Response.json(status === 201 ? liveCreated : { status }, { status }) : normal(path, init));
+    const state = context();
+    const content = () => <StrictMode><AuthContext.Provider value={state}><IntelligenceLauncher /></AuthContext.Provider></StrictMode>;
+    const view = render(content());
+    await open();
+    expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/live/session"))).toHaveLength(0);
+    await userEvent.click(screen.getByRole("button", { name: "Iniciar conversación por voz" }));
+    if (status === 201) {
+      await waitFor(() => expect(LivePeer.instances[0]?.setRemoteDescription).toHaveBeenCalled());
+      act(() => LivePeer.instances[0].started());
+    } else await screen.findByRole("alert");
+    view.rerender(content());
+    await act(async () => {});
+    const calls = fetchMock.mock.calls.filter(([path]) => path.endsWith("/live/session"));
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1].method).toBe("POST");
+    view.unmount();
+    await act(async () => {});
+    expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/live/session"))).toHaveLength(1);
+  });
   it("offers live as the primary microphone with accessible state/mute/finish, no recording send", async () => {
     const { track } = mockLiveBrowser(); render(<AuthContext.Provider value={context()}><IntelligenceLauncher /></AuthContext.Provider>);
     await start();

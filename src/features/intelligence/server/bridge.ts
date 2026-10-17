@@ -3,6 +3,7 @@ import { intelligenceMethod } from "../paths";
 import { parseResponse, parseSession, parseTranscript, parseVoice } from "../parser";
 import { safeRequestId } from "../errors";
 import { MAX_LIVE_BODY_BYTES, parseLiveRequest, parseLiveResponse, parseLiveSession } from "../live/contracts";
+import { liveDiagnostics } from "./liveDiagnostics";
 
 function baseUrl(): URL {
   const url = new URL(process.env.SNG_INTELLIGENCE_BASE_URL?.trim() ?? "");
@@ -16,7 +17,7 @@ function error(status: number, requestId?: string, allow?: string) {
   return Response.json({ status, ...(requestId ? { requestId } : {}) }, { status, headers });
 }
 class BodyTooLarge extends Error {}
-async function jsonLimited(response: Response | Request, limit = 512 * 1024): Promise<unknown> {
+async function jsonLimited(response: Response | Request, limit = 512 * 1024, trace?: ReturnType<typeof liveDiagnostics>): Promise<unknown> {
   if (!response.body) throw new Error("Missing response");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -30,6 +31,7 @@ async function jsonLimited(response: Response | Request, limit = 512 * 1024): Pr
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
+      trace?.bodySize(size);
       if (size > limit) { void reader.cancel().catch(() => {}); throw new BodyTooLarge(); }
       chunks.push(value);
     }
@@ -37,6 +39,8 @@ async function jsonLimited(response: Response | Request, limit = 512 * 1024): Pr
   const bytes = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+  trace?.done("upstream_body_read");
+  trace?.enter("json_parsed");
   return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
 }
 function containsPrivateData(value: unknown, forbidden: string[]): boolean {
@@ -46,33 +50,57 @@ function containsPrivateData(value: unknown, forbidden: string[]): boolean {
   if (value && typeof value === "object") return Object.values(value).some((item) => containsPrivateData(item, forbidden));
   return false;
 }
-function containsSessionCredentials(sdp: string, authorization: string): boolean {
+// Public RTP extension identifiers, not service endpoints. Exact matches only,
+// in the URI slot of a=extmap (RFC 8285). Never fetch or rewrite these identifiers.
+// https://webrtc.googlesource.com/src/+/refs/heads/main/api/rtp_parameters.h
+const audioExtensionUris = new Set([
+  "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
+  "http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time",
+  "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
+  "http://www.webrtc.org/experiments/rtp-hdrext/transport-wide-cc-02",
+]);
+function sessionSecurityRule(value: string, authorization: string, isSdp = false) {
   // SDP carries network addresses and ICE passwords (which may start with '/').
   // Those are transport data, not filesystem paths or leaked backend hosts.
   // Still reject the caller's credential, bearer/API keys and embedded service URLs.
-  return sdp.includes(authorization.replace(/^Bearer /i, ""))
-    || /(?:\bBearer\s+\S+|\bsk-[A-Za-z0-9_-]{8,}|\bAuthorization\s*[:=]|\bOPENAI_API_KEY\b|https?:\/\/)/i.test(sdp);
+  if (value.includes(authorization.replace(/^Bearer /i, ""))) return "CallerToken";
+  if (/\bBearer\s+\S+/i.test(value)) return "BearerCredential";
+  if (/\bsk-[A-Za-z0-9_-]{8,}/i.test(value)) return "ApiKey";
+  if (/\bAuthorization\s*[:=]|\bOPENAI_API_KEY\b/i.test(value)) return "CredentialMarker";
+  // Inspect a copy: credentials were checked above against the complete original.
+  // A known URI elsewhere, a lookalike host, query or fragment is still rejected.
+  const urlInspection = isSdp ? value.replace(
+    /(^|[\r\n])(a=extmap:[1-9]\d*(?:\/(?:sendonly|recvonly|sendrecv|inactive))?[ \t]+)([^\s]+)/g,
+    (line: string, boundary: string, attribute: string, uri: string) => audioExtensionUris.has(uri) ? `${boundary}${attribute}[rtp-extension]` : line,
+  ) : value;
+  if (/https?:\/\//i.test(urlInspection)) return "HttpUrl";
+  return undefined;
 }
 export async function forwardIntelligence(request: Request, segments: string[]): Promise<Response> {
   const path = segments.join("/");
+  const trace = liveDiagnostics(segments.length === 2 && segments[0] === "live" && segments[1] === "session");
+  trace.done("request_received");
+  const reject = (status: number, category: Parameters<typeof trace.fail>[0], allow?: string) => {
+    trace.fail(category); return error(status, undefined, allow);
+  };
   // Joining must not turn a slash embedded in one segment into an allowed route.
   if (segments.some((part) => !/^[a-z]+$/.test(part))) return error(400);
   const method = intelligenceMethod(path);
   if (!method) return error(400);
-  if (request.method !== method) return error(405, undefined, method);
-  if (new URL(request.url).search) return error(400);
+  if (request.method !== method) return reject(405, "RequestRejected", method);
+  if (new URL(request.url).search) return reject(400, "RequestRejected");
   const authorization = request.headers.get("Authorization");
-  if (!authorization || !/^Bearer [A-Za-z0-9._~+/-]+=*$/i.test(authorization)) return error(401);
+  if (!authorization || !/^Bearer [A-Za-z0-9._~+/-]+=*$/i.test(authorization)) return reject(401, "RequestRejected");
   let base: URL;
-  try { base = baseUrl(); } catch { return error(503); }
+  try { base = baseUrl(); } catch { return reject(503, "ConfigurationError"); }
   const headers = new Headers({ Authorization: authorization, Accept: path === "voice/speech" ? "audio/mpeg" : "application/json" });
   if (method === "POST") {
     const type = request.headers.get("Content-Type") ?? "";
     const upload = path === "voice" || path === "voice/transcribe";
     const valid = upload ? /^multipart\/form-data\s*;/i.test(type) && /;\s*boundary=(?:"[^"\r\n]{1,70}"|[^;\s]{1,70})(?:;|$)/i.test(type) : /^application\/json(?:\s*;.*)?$/i.test(type);
-    if (!valid) return error(415);
+    if (!valid) return reject(415, "RequestRejected");
     const limit = upload ? 10 * 1024 * 1024 + 64 * 1024 : 64 * 1024;
-    if (Number(request.headers.get("Content-Length")) > limit) return error(413);
+    if (Number(request.headers.get("Content-Length")) > limit) return reject(413, "BodyTooLarge");
     headers.set("Content-Type", type);
   }
   const forbidden = [base.origin, base.hostname, authorization, authorization.replace(/^Bearer /i, "")];
@@ -81,7 +109,10 @@ export async function forwardIntelligence(request: Request, segments: string[]):
   if (live) {
     try {
       liveBody = JSON.stringify(parseLiveRequest(path, await jsonLimited(request, MAX_LIVE_BODY_BYTES)));
-    } catch (cause) { return error(cause instanceof BodyTooLarge ? 413 : 422); }
+    } catch (cause) {
+      if (cause instanceof BodyTooLarge) trace.fail("BodyTooLarge"); else trace.exception(cause);
+      return error(cause instanceof BodyTooLarge ? 413 : 422);
+    }
   }
   try {
     const init: RequestInit & { duplex?: "half" } = {
@@ -89,8 +120,15 @@ export async function forwardIntelligence(request: Request, segments: string[]):
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(180_000)]),
       ...(liveBody !== undefined ? { body: liveBody } : method === "POST" && request.body ? { body: request.body, duplex: "half" } : {}),
     };
+    trace.done("upstream_fetch_started");
+    trace.enter("upstream_received");
     const upstream = await fetch(new URL("/api/intelligence/" + path, base), init);
+    const mediaType = upstream.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase();
+    trace.upstream(upstream.status, mediaType);
+    trace.done("upstream_received");
+    trace.enter("upstream_status_validated");
     if (!upstream.ok) {
+      trace.fail("UpstreamStatusError");
       let requestId: string | undefined;
       try {
         const payload = await jsonLimited(upstream);
@@ -99,22 +137,43 @@ export async function forwardIntelligence(request: Request, segments: string[]):
       } catch { /* Only a validated correlation identifier can leave this boundary. */ }
       return error(upstream.status >= 400 ? upstream.status : 502, requestId);
     }
-    const mediaType = upstream.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase();
+    trace.done("upstream_status_validated");
+    trace.enter("upstream_content_type_validated");
     if (path === "voice/speech") {
       if (mediaType !== "audio/mpeg" || !upstream.body) return error(502);
       const outHeaders = responseHeaders();
       outHeaders.set("Content-Type", "audio/mpeg");
       return new Response(upstream.body, { headers: outHeaders });
     }
-    if (mediaType !== "application/json") return error(502);
-    const raw = await jsonLimited(upstream);
+    if (mediaType !== "application/json") return reject(502, "ContentTypeError");
+    trace.done("upstream_content_type_validated");
+    trace.enter("upstream_body_read");
+    const raw = await jsonLimited(upstream, 512 * 1024, trace);
+    trace.shape(raw);
+    trace.done("json_parsed");
     if (path === "live/session") {
+      trace.enter("live_session_contract_parsed");
       const session = parseLiveSession(raw);
-      if (containsPrivateData(session.sessionId, forbidden) || containsSessionCredentials(session.sdp, authorization)) return error(502);
-      return Response.json(session, { status: upstream.status, headers: responseHeaders() });
+      trace.done("live_session_contract_parsed");
+      trace.enter("live_session_security_validated");
+      const idRule = sessionSecurityRule(session.sessionId, authorization);
+      const sdpRule = sessionSecurityRule(session.sdp, authorization, true);
+      if (idRule || sdpRule) {
+        trace.security(idRule ? "sessionId" : "sdp", (idRule || sdpRule)!, /(?:^|[\r\n])a=extmap:[^\r\n]* https?:\/\//i.test(session.sdp));
+        return reject(502, "SecurityError");
+      }
+      trace.done("live_session_security_validated");
+      trace.enter("response_serialized");
+      const response = Response.json(session, { status: upstream.status, headers: responseHeaders() });
+      trace.done("response_serialized");
+      trace.done("response_returned");
+      return response;
     }
     const result = live ? parseLiveResponse(path, raw) : path === "session" ? parseSession(raw) : path === "voice" ? parseVoice(raw) : path === "voice/transcribe" ? parseTranscript(raw) : parseResponse(raw);
     if (containsPrivateData(result, forbidden)) return error(502);
     return Response.json(result, { status: live ? upstream.status : 200, headers: responseHeaders() });
-  } catch { return error(502); }
+  } catch (cause) {
+    if (cause instanceof BodyTooLarge) trace.fail("BodyTooLarge"); else trace.exception(cause);
+    return error(502);
+  }
 }

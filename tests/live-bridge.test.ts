@@ -115,7 +115,7 @@ describe("Live BFF", () => {
     expect((await forwardIntelligence(request({ sdp: "x".repeat(65536) }), ["live", "session"])).status).toBe(413);
     expect(fetchMock).not.toHaveBeenCalled();
   });
-  it.each([{ ...liveCreated, sdp: "invalid" }, { ...liveCreated, sessionId: "unsafe/id" }, { ...liveCreated, sdp: liveSdp + "a=" + "x".repeat(33000) }])("rejects invalid upstream session contract", async (body) => {
+  it.each([{ ...liveCreated, sdp: "invalid" }, { ...liveCreated, sessionId: "unsafe\u0000id" }, { ...liveCreated, sdp: liveSdp + "a=" + "x".repeat(33000) }])("rejects invalid upstream session contract", async (body) => {
     fetchMock.mockResolvedValue(Response.json(body, { status: 201 }));
     expect((await forwardIntelligence(request({ sdp: liveSdp }), ["live", "session"])).status).toBe(502);
   });

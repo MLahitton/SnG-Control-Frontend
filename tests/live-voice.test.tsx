@@ -24,6 +24,21 @@ async function start() {
   return { ...hook, pc, channel: pc.channel };
 }
 describe("Live session lifecycle", () => {
+  it("keeps the same opaque session ID through start, delegation and close", async () => {
+    const id = "opaque:synthetic/session+1=";
+    const fetchMock = network();
+    fetchMock.mockResolvedValueOnce(Response.json({ ...liveCreated, sessionId: id }, { status: 201 }));
+    const api = client(); const { result } = renderHook(() => useLiveVoice(api));
+    await act(async () => { await result.current.start(); });
+    const channel = LivePeer.instances[0].channel;
+    act(() => channel.emit({ type: "session.started", session: { id } }));
+    expect(result.current.state).toBe("listening");
+    await act(async () => channel.emit(completedCall()));
+    expect(JSON.parse(fetchMock.mock.calls.find(([path]) => path.endsWith("/delegate"))![1].body as string).sessionId).toBe(id);
+    await act(async () => { await result.current.stop(); });
+    expect(JSON.parse(fetchMock.mock.calls.find(([path]) => path.endsWith("/close"))![1].body as string).sessionId).toBe(id);
+    expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/session"))).toHaveLength(1);
+  });
   it("starts on demand, exchanges SDP once and waits for session.started", async () => {
     const { track, stream, getUserMedia } = mockLiveBrowser(); const fetchMock = network();
     const api = client(); const { result } = renderHook(() => useLiveVoice(api));

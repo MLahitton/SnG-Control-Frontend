@@ -1,4 +1,4 @@
-import { liveText, opaqueId, record } from "./contracts";
+import { liveText, opaqueId, record, sessionId } from "./contracts";
 
 export type LiveEvent =
   | { type: "started"; sessionId: string }
@@ -16,7 +16,7 @@ export function parseLiveEvent(data: unknown): LiveEvent | null {
   if (typeof data !== "string" || data.length > 64 * 1024 || new TextEncoder().encode(data).length > 64 * 1024) return null;
   try {
     const v = record(JSON.parse(data) as unknown);
-    if (v.type === "session.started") return { type: "started", sessionId: opaqueId(record(v.session).id) };
+    if (v.type === "session.started") return { type: "started", sessionId: sessionId(record(v.session).id) };
     if (v.type === "session.closed") return { type: "closed", reason: typeof v.reason === "string" ? v.reason : "unknown" };
     if (v.type === "error") return { type: "failure", code: typeof record(v.error).code === "string" ? String(record(v.error).code) : "unknown" };
     if (v.type === "session.input_transcript.delta" || v.type === "session.output_transcript.delta") {

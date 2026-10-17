@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { parseLiveEvent, toolResult } from "@/features/intelligence/live/events";
-import { parseLiveRequest, parseLiveSession, parseLiveClose, parseSdp } from "@/features/intelligence/live/contracts";
+import { parseLiveRequest, parseLiveSession, parseLiveClose, parseSdp, sessionId } from "@/features/intelligence/live/contracts";
 import { completedCall, liveCaption, liveCreated, liveSdp } from "./liveFixtures";
 const parse = (value: unknown) => parseLiveEvent(JSON.stringify(value));
 
@@ -12,11 +12,26 @@ describe("closed GPT-Live contracts", () => {
     expect(parseLiveClose({ closed: true, secret: "remove" })).toEqual({ closed: true });
     expect(() => parseLiveClose({ closed: false })).toThrow();
   });
-  it.each(["", "v=0\r\n", liveSdp + "a=" + "x".repeat(32768), liveSdp + "a=bad\u0000"])("rejects invalid/big SDP", (sdp) => expect(() => parseSdp(sdp)).toThrow());
+  it.each(["", "v=1\r\n", liveSdp + "a=" + "x".repeat(32768), liveSdp + "a=bad\u0000"])("rejects invalid/big SDP", (sdp) => expect(() => parseSdp(sdp)).toThrow());
   it("bounds SDP answers by UTF-8 bytes, not character count", () => {
     const sdp = liveSdp + "a=x:" + "é".repeat(16384) + "\r\n";
     expect(sdp.length).toBeLessThan(32768);
     expect(() => parseLiveSession({ ...liveCreated, sdp })).toThrow();
+  });
+  it.each([null, 42, "", "   ", "s".repeat(129), "bad\0id", "bad\rid", "bad\nid", "bad\tid", "bad\u007fid", "bad\u0085id"])("rejects absent, oversized or control-bearing session IDs", (id) => {
+    expect(() => sessionId(id)).toThrow();
+  });
+  it("does not impose a prefix/alphabet or normalize opaque session IDs", () => {
+    const id = " synthetic:opaque/id+value= ";
+    expect(sessionId(id)).toBe(id);
+    expect(parseLiveRequest("live/close", { sessionId: id })).toEqual({ sessionId: id });
+    expect(parse({ type: "session.started", session: { id } })).toEqual({ type: "started", sessionId: id });
+  });
+  it("checks only the SDP boundary and preserves CR/LF, spaces and blank lines", () => {
+    for (const sdp of ["v=0", "v=0\r\n\r\n", "v=0\na=x:  value \n", "v=0\ra=x: value\r"]) expect(parseSdp(sdp)).toBe(sdp);
+    const atLimit = "v=0\n" + "x".repeat(32764);
+    expect(parseSdp(atLimit)).toBe(atLimit);
+    expect(() => parseSdp(atLimit + "x")).toThrow();
   });
   it("preserves SDP answer line endings without normalizing the returned text", () => {
     const sdp = liveSdp.replace(/\r\n/g, "\n");
