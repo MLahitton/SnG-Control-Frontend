@@ -1,4 +1,4 @@
-import type { ComparedProject, Coverage, AreaItem, EntityItem, IntelligenceReference, IntelligenceResponse, IntelligenceSession, IntelligenceVoiceResponse, Metric, ProjectItem, TaskItem } from "./types";
+import type { DocumentSource, ComparedProject, Coverage, AreaItem, EntityItem, IntelligenceReference, IntelligenceResponse, IntelligenceSession, IntelligenceVoiceResponse, Metric, ProjectItem, TaskItem } from "./types";
 
 export class IntelligenceContractError extends Error {
   constructor() { super("Intelligence devolvió una respuesta no compatible. Intenta de nuevo."); }
@@ -36,7 +36,14 @@ function task(value: unknown): TaskItem {
   if (deadlineAt !== null && (!/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(deadlineAt) || !Number.isFinite(Date.parse(deadlineAt)))) return fail();
   return { kind: "task", projectId: id(v.projectId), projectName: string(v.projectName), sgCode: nullable(v.sgCode), taskId: id(v.taskId), area: nullable(v.area), task: nullable(v.task), status: nullable(v.status), leakTimeStatus: nullable(v.leakTimeStatus), deadlineAt };
 }
-function entity(value: unknown): EntityItem { return object(value).kind === "project" ? project(value) : task(value); }
+function documentSource(value: unknown): DocumentSource {
+  const v = object(value), uploadedAt = string(v.uploadedAt);
+  if (v.kind !== "document" || typeof v.isCurrent !== "boolean" || typeof v.inInitialHandoff !== "boolean" || !/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(uploadedAt) || !Number.isFinite(Date.parse(uploadedAt))) return fail();
+  return { kind: "document", documentId: id(v.documentId), projectId: id(v.projectId), filename: string(v.filename), uploadedAt, isCurrent: v.isCurrent, inInitialHandoff: v.inInitialHandoff,
+    ...(v.sizeBytes !== undefined ? { sizeBytes: count(v.sizeBytes) } : {}),
+    ...(v.replacedByDocumentId !== undefined ? { replacedByDocumentId: v.replacedByDocumentId === null ? null : id(v.replacedByDocumentId) } : {}) };
+}
+function entity(value: unknown): EntityItem { return object(value).kind === "document" ? documentSource(value) : object(value).kind === "project" ? project(value) : task(value); }
 function area(value: unknown): AreaItem {
   const v = object(value); return { area: nullable(v.area), pending: count(v.pending), inProgress: count(v.inProgress), completed: count(v.completed), overdue: count(v.overdue), dueToday: count(v.dueToday), dueSoon: count(v.dueSoon) };
 }
@@ -61,6 +68,7 @@ function reference(value: unknown): IntelligenceReference {
   const base = { projectId: id(v.projectId), label: string(v.label) };
   if (v.type === "project") return { ...base, type: "project", sgCode: nullable(v.sgCode) };
   if (v.type === "task") return { ...base, type: "task", taskId: id(v.taskId) };
+  if (v.type === "document") return { ...base, type: "document", documentId: id(v.documentId) };
   return fail();
 }
 export function parseResponse(value: unknown): IntelligenceResponse {
@@ -77,7 +85,13 @@ export function parseResponse(value: unknown): IntelligenceResponse {
       if (areas.length && projects?.length) return fail();
       return { ...base, responseType: "comparison", presentation: { kind: "comparison", areas, ...(projects !== undefined ? { projects } : {}) } };
     }
-    case "clarification": return { ...base, responseType: "clarification", presentation: { kind: "clarification", candidates: array(p.candidates, project) } };
+    case "document_analysis": {
+      const main = project(p.project), related = p.relatedProjects === undefined ? [] : array(p.relatedProjects, project, 3), sources = array(p.sources, documentSource, 4);
+      const projects = [main, ...related].map((item) => item.projectId);
+      if (!sources.length || new Set(projects).size !== projects.length || new Set(sources.map((s) => s.documentId)).size !== sources.length || sources.some((s) => !projects.includes(s.projectId))) return fail();
+      return { ...base, responseType: "document_analysis", presentation: { kind: "document_analysis", project: main, sources, ...(p.relatedProjects !== undefined ? { relatedProjects: related } : {}) } };
+    }
+    case "clarification": return { ...base, responseType: "clarification", presentation: { kind: "clarification", candidates: array(p.candidates, project), ...(p.documents !== undefined ? { documents: array(p.documents, documentSource) } : {}) } };
     case "unavailable":
       if (p.reason !== "data_not_available") return fail();
       return { ...base, responseType: "unavailable", presentation: { kind: "unavailable", reason: "data_not_available" } };

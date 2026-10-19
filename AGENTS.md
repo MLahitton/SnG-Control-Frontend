@@ -446,3 +446,17 @@ Efficiency must never mean inventing backend behavior or skipping final verifica
   Keep strict contracts, safe errors, no-store, server-only origin and credential forwarding.
 - Live captions are visual fragments, not shared turn history. Intelligence stores only completed
   semantic delegations and rereads current facts via existing tools. No persistent memory or RAG.
+
+
+## Management Intelligence 4B boundary
+
+- Parse and render the closed `document_analysis` contract and minimal document references.
+- Source metadata (filename, version/current status, date, project association) comes from
+  Intelligence evidence backed by SnG Control. Do not invent page numbers or document links.
+- Document assertions are attributed content, never authoritative current operational state.
+- Source navigation opens the existing project page only. No new file viewer, provider Files
+  API, document bytes, document execution, RAG or persistent document cache in Intelligence UI.
+- Keep metadata-only lists and complete document clarification choices visible and accessible.
+- Preserve the existing conversationId and Live protocol; never execute document tools in browser
+  or send provider credentials, document content or fabricated reference metadata to Intelligence.
+- Existing operational document upload/download behavior remains outside this feature.

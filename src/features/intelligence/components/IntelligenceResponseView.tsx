@@ -1,10 +1,21 @@
 import Link from "next/link";
 import { formatDate } from "@/lib/formatDate";
-import type { AreaItem, Coverage, EntityItem, IntelligencePresentation, IntelligenceResponse, Metric } from "../types";
+import type { DocumentSource, AreaItem, Coverage, EntityItem, IntelligencePresentation, IntelligenceResponse, Metric } from "../types";
 import styles from "./Intelligence.module.css";
 
+function Source({ item, onNavigate }: { item: DocumentSource; onNavigate: () => void }) {
+  return <div className={styles.entity}>
+    <p className={styles.sourceName}>{item.filename}</p>
+    <p className="metadata">{item.isCurrent ? "Actual" : "Histórico"} · {formatDate(item.uploadedAt)}{item.inInitialHandoff ? " · Envío inicial" : ""}{item.sizeBytes !== undefined ? ` · ${new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 }).format(item.sizeBytes / 1000)} kB` : ""}</p>
+    <Link className="text-link" href={`/projects/${encodeURIComponent(item.projectId)}`} onClick={onNavigate}>Abrir proyecto</Link>
+  </div>;
+}
+function Sources({ items, onNavigate }: { items: DocumentSource[]; onNavigate: () => void }) {
+  return <section aria-label="Fuentes"><h4>Fuentes</h4><ul className={styles.entityList}>{items.map((item) => <li key={item.documentId}><Source item={item} onNavigate={onNavigate} /></li>)}</ul></section>;
+}
 // Intelligence already supplies localized presentation labels; do not reinterpret them as backend enums.
 function Entity({ item, onNavigate }: { item: EntityItem; onNavigate: () => void }) {
+  if (item.kind === "document") return <Source item={item} onNavigate={onNavigate} />;
   return <div className={styles.entity}>
     <Link className="text-link" href={`/projects/${encodeURIComponent(item.projectId)}`} onClick={onNavigate}>{item.projectName}</Link>
     {item.sgCode && <p className="metadata">{item.sgCode}</p>}
@@ -46,7 +57,8 @@ function Presentation({ value, onAsk, onNavigate, disabled }: { value: Intellige
       <Metrics items={item.metrics} />
       {item.tasks.length > 0 && <details><summary>Tareas actuales ({item.tasks.length})</summary><ul className={styles.entityList}>{item.tasks.map((task) => <li key={task.taskId}><Entity item={task} onNavigate={onNavigate} /></li>)}</ul></details>}
     </article>)}</section> : <Areas items={value.areas} />;
-    case "clarification": return <ul className={styles.entityList}>{value.candidates.map((item, index) => <li key={index}><button type="button" className={styles.candidate} aria-label={`Consultar ${item.projectName}`} disabled={disabled} onClick={() => onAsk(`¿Cómo va ${item.projectName}?`)}><span>{item.projectName}</span><span className="metadata">{item.sgCode ?? "Sin SG"}{item.city ? ` · ${item.city}` : ""}</span></button></li>)}</ul>;
+    case "document_analysis": return <><Entity item={value.project} onNavigate={onNavigate} />{value.relatedProjects?.map((item) => <Entity key={item.projectId} item={item} onNavigate={onNavigate} />)}<Sources items={value.sources} onNavigate={onNavigate} /></>;
+    case "clarification": return <><ul className={styles.entityList}>{value.candidates.map((item, index) => <li key={index}><button type="button" className={styles.candidate} aria-label={`Consultar ${item.projectName}`} disabled={disabled} onClick={() => onAsk(`¿Cómo va ${item.projectName}?`)}><span>{item.projectName}</span><span className="metadata">{item.sgCode ?? "Sin SG"}{item.city ? ` · ${item.city}` : ""}</span></button></li>)}</ul>{!!value.documents?.length && <Sources items={value.documents} onNavigate={onNavigate} />}</>;
     case "unavailable": return null;
   }
 }

@@ -161,3 +161,29 @@ atención de hoy, carga por áreas, comparación de dos proyectos existentes, «
 más pendientes?», por voz «¿Y cuál vence primero?», cuello de botella y facturación no
 disponible. Revisar también móvil y «Amplía el segundo proyecto» al volver a texto.
 No conservar audio, SDP, credenciales ni transcripciones del smoke en el repositorio.
+
+
+## Management Intelligence 4B — contenido de documentos de proyecto
+
+Intelligence ahora devuelve `document_analysis` con respuesta humana y fuentes verificadas.
+El panel muestra nombre del proyecto, archivos, Actual/Histórico, fecha en America/Bogota,
+envío inicial cuando corresponde y tamaño si está disponible. Cada enlace abre `/projects/[id]`.
+Las listas de metadata y las aclaraciones también admiten fuentes documentales.
+No hay visor ni descarga de bytes dentro de Intelligence; el navegador no llama a OpenAI Files,
+Responses ni herramientas documentales. El detalle operacional de documentos existente no cambia.
+
+Los contratos y parser admiten referencias `type: document` (documentId, projectId, label),
+`DocumentSource` y `document_analysis` con `project`, `relatedProjects` opcional y `sources`.
+La selección, permisos, bytes, límite de cuatro archivos/20 MB por archivo/30 MB total y análisis
+son responsabilidad de Intelligence y Backend. No se infiere estado actual desde un documento.
+Conversation conserva el mismo conversationId en texto/Live/texto; las referencias son devueltas
+por Intelligence, nunca reenviadas por el navegador como autoridad. Live conserva su protocolo
+WebRTC/sideband: el browser no ejecuta tools. Las respuestas documentales de chat/voz básica
+usan el renderizador compartido; Live mantiene captions y voz, sin un nuevo canal de fuentes.
+No hay RAG, índices, File Search ni persistencia documental en Frontend.
+
+Smoke pendiente 4B: en el mismo panel, listar archivos de un proyecto real, resumir los actuales,
+preguntar por un PDF real, requisitos de vidrio, metadata del envío inicial, comparar versiones
+solo si Backend expone relación, preguntar por protección UV y seguir por Live con «ese documento».
+Comprobar fuentes, contexto y navegación sin requests de archivos hacia OpenAI desde el browser.
+Los tests offline no sustituyen esta comprobación real.
