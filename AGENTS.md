@@ -424,8 +424,25 @@ Efficiency must never mean inventing backend behavior or skipping final verifica
 - Never interpret/execute function calls, forward question/callId, send function_call_output,
   send response.create, or restore a business relay. Intelligence's private sideband owns tools.
 - Keep the data channel and its lifecycle/caption/progress events. Ignore reflected tool items.
-- Keep chat and basic voice independent and unchanged. No text/Live memory unification.
+- Conversation 3A explicitly unifies text/Live ephemeral context via Intelligence. Basic voice
+  remains independent; never synchronize transcript deltas as business memory.
 - Live captions are not verified structured references; do not invent cards from spoken output.
 - Google auth remains in the existing HTTP/BFF flow. OpenAI keys and private Live credential
   context stay exclusively in Intelligence. No new browser credential storage.
 - Close media on identity change/logout/unmount, errors and the absolute 600 second limit.
+
+
+## Conversation 3A boundary
+
+- Keep conversationId/messages only in React memory under the authenticated Management AppShell.
+  No localStorage/sessionStorage/cookies/IndexedDB for conversation state. Existing Google auth
+  storage is unchanged. The server generates IDs and checks official subject ownership.
+- Create on first panel open; panel hide/navigation preserve ID. Logout/identity change aborts
+  work, clears messages/references/audio, closes Live and conversation best-effort. New conversation
+  closes/replaces explicitly; never silently replay a failed question into a new context.
+- Chat and Live creation send the same ID. Disable text while Live is active. Basic voice is
+  explicitly stateless. Browser does not resolve references, execute tools or own business truth.
+- Only POST conversation and conversation/close extend the existing closed BFF allowlist.
+  Keep strict contracts, safe errors, no-store, server-only origin and credential forwarding.
+- Live captions are visual fragments, not shared turn history. Intelligence stores only completed
+  semantic delegations and rereads current facts via existing tools. No persistent memory or RAG.

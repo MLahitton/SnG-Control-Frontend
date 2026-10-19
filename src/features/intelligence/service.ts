@@ -1,3 +1,4 @@
+import { conversationId as parseConversationId } from "./conversation";
 import type { ApiClient } from "@/lib/api/types";
 import { parseResponse, parseSession, parseTranscript, parseVoice } from "./parser";
 import { MAX_AUDIO_BYTES, MAX_MESSAGE_CHARACTERS, type IntelligenceResponseType } from "./types";
@@ -11,9 +12,9 @@ function audioForm(file: File): FormData {
 }
 export const intelligenceService = {
   session: async (api: ApiClient, signal?: AbortSignal) => parseSession(await api.get<unknown>("intelligence/session", { signal })),
-  chat: async (api: ApiClient, message: string, signal?: AbortSignal) => {
+  chat: async (api: ApiClient, message: string, signal?: AbortSignal, conversationId?: string) => {
     if (!message.trim() || message.length > MAX_MESSAGE_CHARACTERS) throw new IntelligenceError(422);
-    return parseResponse(await api.post<unknown>("intelligence/chat", { message }, { signal }));
+    return parseResponse(await api.post<unknown>("intelligence/chat", { message, ...(conversationId ? { conversationId: parseConversationId(conversationId) } : {}) }, { signal }));
   },
   voice: async (api: ApiClient, file: File, signal?: AbortSignal) => parseVoice(await api.upload<unknown>("intelligence/voice", audioForm(file), { signal })),
   transcribe: async (api: ApiClient, file: File, signal?: AbortSignal) => parseTranscript(await api.upload<unknown>("intelligence/voice/transcribe", audioForm(file), { signal })),

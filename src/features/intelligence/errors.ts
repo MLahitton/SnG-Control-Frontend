@@ -16,6 +16,8 @@ export function intelligenceErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) return "Tu sesión ya no es válida. Inicia sesión de nuevo.";
     if (error.status === 403) return "Intelligence está disponible para Gerencia.";
+    if (error.status === 404) return "La conversación o el recurso ya no está disponible. Puedes iniciar una nueva conversación.";
+    if (error.status === 409) return "La conversación está ocupada. Finaliza la voz en vivo y vuelve a intentarlo.";
     if (error.status === 429) return "Intelligence recibió demasiadas solicitudes. Espera un momento e intenta de nuevo.";
     if (error.status === 422 || error.status === 413) return "La consulta o el audio no son válidos. Prueba con un mensaje o una grabación más breve.";
   }

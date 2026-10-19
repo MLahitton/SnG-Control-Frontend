@@ -8,7 +8,7 @@ export function useLiveVoice(api: ApiClient) {
   const connection = useRef<LiveConnection | null>(null);
   const locked = useRef(false);
   useEffect(() => () => { connection.current?.dispose(); connection.current = null; }, []);
-  async function start() {
+  async function start(conversationId?: string) {
     if (locked.current) return;
     locked.current = true;
     connection.current?.dispose();
@@ -18,7 +18,8 @@ export function useLiveVoice(api: ApiClient) {
       if (next.state === "idle" || next.state === "error") locked.current = false;
     });
     connection.current = live;
-    await live.start();
+    await live.start(conversationId);
   }
-  return { ...view, start, stop: () => connection.current?.close(), mute: () => connection.current?.mute(), resumeAudio: () => connection.current?.resumeAudio(), active: !["idle", "error"].includes(view.state) };
+  function clear() { connection.current?.dispose(); connection.current = null; locked.current = false; setView(initialLiveView); }
+  return { ...view, start, clear, stop: () => connection.current?.close(), mute: () => connection.current?.mute(), resumeAudio: () => connection.current?.resumeAudio(), active: !["idle", "error"].includes(view.state) };
 }

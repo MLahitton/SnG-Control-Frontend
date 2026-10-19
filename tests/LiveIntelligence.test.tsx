@@ -1,3 +1,4 @@
+import { conversationCreated } from "./intelligenceFixtures";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
@@ -20,6 +21,8 @@ function context() {
 function network() {
   const fetchMock = vi.fn<(path: string, options: RequestInit) => Promise<Response>>(async (path) => {
     if (path === "/api/auth/me") return Response.json(manager);
+    if (path === "/api/intelligence/conversation") return Response.json(conversationCreated, { status: 201 });
+    if (path === "/api/intelligence/conversation/close") return Response.json({ closed: true });
     if (path === "/api/intelligence/session") return Response.json({ authenticated: true, isManagement: true });
     if (path.endsWith("/live/session")) return Response.json(liveCreated);
     if (path.endsWith("/live/close")) return Response.json({ closed: true });
@@ -80,16 +83,19 @@ describe("continuous voice in the existing panel", () => {
     await screen.findByRole("button", { name: "Iniciar conversación por voz" });
     expect(track.stop).toHaveBeenCalled();
   });
-  it("keeps text stateless while voice captions retain context without executing tools", async () => {
+  it("blocks text during Live then reuses the same conversation without browser tools", async () => {
     const fetchMock = network(); render(<AuthContext.Provider value={context()}><IntelligenceLauncher /></AuthContext.Provider>);
     await start();
     await act(async () => LivePeer.instances[0].channel.emit(completedCall()));
     expect(screen.queryByRole("region", { name: "Datos consultados por voz" })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([path]) => path.endsWith("/delegate"))).toBe(false);
+    expect(screen.getByLabelText("Tu consulta")).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Finalizar conversación" }));
+    await waitFor(() => expect(screen.getByLabelText("Tu consulta")).toBeEnabled());
     await userEvent.type(screen.getByLabelText("Tu consulta"), "Consulta de texto{Enter}");
     await waitFor(() => expect(fetchMock.mock.calls.some(([path]) => path.endsWith("/chat"))).toBe(true));
     const call = fetchMock.mock.calls.find(([path]) => path.endsWith("/chat"))!;
-    expect(JSON.parse(call[1].body as string)).toEqual({ message: "Consulta de texto" });
+    expect(JSON.parse(call[1].body as string)).toEqual({ message: "Consulta de texto", conversationId: conversationCreated.conversationId });
     expect(LivePeer.instances).toHaveLength(1);
   });
   it.each(["unsupported", "unavailable"])("offers explicit functional basic fallback for %s", async (failure) => {

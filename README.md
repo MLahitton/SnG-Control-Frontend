@@ -86,15 +86,15 @@ Solo las cuentas con `user.isManagement === true` ven el botón flotante **Intel
 
 Configura de forma independiente en el entorno del worktree `SNG_INTELLIGENCE_BASE_URL`, solo servidor. Ejemplo de desarrollo: `http://127.0.0.1:8001`. No tiene prefijo NEXT_PUBLIC. El navegador llama únicamente a `/api/intelligence/...` de Next; no recibe URL del servicio ni claves de proveedores. No copies el `.env` de otro worktree; configura el Client ID público y las URLs que correspondan al entorno de prueba.
 
-Chat envía un mensaje por solicitud, sin historial. Enter envía y Shift+Enter agrega una línea. Las respuestas admiten direct, management_brief, project_status, list, comparison, clarification y unavailable. Cifras, estados, áreas y fechas proceden de Intelligence. Seleccionar un candidato genera una pregunta autocontenida con el nombre oficial del proyecto; no presupone memoria del agente. Las referencias de proyectos/tareas abren el proyecto asociado.
+Chat envía un mensaje y el conversationId generado por Intelligence. El historial compartido es efímero y vive en el servidor. Enter envía y Shift+Enter agrega una línea. Las respuestas admiten direct, management_brief, project_status, list, comparison, clarification y unavailable. Cifras, estados, áreas y fechas proceden de Intelligence. Seleccionar un candidato genera una pregunta autocontenida con el nombre oficial del proyecto; aprovecha el contexto efímero sin convertirlo en evidencia operacional. Las referencias de proyectos/tareas abren el proyecto asociado.
 
 El micrófono principal inicia **Voice Live**: un clic solicita permiso, conecta WebRTC y permite conversar continuamente, sin grabar un Blob ni pulsar Enviar. GPT-Live mantiene contexto durante esa conexión y gestiona la conversación/interrupciones; el panel muestra transcripciones y estados accesibles. Incluye silenciar/activar micrófono, finalizar conversación y activar audio mediante un gesto si el navegador bloquea autoplay. Requiere HTTPS o localhost y soporte de WebRTC.
 
 “Usar modo de voz básico” conserva el fallback explícito MediaRecorder: hasta 60 segundos y 10 MiB, WebM/Opus, WebM o MP4/M4A. Detener envía a `/voice` y muestra la transcripción/respuesta; la reproducción opcional usa `/voice/speech`. No se cambia de modo automáticamente. “Escuchar respuesta” conserva pausa/reanudación para texto y voz básica; se deshabilita mientras Live está activo para evitar dos audios simultáneos.
 
-El historial visual vive en memoria (hasta 40 mensajes de texto/básicos y 160 fragmentos Live); no se persiste. El audio Live viaja directamente por WebRTC a GPT-Live y sus consultas empresariales se ejecutan exclusivamente en el sideband privado de SnG Intelligence. La sesión sobrevive navegación interna mientras el panel/shell continúan montados. Cerrar, recargar, logout o cambiar de identidad libera solicitudes, micrófono y audio. En móvil, seguir una referencia cierra el panel. El panel conserva diálogo nativo, scroll, safe areas y adaptación al teclado.
+El historial visual vive en memoria (hasta 40 mensajes de texto/básicos y 160 fragmentos Live); no se persiste. El audio Live viaja directamente por WebRTC a GPT-Live y sus consultas empresariales se ejecutan exclusivamente en el sideband privado de SnG Intelligence. La sesión sobrevive navegación interna mientras el panel/shell continúan montados. Cerrar el panel libera solicitudes, micrófono, audio y captions, pero conserva mensajes/contexto. Recargar pierde continuidad; logout o cambio de identidad también cierra la conversación best-effort. En móvil, seguir una referencia cierra el panel. El panel conserva diálogo nativo, scroll, safe areas y adaptación al teclado.
 
-Voz Live y chat textual **no comparten memoria**: “La de Ximena” conserva su contexto dentro de Live, sin reescritura del frontend; un mensaje textual sigue siendo una consulta independiente. Reiniciar Live comienza otro hilo. No se persisten sessionId, SDP, transcripciones ni audio. Backend conserva autoridad de acceso y datos.
+Voz Live y chat textual **comparten contexto efímero** con el mismo conversationId. “La de Ximena” o “el segundo” se resuelven con contexto de Intelligence, sin reescritura del frontend. Reiniciar Live conserva el contexto empresarial reciente; las tools vuelven a consultar datos actuales. No se persisten sessionId, SDP, transcripciones ni audio. Backend conserva autoridad de acceso y datos.
 
 Los errores 401 invalidan la sesión existente; 403 mantiene la sesión; 422, 429 y 503 ofrecen mensajes seguros. Solo se presenta un requestId validado como referencia diagnóstica. Una respuesta unavailable es información normal.
 
@@ -117,3 +117,26 @@ no se envía a analytics, no se persiste, no contiene nombres, IDs, transcripts 
 El estado se limpia al cambiar de turno, mutear, cerrar, cambiar identidad o desmontar.
 Para comparar fases server-side consultar `PERFORMANCE_2D.md` de SnG Intelligence;
 los relojes browser/servidor no se restan entre sí.
+
+
+## Conversation 3A
+
+Al abrir Intelligence por primera vez se crea una conversación de Gerencia. ID y mensajes
+permanecen solo en memoria React dentro de AppShell: cerrar/reabrir el panel o navegar dentro
+no inicia otra conversación. No se usa localStorage, sessionStorage, cookies ni IndexedDB
+para contexto. La sesión Google existente conserva su mecanismo independiente.
+
+Texto y Live envían el mismo conversationId; Live inicializa historial textual en el servidor.
+Al finalizar voz puedes continuar escribiendo. Durante Live el texto queda temporalmente
+bloqueado. **Nueva conversación** cierra Live y contexto anterior, limpia mensajes/referencias/
+audio y crea un ID nuevo. Logout/cambio de subject aborta requests y limpia el estado sin
+heredarlo a otra identidad. Cierre remoto es best-effort; servidor aplica expiración.
+
+Servidor: TTL absoluto por defecto 30 minutos (máximo 60), 16 turnos y 16000 caracteres de
+contexto; sin persistencia. Al expirar, reiniciar Intelligence o recargar completamente el
+browser se pierde continuidad. Los datos históricos sirven para identificar referentes;
+Backend vuelve a consultarse para hechos actuales. No se guardan audio/SDP/credenciales.
+Las conversaciones casuales Live sin delegación y captions parciales no forman memoria
+compartida. Voz básica permanece independiente y lo indica en el panel.
+
+Implementación y tests offline completos; smoke real texto → Live → texto aprobado por el usuario.

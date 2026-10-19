@@ -81,7 +81,7 @@ export class LiveConnection {
   private activity(state: LiveState) {
     if (this.ready && !this.closing && !this.closed && this.view.state !== state) this.publish({ state });
   }
-  async start() {
+  async start(conversationId?: string) {
     this.publish({ ...initialLiveView(), state: "connecting" });
     if (!navigator.mediaDevices?.getUserMedia || window.isSecureContext === false) { this.fail("secure_context"); return; }
     if (typeof RTCPeerConnection === "undefined" || typeof MediaStream === "undefined") { this.fail("unsupported"); return; }
@@ -123,7 +123,7 @@ export class LiveConnection {
       await pc.setLocalDescription(offer);
       await waitForIce(pc, this.controller.signal);
       if (this.closing || this.closed) return;
-      const result = await liveService.create(this.api, pc.localDescription?.sdp ?? "", this.controller.signal);
+      const result = await liveService.create(this.api, pc.localDescription?.sdp ?? "", this.controller.signal, conversationId);
       if (this.closing || this.closed) { void liveService.close(this.api, result.sessionId).catch(() => {}); return; }
       this.sessionId = result.sessionId;
       this.lifetimeTimer = setTimeout(() => this.fail("expired"), 600_000);

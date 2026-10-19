@@ -308,7 +308,7 @@ Contrato observado mediante lectura de `app/contracts/presentation.py`, `app/age
 
 `useSpeech` controla request, Audio y object URL. TTS usa exclusivamente spokenAnswer. Autoplay configurable solo para voz; texto requiere botón. Rechazo de autoplay ofrece reanudar; se detiene el audio anterior al enviar otra consulta o reproducir otra respuesta. Todas las operaciones y recursos se cancelan al cerrar, cambiar identidad o salir.
 
-La conversación textual/básica local contiene hasta 40 mensajes y no se manda como historial. Se mantiene al navegar mientras AppShell/panel permanecen montados; móvil cierra al seguir referencias. Cerrar descarta la conversación explícitamente. El diálogo nativo gestiona foco modal/Escape; al cerrar vuelve al botón. Panel de hasta 480 px en desktop, pantalla móvil con 100dvh/safe areas y visualViewport para teclado; comparación usa scroll horizontal deliberado. Live agrega WebRTC sin dependencias nuevas; no se agrega persistencia, relay WebSocket, RAG ni LangGraph.
+La conversación textual/básica local contiene hasta 40 mensajes y no se manda como historial. Se mantiene al navegar mientras AppShell/panel permanecen montados; móvil cierra al seguir referencias. Cerrar conserva conversación/mensajes en el panel montado y libera media/requests; Nueva conversación la reemplaza. El diálogo nativo gestiona foco modal/Escape; al cerrar vuelve al botón. Panel de hasta 480 px en desktop, pantalla móvil con 100dvh/safe areas y visualViewport para teclado; comparación usa scroll horizontal deliberado. Live agrega WebRTC sin dependencias nuevas; no se agrega persistencia, relay WebSocket, RAG ni LangGraph.
 
 ### Realtime Voice 2B — GPT-Live
 
@@ -328,9 +328,9 @@ El Bearer continúa viajando solo por HTTP/BFF a Intelligence. Solo Intelligence
 
 Los estados son idle, connecting, listening, user_speaking, assistant_thinking, assistant_speaking, error y closing. Transcripciones y ciclo de Responses aportan eventos oficiales. GPT-Live no ofrece aquí eventos speech_started/stopped del Realtime clásico: la actividad de micrófono/track remoto se observa localmente con AudioContext (RMS con 250 ms de estabilidad), sin grabar ni transmitir muestras desde JavaScript. Es un indicador de actividad, no detección de turnos de negocio. Si no hay medición, los eventos de transcripción siguen actualizando el indicador. Nunca se presenta razonamiento ni se deduce fin de audio desde response.completed. GPT-Live gestiona full duplex/interrupciones; la UI prioriza actividad del usuario y no manda response.cancel ni usa audio.pause como mecanismo de barge-in. La efectividad acústica se verifica en smoke real.
 
-Las transcripciones conservan espacios/repeticiones y timestamps start_ms/end_ms, ordenadas por tiempo, con agrupación visual consecutiva por hablante; no afirman límites exactos de turno. Se retienen hasta 160 fragmentos, solo en memoria. Event IDs se deduplican (4096 por sesión); al alcanzar límites de sesión se informa y cierra. No hay persistencia, logs de SDP/transcripts ni sincronización de memoria con chat. Live mantiene el hilo dentro de su conexión; chat y fallback continúan stateless. No se implementa ElevenLabs.
+Las transcripciones conservan espacios/repeticiones y timestamps start_ms/end_ms, ordenadas por tiempo, con agrupación visual consecutiva por hablante; no afirman límites exactos de turno. Se retienen hasta 160 fragmentos, solo en memoria. Event IDs se deduplican (4096 por sesión); al alcanzar límites de sesión se informa y cierra. No hay persistencia ni logs de SDP/transcripts. Conversation 3A comparte turnos semánticos empresariales entre Live y chat mediante el servidor; los captions no alimentan memoria. Fallback básico permanece stateless. No se implementa ElevenLabs.
 
-La sesión tiene un límite absoluto local de 600 segundos; expirar finaliza WebRTC y solicita cierre al servidor. Mute cambia track.enabled sin cerrar. Finalizar detiene inmediatamente micrófono/medición/audio y aborta consultas; intenta session.close y POST live/close con la identidad original. Espera hasta 1.5 s por session.closed y hasta 3 s por revocación backend; indica cierre remoto no confirmado si corresponde. Al desmontar por cierre de panel, logout, retirada de isManagement o cambio de Subject libera transportes inmediatamente tras solicitar cierre, descarta respuestas tardías y elimina estado local. Un permiso tardío detiene sus tracks; una creación tardía intenta revocar el sessionId sin adjuntar SDP. Si se perdió la respuesta de creación no se conoce el ID: cierre local/cancelación no garantizan revocación remota; aplica la caducidad del backend/proveedor. No hay reconexión automática. Reload pierde el hilo.
+La sesión tiene un límite absoluto local de 600 segundos; expirar finaliza WebRTC y solicita cierre al servidor. Mute cambia track.enabled sin cerrar. Finalizar detiene inmediatamente micrófono/medición/audio y aborta consultas; intenta session.close y POST live/close con la identidad original. Espera hasta 1.5 s por session.closed y hasta 3 s por revocación backend; indica cierre remoto no confirmado si corresponde. Al cerrar visualmente el panel o desmontar por logout, retirada de isManagement o cambio de Subject libera transportes inmediatamente tras solicitar cierre, descarta respuestas tardías y elimina estado local. Un permiso tardío detiene sus tracks; una creación tardía intenta revocar el sessionId sin adjuntar SDP. Si se perdió la respuesta de creación no se conoce el ID: cierre local/cancelación no garantizan revocación remota; aplica la caducidad del backend/proveedor. No hay reconexión automática. Reload pierde el hilo.
 
 Fallos visibles distinguen permisos, micrófono no disponible, contexto inseguro, navegador incompatible, Live no disponible, sesión vencida, delegación, red, límites y acceso denegado. 401 conserva invalidación global y 403 no cierra la sesión Google. Siempre puede elegirse voz básica explícitamente cuando Live no está activo; no hay downgrade silencioso.
 
@@ -432,7 +432,7 @@ Las suites verifican:
 
 Las pruebas de Intelligence sustituyen fetch, MediaRecorder, getUserMedia, Audio y ObjectURL. Cubren contratos/renderers, autenticación y requests tardíos, sesión/chat/referencias/candidatos, MIME WebM/MP4, permisos, cancelación/60 s/bytes, spokenAnswer, autoplay/pausa/reanudación/revocación, BFF estricto y streaming. No llaman a FastAPI, Google ni proveedores reales.
 
-Realtime Voice 2C conserva mocks de RTCPeerConnection, RTCDataChannel, MediaStream y tracks. Cubre SDP/session.started, estados/transcripciones, mute, cierre confirmado/no confirmado, permisos tardíos, tools reflejadas ignoradas, ausencia de fetch delegate/tool outputs y límite de 600 s, errores, identidad/logout con Bearer original, contexto continuo sin reescritura, texto independiente y fallback funcional. El BFF prueba rutas/métodos exactos, status, sanitización y límites de bytes reales/SDP. No se llama a OpenAI.
+Realtime Voice 2C conserva mocks de RTCPeerConnection, RTCDataChannel, MediaStream y tracks. Cubre SDP/session.started, estados/transcripciones, mute, cierre confirmado/no confirmado, permisos tardíos, tools reflejadas ignoradas, ausencia de fetch delegate/tool outputs y límite de 600 s, errores, identidad/logout con Bearer original, contexto continuo sin reescritura, continuidad de texto/Live y fallback independiente funcional. El BFF prueba rutas/métodos exactos, status, sanitización y límites de bytes reales/SDP. No se llama a OpenAI.
 
 No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tailwind.
 
@@ -486,3 +486,39 @@ no se envía a analytics, no se persiste, no contiene nombres, IDs, transcripts 
 El estado se limpia al cambiar de turno, mutear, cerrar, cambiar identidad o desmontar.
 Para comparar fases server-side consultar `PERFORMANCE_2D.md` de SnG Intelligence;
 los relojes browser/servidor no se restan entre sí.
+
+
+## Conversation 3A — contexto unificado efímero
+
+`conversation.ts` valida create `{conversationId, expiresAt}` y close `{closed:true}`;
+`useConversation` conserva el ID solo en memoria, ligado a la identidad original. El ID
+es opaco, generado por Intelligence (43 caracteres base64url), nunca elegido por browser.
+El hook descarta respuestas tardías y cierra creaciones huérfanas best-effort. Panel se monta
+al primer open y permanece en AppShell oculto al cerrar. El key por subject desmonta toda
+la UI/contexto ante cambio de identidad. No se guarda contexto en almacenamiento del browser.
+
+BFF agrega exclusivamente POST `conversation` (body `{}`) y `conversation/close`
+(body `{conversationId}`). Rechaza campos adicionales, conserva 201, Bearer, no-store,
+origen fijo y sanitización. Chat agrega conversationId al body; live/session acepta
+`{sdp, conversationId?}` y mantiene respuesta exacta `{sessionId,sdp}`. No se modifica
+pipeline WebRTC, delegación ni permisos del data channel; el browser nunca ejecuta tools.
+
+Intelligence usa `session.input` para texto → Live y guarda delegaciones empresariales
+completadas antes de entregar function_call_output para Live → texto. Su store separa contexto,
+credenciales y registry Live, con TTL absoluto 1800 s (máx.3600), 128 conversaciones/3 por subject,
+16 turnos y 16000 caracteres. Elimina turnos antiguos enteros. Cierre/expiry/shutdown cancela
+operaciones y revoca Live asociado. Live close por sí solo conserva la conversación.
+
+No hay evidencia empresarial cacheada: referencias ordenadas sirven para resolver «el segundo»
+y «sus documentos»; cada ejecución recupera datos actuales y referencias nuevas mediante tools.
+Sin conversationId las APIs conservan comportamiento independiente. Basic /voice sigue
+stateless y la UI lo informa; no comparte transcript del fallback ni charla casual de Live.
+
+Nueva conversación: detener Live, cerrar contexto, limpiar mensajes/audio y crear otro ID.
+Logout/cambio de subject: abortar, liberar recursos y close best-effort con identidad original.
+Full reload o reinicio del servidor pierde continuidad. No hay historial persistente, RAG,
+Redis, DB, localStorage/sessionStorage de conversaciones. No se cambió almacenamiento Google.
+
+Tests offline cubren panel/navigation, chat/Live mismo ID, reopen, cierre/reemplazo, identidad,
+logout, requests tardíos, expiry sin retry silencioso y allowlist cerrada. Smoke real cross-modal aprobado por el usuario. Los escenarios offline incluyen Casa → voz
+«La de Ximena»; voz lista → texto «el segundo»; proyecto → documentos.

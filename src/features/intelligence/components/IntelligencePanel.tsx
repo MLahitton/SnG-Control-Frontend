@@ -9,6 +9,7 @@ import { IntelligenceError, intelligenceErrorMessage } from "../errors";
 import { MAX_MESSAGE_CHARACTERS, MAX_RECORDING_SECONDS, type Message } from "../types";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useSpeech } from "../hooks/useSpeech";
+import { useConversation } from "../hooks/useConversation";
 import { useLiveVoice } from "../hooks/useLiveVoice";
 import { liveErrors, type LiveState } from "../live/connection";
 import { LiveTranscript } from "./LiveTranscript";
@@ -17,10 +18,13 @@ import styles from "./Intelligence.module.css";
 
 const liveLabels: Record<LiveState, string> = { idle: "Voz en vivo lista", connecting: "Conectando…", listening: "Escuchando", user_speaking: "Te escucho", assistant_thinking: "Pensando…", assistant_speaking: "Respondiendo…", error: "Conversación detenida", closing: "Finalizando conversación…" };
 
-export function IntelligencePanel({ onClose }: { onClose: () => void }) {
+export function IntelligencePanel({ onClose, visible = true }: { onClose: () => void; visible?: boolean }) {
   const api = useApiClient();
   const load = useCallback((signal: AbortSignal) => intelligenceService.session(api, signal), [api]);
   const session = useResource(load);
+  const conversation = useConversation(api, !!session.data);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState<"text" | "voice" | null>(null);
@@ -35,11 +39,11 @@ export function IntelligencePanel({ onClose }: { onClose: () => void }) {
   const live = useLiveVoice(api);
   const [basicVoice, setBasicVoice] = useState(false);
   const recorder = useVoiceRecorder((file) => { void send(file); });
-  const available = !!session.data && !denied;
-  const blocked = !available || !!busy || recorder.state !== "idle";
+  const available = !!session.data && !!conversation.id && !denied;
+  const blocked = !available || !!busy || live.active || recorder.state !== "idle";
   useEffect(() => {
     const element = dialog.current;
-    element?.showModal();
+    if (visible) element?.showModal(); else element?.close();
     const viewport = window.visualViewport;
     function resize() {
       if (!element || !viewport) return;
@@ -56,10 +60,10 @@ export function IntelligencePanel({ onClose }: { onClose: () => void }) {
       viewport?.removeEventListener("scroll", resize);
       request.current?.abort(); element?.close();
     };
-  }, []);
+  }, [visible]);
   useEffect(() => { end.current?.scrollIntoView?.({ block: "nearest" }); }, [messages, busy, live.captions.length]);
   async function send(value: string | File) {
-    if (!available || request.current || (typeof value === "string" && (!value.trim() || value.length > MAX_MESSAGE_CHARACTERS))) return;
+    if (!visible || !available || live.active || request.current || (typeof value === "string" && (!value.trim() || value.length > MAX_MESSAGE_CHARACTERS))) return;
     const controller = new AbortController();
     request.current = controller;
     speech.stop(); setFailure(undefined);
@@ -71,7 +75,7 @@ export function IntelligencePanel({ onClose }: { onClose: () => void }) {
       setMessages((items) => [...items.slice(-39), { id: userId, role: "user", content: value.trim(), state: "sending" }]);
     }
     try {
-      const result = text ? await intelligenceService.chat(api, value.trim(), controller.signal) : await intelligenceService.voice(api, value, controller.signal);
+      const result = text ? await intelligenceService.chat(api, value.trim(), controller.signal, conversation.id) : await intelligenceService.voice(api, value, controller.signal);
       if (controller.signal.aborted) return;
       const responseId = ++sequence.current;
       setMessages((items) => [
@@ -94,12 +98,24 @@ export function IntelligencePanel({ onClose }: { onClose: () => void }) {
     request.current?.abort(); request.current = null; setBusy(null);
     setMessages((items) => items.map((item): Message => item.role === "user" && item.state === "sending" ? { ...item, state: "error" } : item));
   }
-  function navigate() { if (window.matchMedia("(max-width: 767px)").matches) onClose(); }
-  const error = failure ?? session.error;
-  return <dialog ref={dialog} className={styles.panel} aria-labelledby="intelligence-title" onCancel={(event) => { event.preventDefault(); onClose(); }}>
-    <header className={styles.header}><div><h2 id="intelligence-title">SnG Intelligence</h2><p className="metadata">Consulta gerencial · voz generada por IA</p></div><button type="button" className="button-ghost" onClick={onClose} aria-label="Cerrar SnG Intelligence">Cerrar</button></header>
+  function closePanel() {
+    cancelQuery(); speech.stop(); recorder.cancel(); live.clear(); onClose();
+  }
+  async function newConversation() {
+    cancelQuery(); speech.stop(); recorder.cancel();
+    setBusy("text");
+    await live.stop(); live.clear();
+    if (!mounted.current) return;
+    setMessages([]); setInput(""); setFailure(undefined);
+    await conversation.reset();
+    if (mounted.current) setBusy(null);
+  }
+  function navigate() { if (window.matchMedia("(max-width: 767px)").matches) closePanel(); }
+  const error = failure ?? session.error ?? conversation.error;
+  return <dialog ref={dialog} className={styles.panel} aria-labelledby="intelligence-title" onCancel={(event) => { event.preventDefault(); closePanel(); }}>
+    <header className={styles.header}><div><h2 id="intelligence-title">SnG Intelligence</h2><p className="metadata">Consulta gerencial · voz generada por IA</p></div><button type="button" className="button-ghost" onClick={closePanel} aria-label="Cerrar SnG Intelligence">Cerrar</button></header>
     <div className={styles.conversation} role="log" aria-label="Conversación actual" aria-live="polite" aria-relevant="additions text">
-      {messages.length === 0 && <p className="metadata">Consulta proyectos y operación por texto o voz. La conversación se conserva solo mientras este panel está abierto.</p>}
+      {messages.length === 0 && <p className="metadata">Consulta proyectos y operación por texto o voz. El contexto de texto y voz en vivo se conserva durante esta sesión de uso, hasta su expiración.</p>}
       {messages.map((message) => <article key={message.id} className={message.role === "user" ? styles.userMessage : styles.assistantMessage} aria-label={message.role === "user" ? "Mensaje del usuario" : "Respuesta de Intelligence"}>
         <p className={styles.speaker}>{message.role === "user" ? "Tú" : "Intelligence"}</p>
         {message.role === "user" ? <><p className={styles.answer}>{message.content}</p>{message.state === "error" && <p className="metadata">Consulta sin completar.</p>}</> : <>
@@ -114,15 +130,17 @@ export function IntelligencePanel({ onClose }: { onClose: () => void }) {
       <div ref={end} />
     </div>
     <footer className={styles.footer}>
+      <button type="button" className="button-ghost" disabled={!!busy || conversation.loading || !session.data} onClick={() => void newConversation()}>Nueva conversación</button>
+      {conversation.loading && session.data && <p role="status">Preparando conversación…</p>}
       {session.loading && <p role="status">Verificando acceso a Intelligence…</p>}
-      {!!error && <div role="alert" className="error-message"><p>{intelligenceErrorMessage(error)}</p>{error instanceof IntelligenceError && error.requestId && <p className="metadata">Referencia: {error.requestId}</p>}{(!session.data || denied) && <button className="button-secondary" onClick={() => { setDenied(false); setFailure(undefined); session.refresh(); }}>Volver a verificar</button>}</div>}
+      {!!error && <div role="alert" className="error-message"><p>{intelligenceErrorMessage(error)}</p>{error instanceof IntelligenceError && error.requestId && <p className="metadata">Referencia: {error.requestId}</p>}{(!session.data || denied || !!conversation.error) && <button className="button-secondary" onClick={() => { cancelQuery(); speech.stop(); recorder.cancel(); live.clear(); setMessages([]); setInput(""); setDenied(false); setFailure(undefined); session.refresh(); }}>Volver a verificar</button>}</div>}
       {speech.error && <p role="status" className="info-notice">{speech.error}</p>}
       {recorder.error && <p role="alert" className="error-message">{recorder.error}</p>}
       {!basicVoice && <section className={styles.liveControls} aria-label="Voice Live">
         <p role="status" aria-label="Estado de voz en vivo" className={styles.liveStatus} data-active={live.active}>{liveLabels[live.state]}{live.muted ? " · Micrófono silenciado" : ""}</p>
         {live.failure && <p role="alert" className="error-message">{liveErrors[live.failure]}</p>}
         {live.closeUnconfirmed && <p role="status" className="metadata">Micrófono liberado. No se pudo confirmar el cierre remoto completo.</p>}
-        {live.active && <><p className="metadata">Habla naturalmente; puedes interrumpir. El chat de texto tiene un contexto independiente.</p><div className={styles.audioControls}>
+        {live.active && <><p className="metadata">Habla naturalmente; puedes interrumpir. La conversación por voz está activa. Al finalizar, puedes continuar por texto.</p><div className={styles.audioControls}>
           <button type="button" className="button-secondary" disabled={live.state === "connecting" || live.state === "closing"} aria-label={live.muted ? "Activar micrófono" : "Silenciar micrófono"} aria-pressed={live.muted} onClick={live.mute}>{live.muted ? "Activar micrófono" : "Silenciar micrófono"}</button>
           <button type="button" className="button-secondary" disabled={live.state === "closing"} aria-label="Finalizar conversación" onClick={() => void live.stop()}>Finalizar conversación</button>
         </div></>}
@@ -135,7 +153,7 @@ export function IntelligencePanel({ onClose }: { onClose: () => void }) {
       <form onSubmit={(event) => { event.preventDefault(); if (!blocked) void send(input); }}>
         <label className="field-label" htmlFor="intelligence-input">Tu consulta</label>
         <textarea id="intelligence-input" className="form-control" rows={2} maxLength={MAX_MESSAGE_CHARACTERS} value={input} disabled={blocked} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!blocked) void send(input); } }} />
-        <div className={styles.composerActions}>{basicVoice && <label className={styles.autoSpeak}><input type="checkbox" disabled={!!busy || recorder.state !== "idle"} checked={autoSpeak} onChange={(event) => setAutoSpeak(event.target.checked)} />Escuchar al consultar por voz</label>}{!live.active && <button type="button" className="button-secondary" aria-label={basicVoice ? "Iniciar consulta por voz" : "Iniciar conversación por voz"} disabled={blocked} onClick={() => { speech.stop(); if (basicVoice) void recorder.start(); else void live.start(); }}><Icon name="microphone" /></button>}<button className="button-primary" disabled={blocked || !input.trim()}>Enviar</button></div>
+        <div className={styles.composerActions}>{basicVoice && <label className={styles.autoSpeak}><input type="checkbox" disabled={!!busy || recorder.state !== "idle"} checked={autoSpeak} onChange={(event) => setAutoSpeak(event.target.checked)} />Escuchar al consultar por voz</label>}{!live.active && <button type="button" className="button-secondary" aria-label={basicVoice ? "Iniciar consulta por voz" : "Iniciar conversación por voz"} disabled={blocked} onClick={() => { speech.stop(); if (basicVoice) void recorder.start(); else void live.start(conversation.id); }}><Icon name="microphone" /></button>}<button className="button-primary" disabled={blocked || !input.trim()}>Enviar</button></div>
       </form>
     </footer>
   </dialog>;

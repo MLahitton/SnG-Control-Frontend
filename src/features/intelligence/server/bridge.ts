@@ -3,6 +3,7 @@ import { intelligenceMethod } from "../paths";
 import { parseResponse, parseSession, parseTranscript, parseVoice } from "../parser";
 import { safeRequestId } from "../errors";
 import { MAX_LIVE_BODY_BYTES, parseLiveRequest, parseLiveResponse, parseLiveSession } from "../live/contracts";
+import { parseConversation, parseConversationClose, parseConversationRequest } from "../conversation";
 import { liveDiagnostics } from "./liveDiagnostics";
 
 function baseUrl(): URL {
@@ -105,10 +106,12 @@ export async function forwardIntelligence(request: Request, segments: string[]):
   }
   const forbidden = [base.origin, base.hostname, authorization, authorization.replace(/^Bearer /i, "")];
   const live = path.startsWith("live/");
+  const conversation = path === "conversation" || path === "conversation/close";
   let liveBody: string | undefined;
-  if (live) {
+  if (live || conversation) {
     try {
-      liveBody = JSON.stringify(parseLiveRequest(path, await jsonLimited(request, MAX_LIVE_BODY_BYTES)));
+      const body = await jsonLimited(request, MAX_LIVE_BODY_BYTES);
+      liveBody = JSON.stringify(live ? parseLiveRequest(path, body) : parseConversationRequest(path, body));
     } catch (cause) {
       if (cause instanceof BodyTooLarge) trace.fail("BodyTooLarge"); else trace.exception(cause);
       return error(cause instanceof BodyTooLarge ? 413 : 422);
@@ -169,9 +172,9 @@ export async function forwardIntelligence(request: Request, segments: string[]):
       trace.done("response_returned");
       return response;
     }
-    const result = live ? parseLiveResponse(path, raw) : path === "session" ? parseSession(raw) : path === "voice" ? parseVoice(raw) : path === "voice/transcribe" ? parseTranscript(raw) : parseResponse(raw);
+    const result = path === "conversation" ? parseConversation(raw) : path === "conversation/close" ? parseConversationClose(raw) : live ? parseLiveResponse(path, raw) : path === "session" ? parseSession(raw) : path === "voice" ? parseVoice(raw) : path === "voice/transcribe" ? parseTranscript(raw) : parseResponse(raw);
     if (containsPrivateData(result, forbidden)) return error(502);
-    return Response.json(result, { status: live ? upstream.status : 200, headers: responseHeaders() });
+    return Response.json(result, { status: live || conversation ? upstream.status : 200, headers: responseHeaders() });
   } catch (cause) {
     if (cause instanceof BodyTooLarge) trace.fail("BodyTooLarge"); else trace.exception(cause);
     return error(502);

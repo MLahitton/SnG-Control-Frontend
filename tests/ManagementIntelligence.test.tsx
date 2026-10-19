@@ -1,3 +1,4 @@
+import { conversationCreated } from "./intelligenceFixtures";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +23,8 @@ function context() {
 function backend(handler?: (path: string, options: RequestInit) => unknown) {
   const mock = vi.fn(async (path: string, options: RequestInit) => {
     if (path === "/api/auth/me") return Response.json(manager);
+    if (path === "/api/intelligence/conversation") return Response.json(conversationCreated, { status: 201 });
+    if (path === "/api/intelligence/conversation/close") return Response.json({ closed: true });
     if (path === "/api/intelligence/session") return Response.json({ authenticated: true, isManagement: true });
     const result = handler ? await handler(path, options) : path === "/api/backend/management/overview" ? overview : intelligenceResponse;
     return result instanceof Response ? result : Response.json(result);
@@ -58,12 +61,12 @@ describe("Management and Intelligence integration", () => {
     if (mobile) {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       await open();
-      expect(screen.queryByText(intelligenceResponse.answer)).not.toBeInTheDocument();
+      expect(screen.getByText(intelligenceResponse.answer)).toBeInTheDocument();
     } else {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
       expect(screen.getByText(intelligenceResponse.answer)).toBeInTheDocument();
     }
-    expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/session"))).toHaveLength(mobile ? 2 : 1);
+    expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/session"))).toHaveLength(1);
   });
 
   it("aborts both pending experiences and rejects late results when Subject loses Management", async () => {

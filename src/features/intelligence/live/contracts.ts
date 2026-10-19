@@ -1,3 +1,4 @@
+import { conversationId } from "../conversation";
 import { IntelligenceContractError } from "../parser";
 
 export const MAX_SDP_BYTES = 32 * 1024;
@@ -43,9 +44,9 @@ export function parseLiveClose(value: unknown): { closed: true } {
 export function parseLiveRequest(path: string, value: unknown) {
   if (path !== "live/session" && path !== "live/close") throw new IntelligenceContractError();
   const v = record(value);
-  const keys = path === "live/session" ? ["sdp"] : ["sessionId"];
+  const keys = path === "live/session" ? ["sdp", "conversationId"] : ["sessionId"];
   if (Object.keys(v).some((key) => !keys.includes(key))) throw new IntelligenceContractError();
-  if (path === "live/session") return { sdp: parseSdp(v.sdp) };
+  if (path === "live/session") return { sdp: parseSdp(v.sdp), ...(v.conversationId !== undefined ? { conversationId: conversationId(v.conversationId) } : {}) };
   const id = sessionId(v.sessionId);
   return { sessionId: id };
 }

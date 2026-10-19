@@ -15,3 +15,5 @@ export const intelligenceResponses: IntelligenceResponse[] = [
   { ...common, responseType: "unavailable", answer: "No hay datos de facturación disponibles.", presentation: { kind: "unavailable", reason: "data_not_available" } },
 ];
 export const intelligenceResponse = intelligenceResponses[0];
+
+export const conversationCreated = { conversationId: "c".repeat(43), expiresAt: "2026-10-19T23:59:59Z" };

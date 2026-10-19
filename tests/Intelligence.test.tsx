@@ -1,3 +1,4 @@
+import { conversationCreated } from "./intelligenceFixtures";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +20,8 @@ function context(identity = manager) {
 }
 function backend(handler?: (path: string, options: RequestInit) => unknown) {
   const mock = vi.fn(async (path: string, options: RequestInit) => {
+    if (path === "/api/intelligence/conversation") return Response.json(conversationCreated, { status: 201 });
+    if (path === "/api/intelligence/conversation/close") return Response.json({ closed: true });
     if (path === "/api/intelligence/session") return Response.json({ authenticated: true, isManagement: true });
     const result = await (handler ? handler(path, options) : intelligenceResponse);
     return result instanceof Response ? result : Response.json(result);
@@ -59,7 +62,7 @@ describe("Intelligence shell", () => {
     fireEvent.submit(input.closest("form")!);
     expect(screen.getByText("Analizando…")).toHaveAttribute("role", "status");
     expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/chat"))).toHaveLength(1);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({ message: "Hola\nequipo" });
+    expect(JSON.parse(fetchMock.mock.calls.find(([path]) => path.endsWith("/chat"))![1].body as string)).toEqual({ message: "Hola\nequipo", conversationId: conversationCreated.conversationId });
     await act(async () => pending.resolve(intelligenceResponse));
     await screen.findByText(intelligenceResponse.answer);
     expect(screen.queryByText(intelligenceResponse.spokenAnswer)).not.toBeInTheDocument();
@@ -73,7 +76,7 @@ describe("Intelligence shell", () => {
     render(<AuthContext.Provider value={context()}><IntelligenceLauncher /></AuthContext.Provider>);
     await open(); await userEvent.type(screen.getByLabelText("Tu consulta"), "Consulta{Enter}");
     await userEvent.click(screen.getByRole("button", { name: "Cancelar consulta" }));
-    expect(fetchMock.mock.calls[1][1].signal?.aborted).toBe(true);
+    expect(fetchMock.mock.calls.find(([path]) => path.endsWith("/chat"))![1].signal?.aborted).toBe(true);
     await act(async () => pending.resolve(intelligenceResponse));
     expect(screen.queryByText(intelligenceResponse.answer)).not.toBeInTheDocument();
     expect(screen.getByLabelText("Tu consulta")).toBeEnabled();
@@ -93,7 +96,7 @@ describe("Intelligence shell", () => {
   });
   it("handles session verification failure with retry before enabling the composer", async () => {
     let ready = false;
-    vi.stubGlobal("fetch", vi.fn(async () => ready ? Response.json({ authenticated: true, isManagement: true }) : Response.json({}, { status: 503 })));
+    vi.stubGlobal("fetch", vi.fn(async (path: string) => ready ? Response.json(path.endsWith("/conversation") ? conversationCreated : { authenticated: true, isManagement: true }) : Response.json({}, { status: 503 })));
     render(<AuthContext.Provider value={context()}><IntelligenceLauncher /></AuthContext.Provider>);
     await userEvent.click(screen.getByRole("button", { name: "Abrir SnG Intelligence" }));
     await screen.findByRole("alert");
@@ -108,7 +111,7 @@ describe("Intelligence shell", () => {
     const state = context();
     const view = render(<AuthContext.Provider value={state}><IntelligenceLauncher /></AuthContext.Provider>);
     await open(); await userEvent.type(screen.getByLabelText("Tu consulta"), "Consulta anterior{Enter}");
-    const signal = fetchMock.mock.calls[1][1].signal;
+    const signal = fetchMock.mock.calls.find(([path]) => path.endsWith("/chat"))![1].signal;
     view.rerender(<AuthContext.Provider value={{ ...state, user: { ...manager, subject: "other-test-manager" } }}><IntelligenceLauncher /></AuthContext.Provider>);
     expect(signal?.aborted).toBe(true);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -136,7 +139,7 @@ describe("Intelligence shell", () => {
     await open(); await userEvent.type(screen.getByLabelText("Tu consulta"), "Cómo va Casa{Enter}");
     await userEvent.click(await screen.findByRole("button", { name: "Consultar Casa Ximena" }));
     await waitFor(() => expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/chat"))).toHaveLength(2));
-    expect(JSON.parse(fetchMock.mock.calls[2][1].body as string).message).toBe("¿Cómo va Casa Ximena?");
+    expect(JSON.parse(fetchMock.mock.calls.filter(([path]) => path.endsWith("/chat"))[1][1].body as string).message).toBe("¿Cómo va Casa Ximena?");
   });
   it("shows transcript, uses spokenAnswer for MP3, pauses/resumes/stops and revokes audio on close", async () => {
     FakeRecorder.supported = "audio/mp4";
