@@ -522,3 +522,29 @@ Redis, DB, localStorage/sessionStorage de conversaciones. No se cambió almacena
 Tests offline cubren panel/navigation, chat/Live mismo ID, reopen, cierre/reemplazo, identidad,
 logout, requests tardíos, expiry sin retry silencioso y allowlist cerrada. Smoke real cross-modal aprobado por el usuario. Los escenarios offline incluyen Casa → voz
 «La de Ximena»; voz lista → texto «el segundo»; proyecto → documentos.
+
+
+## Management Intelligence 4A: Presentation
+
+Extensión compatible de los siete responseType existentes; sin nuevos endpoints:
+
+- `management_brief`: añade `areas?: AreaItem[]`, `attentionCoverage?: Coverage | null`
+  y `tasksCoverage?: Coverage | null`. Coverage contiene total/returned/hasMore;
+  el parser valida counts no negativos, returned <= total y consistencia de hasMore.
+- `comparison`: conserva `areas`, añade `projects?: ComparedProject[]`. No mezcla ambos.
+  Cada proyecto contiene `{project: ProjectItem, metrics: Metric[], tasks: TaskItem[]}`.
+  El parser valida 2–4 proyectos distintos cuando no está vacío, UUID, counts y asociación
+  projectId de cada tarea. No interpreta enums ni calcula estados desde deadlines.
+- Campos nuevos ausentes siguen siendo compatibles con respuestas anteriores.
+- `IntelligenceResponseView` mantiene explicación antes de metadata. Tarjetas semánticas
+  con `<article>`, labels, métricas `<dl>` y links; tareas bajo `<details>`. Grid de dos
+  columnas en escritorio y una en móvil, sin tabla ancha obligatoria.
+- `tests/management-intelligence.test.tsx` cubre contratos, cobertura, accesibilidad,
+  navegación, opcionales, ausencia de enums técnicos y continuidad texto/Live/texto con
+  el mismo conversationId. Los tests existentes de Live siguen verificando aislamiento
+  y que el browser no ejecuta tools. jsdom comprueba semántica, no layout de píxeles.
+
+Backend es autoridad; el modelo no suministra IDs/métricas para rendering. Conversation 3A
+mantiene sus reglas de memoria efímera y ownership; no se añaden almacenamientos locales.
+El smoke pagado/manual está pendiente; los fixtures offline no demuestran precisión real
+ni latencia de OpenAI. Usar el plan de preguntas de README y validar cards en móvil.

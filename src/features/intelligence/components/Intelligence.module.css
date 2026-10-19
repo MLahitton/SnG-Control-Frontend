@@ -33,3 +33,13 @@
   .launcher { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); }
   .panel { inset: 0; width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; padding-top: env(safe-area-inset-top); padding-right: env(safe-area-inset-right); padding-left: env(safe-area-inset-left); padding-bottom: env(safe-area-inset-bottom); }
 }
+
+.comparisonGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; min-width: 0; }
+.comparisonCard { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere; }
+.comparisonCard h4 { font-weight: 650; margin-bottom: 8px; }
+.comparisonCard .entity { border-top: 0; }
+.comparisonCard .metrics dd { font-size: 18px; }
+.comparisonCard summary { cursor: pointer; margin-top: 10px; }
+@media (max-width: 767px) {
+  .comparisonGrid { grid-template-columns: minmax(0, 1fr); }
+}

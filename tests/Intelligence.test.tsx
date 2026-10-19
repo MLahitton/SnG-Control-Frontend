@@ -192,7 +192,7 @@ describe("validated response renderers", () => {
     for (const link of references.getAllByRole("link")) expect(link).toHaveAttribute("href", `/projects/${projectId}`);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     if (response.responseType === "project_status") {
-      expect(screen.getByText(/Sin vencimiento/)).toBeInTheDocument();
+      expect(screen.queryByText(/Sin vencimiento/)).not.toBeInTheDocument();
       expect(screen.getByText("Pendiente · Presupuestos")).toBeInTheDocument();
       expect(screen.getByText(/Sin iniciar/)).toBeInTheDocument();
     }

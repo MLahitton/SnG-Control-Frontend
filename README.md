@@ -140,3 +140,24 @@ Las conversaciones casuales Live sin delegación y captions parciales no forman 
 compartida. Voz básica permanece independiente y lo indica en el panel.
 
 Implementación y tests offline completos; smoke real texto → Live → texto aprobado por el usuario.
+
+
+## Management Intelligence 4A
+
+El panel existente presenta resúmenes ejecutivos y comparaciones actuales de 2–4 proyectos,
+con nombres principales, SG auxiliar, links verificados, métricas y tareas desplegables.
+Las tarjetas comparativas usan columnas en escritorio y se apilan en móvil; campos opcionales
+ausentes se omiten. Las áreas también se muestran como tarjetas accesibles, sin scroll
+horizontal obligatorio. El brief puede mostrar cobertura parcial (datos recuperados/total),
+sin confundir una muestra con toda la operación.
+
+Intelligence construye los datos desde Backend; el Frontend no calcula plazos, estados,
+riesgos ni prioridades. Texto/Live conservan la misma conversación efímera y referencias
+ordenadas. Captions Live siguen sin convertirse en tarjetas verificadas. La arquitectura
+WebRTC, sideband, credenciales, BFF y rutas no cambian.
+
+La validación real de estas capacidades queda para el smoke manual: resumen ejecutivo,
+atención de hoy, carga por áreas, comparación de dos proyectos existentes, «¿Cuál tiene
+más pendientes?», por voz «¿Y cuál vence primero?», cuello de botella y facturación no
+disponible. Revisar también móvil y «Amplía el segundo proyecto» al volver a texto.
+No conservar audio, SDP, credenciales ni transcripciones del smoke en el repositorio.

@@ -1,4 +1,4 @@
-import type { AreaItem, EntityItem, IntelligenceReference, IntelligenceResponse, IntelligenceSession, IntelligenceVoiceResponse, Metric, ProjectItem, TaskItem } from "./types";
+import type { ComparedProject, Coverage, AreaItem, EntityItem, IntelligenceReference, IntelligenceResponse, IntelligenceSession, IntelligenceVoiceResponse, Metric, ProjectItem, TaskItem } from "./types";
 
 export class IntelligenceContractError extends Error {
   constructor() { super("Intelligence devolvió una respuesta no compatible. Intenta de nuevo."); }
@@ -40,6 +40,22 @@ function entity(value: unknown): EntityItem { return object(value).kind === "pro
 function area(value: unknown): AreaItem {
   const v = object(value); return { area: nullable(v.area), pending: count(v.pending), inProgress: count(v.inProgress), completed: count(v.completed), overdue: count(v.overdue), dueToday: count(v.dueToday), dueSoon: count(v.dueSoon) };
 }
+function coverage(value: unknown): Coverage | null {
+  if (value === null) return null;
+  const v = object(value), total = count(v.total), returned = count(v.returned);
+  if (returned > total || typeof v.hasMore !== "boolean" || v.hasMore !== (total > returned)) return fail();
+  return { total, returned, hasMore: v.hasMore };
+}
+function comparedProject(value: unknown): ComparedProject {
+  const v = object(value), item = project(v.project), tasks = array(v.tasks, task);
+  if (tasks.some((t) => t.projectId !== item.projectId)) return fail();
+  return { project: item, metrics: array(v.metrics, metric), tasks };
+}
+function comparedProjects(value: unknown): ComparedProject[] {
+  const projects = array(value, comparedProject, 4);
+  if (projects.length === 1 || new Set(projects.map((p) => p.project.projectId)).size !== projects.length) return fail();
+  return projects;
+}
 function reference(value: unknown): IntelligenceReference {
   const v = object(value);
   const base = { projectId: id(v.projectId), label: string(v.label) };
@@ -53,10 +69,14 @@ export function parseResponse(value: unknown): IntelligenceResponse {
   const base = { answer: string(v.answer, 12000), spokenAnswer: string(v.spokenAnswer, 12000), references: array(v.references, reference) };
   switch (v.responseType) {
     case "direct": return { ...base, responseType: "direct", presentation: { kind: "direct", metric: p.metric === null ? null : metric(p.metric) } };
-    case "management_brief": return { ...base, responseType: "management_brief", presentation: { kind: "management_brief", metrics: array(p.metrics, metric), items: array(p.items, entity) } };
+    case "management_brief": return { ...base, responseType: "management_brief", presentation: { kind: "management_brief", metrics: array(p.metrics, metric), items: array(p.items, entity), ...(p.areas !== undefined ? { areas: array(p.areas, area) } : {}), ...(p.attentionCoverage !== undefined ? { attentionCoverage: coverage(p.attentionCoverage) } : {}), ...(p.tasksCoverage !== undefined ? { tasksCoverage: coverage(p.tasksCoverage) } : {}) } };
     case "project_status": return { ...base, responseType: "project_status", presentation: { kind: "project_status", project: project(p.project), tasks: array(p.tasks, task) } };
     case "list": return { ...base, responseType: "list", presentation: { kind: "list", items: array(p.items, entity) } };
-    case "comparison": return { ...base, responseType: "comparison", presentation: { kind: "comparison", areas: array(p.areas, area) } };
+    case "comparison": {
+      const areas = array(p.areas, area), projects = p.projects === undefined ? undefined : comparedProjects(p.projects);
+      if (areas.length && projects?.length) return fail();
+      return { ...base, responseType: "comparison", presentation: { kind: "comparison", areas, ...(projects !== undefined ? { projects } : {}) } };
+    }
     case "clarification": return { ...base, responseType: "clarification", presentation: { kind: "clarification", candidates: array(p.candidates, project) } };
     case "unavailable":
       if (p.reason !== "data_not_available") return fail();
