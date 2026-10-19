@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { forwardIntelligence } from "@/features/intelligence/server/bridge";
 import { liveCreated, liveSdp, liveSessionId } from "./liveFixtures";
-import { intelligenceResponse } from "./intelligenceFixtures";
 import { token } from "./fixtures";
 const fetchMock = vi.fn<typeof fetch>();
 const request = (body: unknown, method = "POST", type = "application/json") => new Request("https://frontend.example.test/api/intelligence/live/session", { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": type, Cookie: "private" }, ...(method !== "GET" ? { body: JSON.stringify(body) } : {}) });
@@ -11,7 +10,6 @@ beforeEach(() => { vi.stubEnv("SNG_INTELLIGENCE_BASE_URL", "https://intelligence
 describe("Live BFF", () => {
   it.each([
     ["session", { sdp: liveSdp }, liveCreated, 201],
-    ["delegate", { sessionId: liveSessionId, callId: "call_1", question: "La de Ximena" }, intelligenceResponse, 200],
     ["close", { sessionId: liveSessionId }, { closed: true }, 200],
   ] as const)("forwards exactly POST live/%s with auth and sanitized response", async (path, body, result, status) => {
     fetchMock.mockResolvedValue(Response.json(path === "session" ? result : { ...result, secret: "remove" }, { status }));
@@ -91,10 +89,10 @@ describe("Live BFF", () => {
       for (const spy of spies) expect(spy).not.toHaveBeenCalled();
     } finally { for (const spy of spies) spy.mockRestore(); }
   });
-  it.each(["session", "delegate", "close"])("rejects GET live/%s", async (path) => {
+  it.each(["session", "close"])("rejects GET live/%s", async (path) => {
     expect((await forwardIntelligence(request({}, "GET"), ["live", path])).status).toBe(405); expect(fetchMock).not.toHaveBeenCalled();
   });
-  it.each([["live"], ["live", "other"], ["live", "session", "id"], ["live/session"], ["live", ".."]])("rejects arbitrary paths %j", async (...path) => {
+  it.each([["live", "delegate"], ["live"], ["live", "other"], ["live", "session", "id"], ["live/session"], ["live", ".."]])("rejects arbitrary paths %j", async (...path) => {
     expect((await forwardIntelligence(request({}), path)).status).toBe(400); expect(fetchMock).not.toHaveBeenCalled();
   });
   it.each([400, 401, 403, 404, 409, 422, 429, 500, 502, 503])("keeps safe status %s and drops provider diagnostics", async (status) => {

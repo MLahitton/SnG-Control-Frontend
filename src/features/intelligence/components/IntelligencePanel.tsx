@@ -57,7 +57,7 @@ export function IntelligencePanel({ onClose }: { onClose: () => void }) {
       request.current?.abort(); element?.close();
     };
   }, []);
-  useEffect(() => { end.current?.scrollIntoView?.({ block: "nearest" }); }, [messages, busy, live.captions.length, live.responses.length]);
+  useEffect(() => { end.current?.scrollIntoView?.({ block: "nearest" }); }, [messages, busy, live.captions.length]);
   async function send(value: string | File) {
     if (!available || request.current || (typeof value === "string" && (!value.trim() || value.length > MAX_MESSAGE_CHARACTERS))) return;
     const controller = new AbortController();
@@ -111,7 +111,6 @@ export function IntelligencePanel({ onClose }: { onClose: () => void }) {
         </>}
       </article>)}
       {live.captions.length > 0 && <LiveTranscript captions={live.captions} />}
-      {live.responses.length > 0 && <section aria-label="Datos consultados por voz"><h3 className="section-title">Información consultada</h3>{live.responses.map((response, index) => <div key={index} className={styles.assistantMessage}><IntelligenceResponseView response={response} onAsk={() => {}} onNavigate={navigate} disabled /></div>)}</section>}
       <div ref={end} />
     </div>
     <footer className={styles.footer}>

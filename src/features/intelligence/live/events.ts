@@ -1,4 +1,4 @@
-import { liveText, opaqueId, record, sessionId } from "./contracts";
+import { opaqueId, record, sessionId } from "./contracts";
 
 export type LiveEvent =
   | { type: "started"; sessionId: string }
@@ -6,9 +6,7 @@ export type LiveEvent =
   | { type: "failure"; code: string }
   | { type: "transcript"; eventId: string; role: "user" | "assistant"; text: string; start: number; end: number }
   | { type: "response"; delegationId: string; responseId: string }
-  | { type: "response_finished"; responseId: string }
-  | { type: "call"; delegationId: string; callId: string; question: string }
-  | { type: "invalid_tool" };
+  | { type: "response_finished"; responseId: string };
 
 // GPT-Live events, not Realtime API conversation.item.* or arguments deltas.
 // https://developers.openai.com/api/docs/guides/live-delegation
@@ -29,21 +27,7 @@ export function parseLiveEvent(data: unknown): LiveEvent | null {
     if (e.type === "response.created") return { type: "response", delegationId: opaqueId(v.delegation_id), responseId: opaqueId(record(e.response).id) };
     if (e.type === "response.failed" || e.type === "response.incomplete") return { type: "failure", code: "delegation_failed" };
     if (e.type === "response.completed") return { type: "response_finished", responseId: opaqueId(record(e.response).id) };
-    if (e.type !== "response.output_item.done") return null;
-    const item = record(e.item);
-    if (item.type !== "function_call") return null;
-    if (item.name !== "consult_sng_intelligence") return { type: "invalid_tool" };
-    // output_item.done is the completion boundary; status is optional in the
-    // official FunctionCall schema. Explicit incomplete/in-progress is rejected.
-    if (item.status !== undefined && item.status !== "completed") return null;
-    try {
-      const args = record(JSON.parse(liveText(item.arguments, 24000)) as unknown);
-      if (Object.keys(args).some((key) => key !== "question")) return { type: "invalid_tool" };
-      return { type: "call", delegationId: opaqueId(v.delegation_id), callId: opaqueId(item.call_id), question: liveText(args.question) };
-    } catch { return { type: "invalid_tool" }; }
+    // Tools and their arguments are exclusively owned by the private server sideband.
+    return null;
   } catch { return null; }
-}
-
-export function toolResult(callId: string, answer: string) {
-  return { type: "response.item.create", item: { type: "function_call_output", call_id: callId, output: JSON.stringify({ answer }) } };
 }

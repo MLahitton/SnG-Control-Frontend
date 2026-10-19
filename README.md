@@ -80,7 +80,7 @@ Deuda conocida: el backend aún permite crear clientes/proyectos a cualquier Goo
 
 Pendiente de smoke real: login/restauración con Gerencia, navegación y endpoints, consulta/descarga autorizada, ausencia de escrituras para Gerencia pura y cambio de cuenta sin hard refresh. Verificar también 375, 768, 1024 px y desktop amplio. Los tests usan red simulada; no sustituyen esa integración.
 
-## SnG Intelligence — Intelligence 1C + Realtime Voice 2B
+## SnG Intelligence — Intelligence 1C + Realtime Voice 2C
 
 Solo las cuentas con `user.isManagement === true` ven el botón flotante **Intelligence**, disponible dentro del shell. No se agrega un enlace al Sidebar. Al abrir se verifica el acceso con Intelligence; su autorización real sigue dependiendo del backend. El panel presenta chat, micrófono y referencias a proyectos, con el nombre como dato principal y SG como metadata.
 
@@ -88,16 +88,32 @@ Configura de forma independiente en el entorno del worktree `SNG_INTELLIGENCE_BA
 
 Chat envía un mensaje por solicitud, sin historial. Enter envía y Shift+Enter agrega una línea. Las respuestas admiten direct, management_brief, project_status, list, comparison, clarification y unavailable. Cifras, estados, áreas y fechas proceden de Intelligence. Seleccionar un candidato genera una pregunta autocontenida con el nombre oficial del proyecto; no presupone memoria del agente. Las referencias de proyectos/tareas abren el proyecto asociado.
 
-El micrófono principal inicia **Voice Live**: un clic solicita permiso, conecta WebRTC y permite conversar continuamente, sin grabar un Blob ni pulsar Enviar. GPT-Live mantiene contexto durante esa conexión y gestiona la conversación/interrupciones; el panel muestra transcripciones, información consultada y estados accesibles. Incluye silenciar/activar micrófono, finalizar conversación y activar audio mediante un gesto si el navegador bloquea autoplay. Requiere HTTPS o localhost y soporte de WebRTC.
+El micrófono principal inicia **Voice Live**: un clic solicita permiso, conecta WebRTC y permite conversar continuamente, sin grabar un Blob ni pulsar Enviar. GPT-Live mantiene contexto durante esa conexión y gestiona la conversación/interrupciones; el panel muestra transcripciones y estados accesibles. Incluye silenciar/activar micrófono, finalizar conversación y activar audio mediante un gesto si el navegador bloquea autoplay. Requiere HTTPS o localhost y soporte de WebRTC.
 
 “Usar modo de voz básico” conserva el fallback explícito MediaRecorder: hasta 60 segundos y 10 MiB, WebM/Opus, WebM o MP4/M4A. Detener envía a `/voice` y muestra la transcripción/respuesta; la reproducción opcional usa `/voice/speech`. No se cambia de modo automáticamente. “Escuchar respuesta” conserva pausa/reanudación para texto y voz básica; se deshabilita mientras Live está activo para evitar dos audios simultáneos.
 
-El historial visual vive en memoria (hasta 40 mensajes de texto/básicos y 160 fragmentos Live); no se persiste. El audio Live viaja directamente por WebRTC a GPT-Live y sus consultas empresariales pasan por el BFF. La sesión sobrevive navegación interna mientras el panel/shell continúan montados. Cerrar, recargar, logout o cambiar de identidad libera solicitudes, micrófono y audio. En móvil, seguir una referencia cierra el panel. El panel conserva diálogo nativo, scroll, safe areas y adaptación al teclado.
+El historial visual vive en memoria (hasta 40 mensajes de texto/básicos y 160 fragmentos Live); no se persiste. El audio Live viaja directamente por WebRTC a GPT-Live y sus consultas empresariales se ejecutan exclusivamente en el sideband privado de SnG Intelligence. La sesión sobrevive navegación interna mientras el panel/shell continúan montados. Cerrar, recargar, logout o cambiar de identidad libera solicitudes, micrófono y audio. En móvil, seguir una referencia cierra el panel. El panel conserva diálogo nativo, scroll, safe areas y adaptación al teclado.
 
 Voz Live y chat textual **no comparten memoria**: “La de Ximena” conserva su contexto dentro de Live, sin reescritura del frontend; un mensaje textual sigue siendo una consulta independiente. Reiniciar Live comienza otro hilo. No se persisten sessionId, SDP, transcripciones ni audio. Backend conserva autoridad de acceso y datos.
 
 Los errores 401 invalidan la sesión existente; 403 mantiene la sesión; 422, 429 y 503 ofrecen mensajes seguros. Solo se presenta un requestId validado como referencia diagnóstica. Una respuesta unavailable es información normal.
 
-Realtime Voice 2B usa los tres POST `/api/intelligence/live/session`, `/live/delegate` y `/live/close` a través del BFF, sobre Intelligence 2A. No agrega claves de OpenAI al frontend, relay de audio WebSocket, ElevenLabs, historial persistente, RAG ni LangGraph. Pendiente: smoke real conjunto con audio, interrupciones, cierre, permisos, cambio de cuenta y tamaños 375/768/1024/desktop. Los tests usan WebRTC y red simulados; no sustituyen esa integración.
+Realtime Voice 2C usa únicamente POST `/api/intelligence/live/session` y `/live/close` por BFF. Intelligence adjunta el sideband antes del 201. El navegador no ejecuta tools ni envía resultados al modelo. Live muestra captions; las tarjetas y referencias semánticas siguen en chat y voz básica. No agrega claves de OpenAI al frontend, relay de audio WebSocket, ElevenLabs, historial persistente, RAG ni LangGraph. Pendiente: smoke real conjunto con audio, interrupciones, cierre, permisos, cambio de cuenta y tamaños 375/768/1024/desktop. Los tests usan WebRTC y red simulados; no sustituyen esa integración.
 
 La integración real requiere un Client ID configurado y un backend disponible con TLS confiable. El procedimiento de comprobación está en el manual técnico.
+
+## Performance 2D
+
+La conversación Voice 2C conserva WebRTC y tools exclusivamente server-side.
+La medición local usa `performance.now()` y el medidor de energía de audio existente:
+fin de actividad de entrada → nuevo inicio de actividad remota. Es una estimación,
+no VAD del proveedor ni prueba de primera respuesta útil; el medidor tiene 250 ms de
+hangover y el ruido/solapamiento pueden afectar el resultado. Captions no alimentan
+telemetría. Sin AudioContext o con reproducción bloqueada no se fabrica una medición.
+
+Se muestra “Pensando…” al terminar la actividad de voz mientras se espera. No hay filler.
+En desarrollo se emite `live_latency` con tiempos numéricos y categoría fija únicamente;
+no se envía a analytics, no se persiste, no contiene nombres, IDs, transcripts ni tokens.
+El estado se limpia al cambiar de turno, mutear, cerrar, cambiar identidad o desmontar.
+Para comparar fases server-side consultar `PERFORMANCE_2D.md` de SnG Intelligence;
+los relojes browser/servidor no se restan entre sí.

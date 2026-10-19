@@ -5,12 +5,11 @@ import { createApiClient } from "@/lib/api/apiClient";
 import { liveCreated, liveSessionId, liveSdp, completedCall, liveCaption } from "./liveFixtures";
 import { LivePeer, LiveTrack, mockLiveBrowser } from "./liveBrowser";
 import { FakeAudio } from "./intelligenceUiSetup";
-import { intelligenceResponse } from "./intelligenceFixtures";
 import { token } from "./fixtures";
 import { deferred } from "./operationalFixtures";
 const client = () => createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
 function network() {
-  const fetchMock = vi.fn<(path: string, options: RequestInit) => Promise<Response>>(async (path) => Response.json(path.endsWith("/session") ? liveCreated : path.endsWith("/delegate") ? intelligenceResponse : { closed: true }));
+  const fetchMock = vi.fn<(path: string, options: RequestInit) => Promise<Response>>(async (path) => Response.json(path.endsWith("/session") ? liveCreated : { closed: true }));
   vi.stubGlobal("fetch", fetchMock); return fetchMock;
 }
 beforeEach(() => { mockLiveBrowser(); network(); });
@@ -24,7 +23,7 @@ async function start() {
   return { ...hook, pc, channel: pc.channel };
 }
 describe("Live session lifecycle", () => {
-  it("keeps the same opaque session ID through start, delegation and close", async () => {
+  it("keeps the same opaque session ID through start and close", async () => {
     const id = "opaque:synthetic/session+1=";
     const fetchMock = network();
     fetchMock.mockResolvedValueOnce(Response.json({ ...liveCreated, sessionId: id }, { status: 201 }));
@@ -34,7 +33,7 @@ describe("Live session lifecycle", () => {
     act(() => channel.emit({ type: "session.started", session: { id } }));
     expect(result.current.state).toBe("listening");
     await act(async () => channel.emit(completedCall()));
-    expect(JSON.parse(fetchMock.mock.calls.find(([path]) => path.endsWith("/delegate"))![1].body as string).sessionId).toBe(id);
+    expect(fetchMock.mock.calls.some(([path]) => path.endsWith("/delegate"))).toBe(false);
     await act(async () => { await result.current.stop(); });
     expect(JSON.parse(fetchMock.mock.calls.find(([path]) => path.endsWith("/close"))![1].body as string).sessionId).toBe(id);
     expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/session"))).toHaveLength(1);
@@ -149,6 +148,21 @@ describe("Live session lifecycle", () => {
   });
 });
 describe("Live delegation and continuous context", () => {
+  it("never executes reflected calls or sends tool outputs; Live BFF uses only session/close", async () => {
+    const fetchMock = network(); const { result, channel } = await start();
+    await act(async () => { channel.emit(completedCall()); channel.emit(completedCall()); });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(channel.send).not.toHaveBeenCalled();
+    expect(result.current.state).toBe("listening");
+    await act(async () => { await result.current.stop(); });
+    expect(fetchMock.mock.calls.map(([path]) => path.split("/").pop())).toEqual(["session", "close"]);
+    expect(channel.send.mock.calls.map(([data]) => JSON.parse(data).type)).toEqual(["session.close"]);
+  });
+  it("ends the browser session at the absolute 600 second limit", async () => {
+    vi.useFakeTimers(); const { result, pc } = await start();
+    await act(async () => { await vi.advanceTimersByTimeAsync(600_000); });
+    expect(result.current.failure).toBe("expired"); expect(pc.close).toHaveBeenCalled();
+  });
   it("uses nested response lifecycle for thinking and handles backend failure safely", async () => {
     const { result, channel } = await start();
     act(() => channel.emit({ type: "response.event", delegation_id: "delegation_1", event: { type: "response.created", response: { id: "response_1" } } }));
@@ -158,17 +172,7 @@ describe("Live delegation and continuous context", () => {
     await act(async () => channel.emit({ type: "response.event", delegation_id: "delegation_1", event: { type: "response.failed", response: { error: "private details" } } }));
     expect(result.current.failure).toBe("delegation");
   });
-  it("executes completed calls once and returns a minimal tool result before continuation", async () => {
-    const fetchMock = network(); const { result, channel } = await start();
-    act(() => channel.emit({ type: "response.event", delegation_id: "delegation_1", event: { type: "response.created", response: { id: "response_1" } } }));
-    await act(async () => { channel.emit(completedCall()); channel.emit(completedCall()); });
-    expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/delegate"))).toHaveLength(1);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({ sessionId: liveSessionId, callId: "call_123", question: "Cómo va Casa Ximena" });
-    expect(channel.send.mock.calls.map(([value]) => JSON.parse(value))).toEqual([
-      { type: "response.item.create", item: { type: "function_call_output", call_id: "call_123", output: JSON.stringify({ answer: intelligenceResponse.spokenAnswer }) } }, { type: "response.create" },
-    ]);
-    expect(result.current.responses).toEqual([intelligenceResponse]);
-  });
+
   it("keeps several voice turns on one connection without rewriting or sending transcripts as chat", async () => {
     const fetchMock = network(); const { result, channel } = await start();
     act(() => channel.emit(liveCaption("user", "Cómo va Casa", 0)));
@@ -190,22 +194,9 @@ describe("Live delegation and continuous context", () => {
     act(() => channel.emit({ type: "response.event", event: { type: "response.function_call_arguments.delta", delta: '{"question":"x"}' } }));
     const wrong = completedCall(); wrong.event.item.name = "arbitrary_tool";
     await act(async () => channel.emit(wrong));
-    expect(result.current.failure).toBe("protocol"); expect(fetchMock.mock.calls.some(([path]) => path.endsWith("/delegate"))).toBe(false);
+    expect(result.current.failure).toBeUndefined(); expect(fetchMock.mock.calls.some(([path]) => path.endsWith("/delegate"))).toBe(false);
+    expect(channel.send).not.toHaveBeenCalled();
   });
-  it.each([[503, "delegation"], [404, "expired"]] as const)("handles delegate HTTP %s without a false success or duplicate retry", async (status, failure) => {
-    const fetchMock = network(); const { result, channel } = await start();
-    fetchMock.mockResolvedValueOnce(Response.json({ detail: "secret" }, { status }));
-    await act(async () => { channel.emit(completedCall()); channel.emit(completedCall()); });
-    expect(result.current.failure).toBe(failure); expect(result.current.responses).toEqual([]);
-    expect(channel.send.mock.calls.map(([data]) => JSON.parse(data).type)).not.toContain("response.create");
-  });
-  it("aborts delegation and discards its late result on unmount", async () => {
-    const fetchMock = network(); const { channel, unmount } = await start(); const pending = deferred<Response>();
-    fetchMock.mockImplementationOnce(() => pending.promise);
-    act(() => channel.emit(completedCall()));
-    const signal = fetchMock.mock.calls[1][1].signal;
-    await act(async () => unmount()); expect(signal?.aborted).toBe(true);
-    await act(async () => pending.resolve(Response.json(intelligenceResponse)));
-    expect(channel.send.mock.calls.map(([data]) => JSON.parse(data).type)).not.toContain("response.item.create");
-  });
+
+
 });

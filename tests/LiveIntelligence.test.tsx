@@ -80,11 +80,12 @@ describe("continuous voice in the existing panel", () => {
     await screen.findByRole("button", { name: "Iniciar conversación por voz" });
     expect(track.stop).toHaveBeenCalled();
   });
-  it("keeps text stateless while voice retains context and presents delegated references", async () => {
+  it("keeps text stateless while voice captions retain context without executing tools", async () => {
     const fetchMock = network(); render(<AuthContext.Provider value={context()}><IntelligenceLauncher /></AuthContext.Provider>);
     await start();
     await act(async () => LivePeer.instances[0].channel.emit(completedCall()));
-    expect(screen.getByRole("region", { name: "Datos consultados por voz" })).toHaveTextContent(intelligenceResponse.answer);
+    expect(screen.queryByRole("region", { name: "Datos consultados por voz" })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([path]) => path.endsWith("/delegate"))).toBe(false);
     await userEvent.type(screen.getByLabelText("Tu consulta"), "Consulta de texto{Enter}");
     await waitFor(() => expect(fetchMock.mock.calls.some(([path]) => path.endsWith("/chat"))).toBe(true));
     const call = fetchMock.mock.calls.find(([path]) => path.endsWith("/chat"))!;

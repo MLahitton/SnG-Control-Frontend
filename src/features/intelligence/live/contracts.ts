@@ -1,4 +1,4 @@
-import { IntelligenceContractError, parseResponse } from "../parser";
+import { IntelligenceContractError } from "../parser";
 
 export const MAX_SDP_BYTES = 32 * 1024;
 export const MAX_LIVE_BODY_BYTES = 64 * 1024;
@@ -22,10 +22,6 @@ export function sessionId(value: unknown): string {
   if (/[\x00-\x1f\x7f-\x9f]/.test(value)) throw new LiveContractError("SessionIdControlCharacter");
   return value;
 }
-export function liveText(value: unknown, max = 4000): string {
-  if (typeof value !== "string" || !value.trim() || value.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) throw new IntelligenceContractError();
-  return value;
-}
 export function parseSdp(value: unknown): string {
   if (typeof value !== "string") throw new LiveContractError("SdpType");
   if (!value.length) throw new LiveContractError("SdpEmpty");
@@ -45,14 +41,16 @@ export function parseLiveClose(value: unknown): { closed: true } {
   return { closed: true };
 }
 export function parseLiveRequest(path: string, value: unknown) {
+  if (path !== "live/session" && path !== "live/close") throw new IntelligenceContractError();
   const v = record(value);
-  const keys = path === "live/session" ? ["sdp"] : path === "live/delegate" ? ["sessionId", "callId", "question"] : ["sessionId"];
+  const keys = path === "live/session" ? ["sdp"] : ["sessionId"];
   if (Object.keys(v).some((key) => !keys.includes(key))) throw new IntelligenceContractError();
   if (path === "live/session") return { sdp: parseSdp(v.sdp) };
   const id = sessionId(v.sessionId);
-  if (path === "live/delegate") return { sessionId: id, callId: opaqueId(v.callId), question: liveText(v.question) };
   return { sessionId: id };
 }
 export function parseLiveResponse(path: string, value: unknown) {
-  return path === "live/session" ? parseLiveSession(value) : path === "live/close" ? parseLiveClose(value) : parseResponse(value);
+  if (path === "live/session") return parseLiveSession(value);
+  if (path === "live/close") return parseLiveClose(value);
+  throw new IntelligenceContractError();
 }

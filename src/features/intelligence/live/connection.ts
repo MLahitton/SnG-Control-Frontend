@@ -1,10 +1,10 @@
 import type { ApiClient } from "@/lib/api/types";
 import { ApiError } from "@/lib/api/apiError";
-import type { IntelligenceResponse } from "../types";
 import { MAX_LIVE_EVENTS } from "./contracts";
-import { parseLiveEvent, toolResult, type LiveEvent } from "./events";
+import { parseLiveEvent } from "./events";
 import { liveService } from "./service";
 import { observeAudio } from "./activity";
+import { LiveLatency, reportLiveLatency } from "./latency";
 
 export type LiveState = "idle" | "connecting" | "listening" | "user_speaking" | "assistant_thinking" | "assistant_speaking" | "error" | "closing";
 export type LiveFailure = "permission" | "microphone" | "unavailable" | "expired" | "delegation" | "network" | "limit" | "unsupported" | "secure_context" | "forbidden" | "protocol";
@@ -24,9 +24,9 @@ export const liveErrors: Record<LiveFailure, string> = {
 export interface Caption { id: string; role: "user" | "assistant"; text: string; start: number; end: number }
 export interface LiveView {
   state: LiveState; muted: boolean; playbackBlocked: boolean; failure?: LiveFailure;
-  captions: Caption[]; responses: IntelligenceResponse[]; closeUnconfirmed: boolean;
+  captions: Caption[]; closeUnconfirmed: boolean;
 }
-export const initialLiveView = (): LiveView => ({ state: "idle", muted: false, playbackBlocked: false, captions: [], responses: [], closeUnconfirmed: false });
+export const initialLiveView = (): LiveView => ({ state: "idle", muted: false, playbackBlocked: false, captions: [], closeUnconfirmed: false });
 
 function httpFailure(error: unknown, fallback: LiveFailure): LiveFailure {
   if (!(error instanceof ApiError)) return fallback;
@@ -69,12 +69,12 @@ export class LiveConnection {
   private closePromise?: Promise<void>;
   private finishClose?: () => void;
   private connectTimer?: ReturnType<typeof setTimeout>;
+  private lifetimeTimer?: ReturnType<typeof setTimeout>;
   private meter = () => {};
-  private calls = new Set<string>();
+  private latency = new LiveLatency(reportLiveLatency);
   private events = new Set<string>();
   private responses = new Map<string, string>();
   private working = new Set<string>();
-  private pending = 0;
 
   constructor(private api: ApiClient, private notify: (view: LiveView) => void) {}
   private publish(patch: Partial<LiveView>) { this.view = { ...this.view, ...patch }; this.notify(this.view); }
@@ -103,7 +103,13 @@ export class LiveConnection {
         this.remote!.addTrack(track); this.audio!.srcObject = this.remote!;
         void this.resumeAudio();
         this.meter();
-        this.meter = observeAudio(stream, this.remote!, (input, output) => this.activity(input && !this.view.muted ? "user_speaking" : output ? "assistant_speaking" : this.pending || this.working.size ? "assistant_thinking" : "listening"));
+        this.meter = observeAudio(stream, this.remote!, (input, output) => {
+          if (!this.ready || this.closing || this.closed) return;
+          const speaking = input && !this.view.muted;
+          if (this.view.playbackBlocked) this.latency.reset();
+          else this.latency.sample(speaking, output);
+          this.activity(speaking ? "user_speaking" : output ? "assistant_speaking" : this.working.size || this.latency.waiting ? "assistant_thinking" : "listening");
+        });
       };
       pc.onconnectionstatechange = () => {
         if (!this.closing && !this.closed && ["failed", "disconnected", "closed"].includes(pc.connectionState)) this.fail("network");
@@ -120,6 +126,7 @@ export class LiveConnection {
       const result = await liveService.create(this.api, pc.localDescription?.sdp ?? "", this.controller.signal);
       if (this.closing || this.closed) { void liveService.close(this.api, result.sessionId).catch(() => {}); return; }
       this.sessionId = result.sessionId;
+      this.lifetimeTimer = setTimeout(() => this.fail("expired"), 600_000);
       if (this.startedId && this.startedId !== result.sessionId) { this.fail("protocol"); return; }
       await pc.setRemoteDescription({ type: "answer", sdp: result.sdp });
       // REST already starts Live. Never send session.start or session.update.
@@ -150,7 +157,6 @@ export class LiveConnection {
     if (event.type === "started") { this.startedId = event.sessionId; this.markReady(); return; }
     if (event.type === "failure") { this.fail(event.code.includes("rate_limit") ? "limit" : event.code.includes("expired") ? "expired" : event.code === "delegation_failed" ? "delegation" : "unavailable"); return; }
     if (!this.ready) return;
-    if (event.type === "invalid_tool") { this.fail("protocol"); return; }
     if (event.type === "transcript") {
       if (this.events.has(event.eventId)) return;
       if (this.events.size >= MAX_LIVE_EVENTS) { this.fail("limit"); return; }
@@ -165,8 +171,7 @@ export class LiveConnection {
       if (previous) this.working.delete(previous);
       this.responses.set(event.delegationId, event.responseId); this.working.add(event.responseId); this.activity("assistant_thinking");
     }
-    if (event.type === "response_finished") { this.working.delete(event.responseId); if (!this.pending && !this.working.size && this.view.state === "assistant_thinking") this.activity("listening"); }
-    if (event.type === "call") void this.delegate(event);
+    if (event.type === "response_finished") { this.working.delete(event.responseId); if (!this.working.size && !this.latency.waiting && this.view.state === "assistant_thinking") this.activity("listening"); }
   }
   private send(value: object) {
     if (this.channel?.readyState !== "open") throw new Error("Channel unavailable");
@@ -176,26 +181,12 @@ export class LiveConnection {
     if (new TextEncoder().encode(data).length > limit) throw new Error("Result too large");
     this.channel.send(data);
   }
-  private async delegate(event: Extract<LiveEvent, { type: "call" }>) {
-    if (this.calls.has(event.callId) || !this.sessionId) return;
-    if (this.calls.size >= 64) { this.fail("limit"); return; }
-    this.calls.add(event.callId); this.pending++; this.activity("assistant_thinking");
-    try {
-      const response = await liveService.delegate(this.api, this.sessionId, event.callId, event.question, this.controller.signal);
-      if (this.closing || this.closed) return;
-      this.publish({ responses: [...this.view.responses.slice(-9), response] });
-      this.send(toolResult(event.callId, response.spokenAnswer.trim() ? response.spokenAnswer : response.answer));
-      this.send({ type: "response.create" });
-    } catch (error) {
-      if (!this.closing && !this.closed) this.fail(httpFailure(error, "delegation"));
-    } finally { this.pending--; }
-  }
   mute() {
     if (!this.ready || this.closing || this.closed) return;
     const muted = !this.view.muted;
     this.microphone?.getAudioTracks().forEach((track) => { track.enabled = !muted; });
     this.publish({ muted });
-    if (muted) this.activity("listening");
+    if (muted) { this.latency.reset(); this.activity("listening"); }
   }
   async resumeAudio() {
     try { await this.audio?.play(); if (!this.closed && !this.closing) this.publish({ playbackBlocked: false }); }
@@ -204,8 +195,8 @@ export class LiveConnection {
   private fail(failure: LiveFailure) { if (!this.closing && !this.closed) void this.close(failure); }
   close(failure?: LiveFailure, immediate = false): Promise<void> {
     if (this.closePromise) { if (immediate) this.finishClose?.(); return this.closePromise; }
-    this.closing = true; this.ready = false; clearTimeout(this.connectTimer);
-    this.controller.abort(); this.meter();
+    this.closing = true; this.ready = false; clearTimeout(this.connectTimer); clearTimeout(this.lifetimeTimer);
+    this.latency.close(); this.controller.abort(); this.meter();
     this.microphone?.getTracks().forEach((track) => { track.onended = null; track.stop(); });
     this.audio?.pause(); if (this.audio) { this.audio.onerror = null; this.audio.srcObject = null; }
     this.remote?.getTracks().forEach((track) => track.stop());
@@ -224,7 +215,7 @@ export class LiveConnection {
       await drained;
       if (this.channel) { this.channel.onmessage = null; this.channel.onclose = null; this.channel.onerror = null; this.channel.close(); }
       if (this.pc) { this.pc.ontrack = null; this.pc.onconnectionstatechange = null; this.pc.close(); }
-      this.closed = true; this.calls.clear(); this.events.clear(); this.responses.clear(); this.working.clear(); this.startedId = undefined;
+      this.closed = true; this.events.clear(); this.responses.clear(); this.working.clear(); this.startedId = undefined;
       const revoked = await revoke;
       this.publish({ state: failure ? "error" : "idle", closeUnconfirmed: (!!sessionId && !this.finalized) || !revoked });
     })();

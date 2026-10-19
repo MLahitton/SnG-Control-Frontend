@@ -416,3 +416,16 @@ Efficiency means:
 - avoiding unnecessary browser smokes;
 - avoiding unnecessary abstraction.
 Efficiency must never mean inventing backend behavior or skipping final verification.
+
+## Realtime Voice 2C boundary
+
+- Browser owns WebRTC audio, captions/UI and local media cleanup only.
+- Only POST live/session and live/close are allowed through the Intelligence BFF.
+- Never interpret/execute function calls, forward question/callId, send function_call_output,
+  send response.create, or restore a business relay. Intelligence's private sideband owns tools.
+- Keep the data channel and its lifecycle/caption/progress events. Ignore reflected tool items.
+- Keep chat and basic voice independent and unchanged. No text/Live memory unification.
+- Live captions are not verified structured references; do not invent cards from spoken output.
+- Google auth remains in the existing HTTP/BFF flow. OpenAI keys and private Live credential
+  context stay exclusively in Intelligence. No new browser credential storage.
+- Close media on identity change/logout/unmount, errors and the absolute 600 second limit.
