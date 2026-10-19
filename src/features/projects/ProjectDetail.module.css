@@ -21,6 +21,7 @@
 .statusDates { display: grid; gap: 6px; }
 .statusNote { margin-top: 12px; color: var(--ink-soft); font-size: 12px; }
 .workspace { display: grid; min-width: 0; }
+.quotation { min-width: 0; }
 .documents, .actions, .activity, .tasks { min-width: 0; padding: 24px; }
 .documents { border-bottom: 1px solid var(--border); }
 .actions { display: grid; gap: 24px; align-content: start; background: #fcfdfd; border-bottom: 1px solid var(--border); }
@@ -49,6 +50,8 @@
   .actions { grid-column: 2; grid-row: 1; border-left: 1px solid var(--border); }
   .activity { grid-column: 1; grid-row: 2; }
   .tasks { grid-column: 2; grid-row: 2; border-top: 0; border-left: 1px solid var(--border); }
+  .quotation { grid-column: 1 / -1; grid-row: 2; }
+  .workspace:has(.quotation) .activity, .workspace:has(.quotation) .tasks { grid-row: 3; }
   .workspace:has(.actions:empty) .tasks { grid-row: 1 / span 2; }
 }
 @media (min-width: 1600px) { .workspace { grid-template-columns: minmax(0, 1fr) 340px; } }

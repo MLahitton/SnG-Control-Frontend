@@ -1,6 +1,6 @@
 # SnG Control Frontend
 
-Frontend de Steel & Glass. Incluye acceso con Google, el flujo operativo Cliente → Proyecto → Documentos → Envío a Presupuestos → SG y Frontend 3A — Gerencia, con resumen ejecutivo y consulta transversal de tareas de SnG-Control-Backend.
+Frontend de Steel & Glass. Incluye acceso con Google, el flujo operativo Cliente → Proyecto → Documentos → Envío a Presupuestos → SG → Preview y confirmación de cotización XLSX, y Frontend 3A — Gerencia, con resumen ejecutivo y consulta transversal de tareas de SnG-Control-Backend.
 
 ## Estado funcional
 
@@ -44,7 +44,7 @@ Frontend 3A conserva el flujo de 2B.5 y ofrece estas rutas protegidas:
 | `/clients` | Listar y crear clientes por nombre |
 | `/projects` | Listado de proyectos con cliente, ciudad, línea, SG y fecha |
 | `/projects/new` | Crear proyecto con un cliente existente y línea Classic, Essential, Bioconfort o Signature |
-| `/projects/[id]` | Datos, documentos vigentes/históricos, envío inicial a Presupuestos, SG, tareas y notificaciones |
+| `/projects/[id]` | Datos, documentos vigentes/históricos, envío inicial a Presupuestos, SG, cotización técnica, tareas y notificaciones |
 | `/tasks` | Tareas filtradas explícitamente por área y estado |
 | `/notifications` | Notificaciones personales y alertas activas/resueltas |
 | `/management` | Resumen ejecutivo, solo Gerencia |
@@ -64,7 +64,21 @@ Las notificaciones conservan el historial, incluidas alertas de atraso resueltas
 
 El detalle reúne encabezado, estado actual, documentación, acciones disponibles y actividad en un expediente continuo con divisores. Las tareas del proyecto muestran sus fechas directamente. El shell combina navegación azul pálido y una cabecera discreta; las demás páginas conservan sus componentes actuales.
 
-Todo usa el BFF y cliente API compartidos. Los archivos siguen siendo documentos opacos; no se implementa importación/preview de cotizaciones Excel, confirmaciones, revisión comercial, aprobación o pago. No hay roles inventados, permisos simulados ni métricas inventadas. Frontend 2C permanece fuera de alcance. Intelligence 1C se integra como experiencia separada de consulta.
+Todo usa el BFF y cliente API compartidos. Los documentos generales siguen siendo opacos. La cotización XLSX tiene su flujo técnico específico descrito a continuación; revisión comercial, aprobación y pago siguen pendientes. No hay roles inventados, permisos simulados ni métricas inventadas. Intelligence se integra como experiencia separada de consulta.
+
+## Presupuestos — preview y confirmación XLSX (4C)
+
+En el detalle del proyecto, después de las acciones de SG y antes de actividad/tareas, aparece **Cotización de Presupuestos** únicamente para el Subject asignado a PrepareQuotation, con tarea InProgress y SG existente. La autorización real sigue en backend.
+
+Selecciona un único `.xlsx` estándar con hoja **COTIZACIÓN** y SG coincidente, y pulsa **Generar preview**. El backend extrae metadata, ítems principales/adicionales en su orden, imágenes y advertencias. La falta o ambigüedad de imágenes no impide confirmar. Las imágenes se muestran solo con MIME raster permitido; no se acepta SVG ni HTML.
+
+Puedes corregir exactamente once campos: número, ubicación, sistema, cristal, acabado de aluminio, cerradura, observaciones, ancho, alto, m² y cantidad. El número es obligatorio; medidas mayores que cero y cantidad entera positiva. Se recortan espacios exteriores; no se recalculan m², cantidades ni totales. No se agregan/eliminan ítems ni se cambia su identidad original.
+
+**Confirmar cotización** envía el mismo archivo del preview y los valores revisados. La respuesta muestra versión, fecha, cantidades del backend y cuántos ítems fueron ajustados. **Confirmar NO completa PrepareQuotation**: el proyecto continúa en Presupuestos hasta enviarlo a Comercial.
+
+El preview es stateless: archivo y correcciones permanecen solo en memoria React. Cambiar archivo, proyecto, Subject o SG limpia el borrador; recargar también lo pierde. Durante las solicitudes se bloquean dobles envíos y cambios incompatibles. No se guardan XLSX ni previews en almacenamiento del navegador.
+
+El envío persistente a Comercial sigue pendiente: falta un read model que permita conocer después de recargar si la cotización inicial está confirmada/lista para envío. Solo se informa el siguiente paso tras confirmar en esta sesión; no se envía automáticamente ni se ofrece un botón basado en memoria local. La revisión Comercial todavía no está implementada.
 
 ## Gerencia — Frontend 3A
 

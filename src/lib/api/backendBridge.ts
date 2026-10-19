@@ -1,6 +1,7 @@
 import "server-only";
 import { getApiBaseUrl } from "@/lib/config/server-env";
-import { isBackendPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
+import { isBackendPath, isBudgetQuotationPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
+import { budgetQuotationProblem } from "./budgetQuotationProblem";
 import { safeProblem } from "./apiError";
 import { downloadFilename } from "./contentDisposition";
 import type { JsonValue } from "./types";
@@ -54,6 +55,7 @@ async function hasPayload(body: ReadableStream<Uint8Array>, signal: AbortSignal)
 }
 
 export async function forwardBackend(request: Request, segments: string[]): Promise<Response> {
+  if (isBudgetQuotationPath(segments) && request.method !== "POST") return problem(405, undefined, new Headers({ Allow: "POST" }));
   if (segments[0] === "management" && request.method !== "GET") {
     return problem(405, undefined, new Headers({ Allow: "GET" }));
   }
@@ -109,7 +111,7 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
       try { data = await response.json(); } catch { /* Discard upstream text/HTML diagnostics. */ }
       // Remove internal values even if placed in a permitted extension.
       const safe = safeJson((data ?? null) as JsonValue, forbidden);
-      return problem(response.status, safe, responseHeaders);
+      return problem(response.status, isBudgetQuotationPath(segments) ? budgetQuotationProblem(safe, response.status, segments[3]) : safe, responseHeaders);
     }
     if (response.status < 200 || response.status >= 300) return problem(502);
     if (response.status === 204 || response.status === 205) {
