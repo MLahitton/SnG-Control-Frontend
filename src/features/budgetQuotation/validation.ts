@@ -26,6 +26,11 @@ const messages: Record<string, string> = {
   AlreadyConfirmed: "La cotización inicial ya está confirmada.",
   InvalidConfirmation: "Revisa la confirmación: debe incluir todos los ítems con valores válidos.",
   InvalidWorkflowState: "El estado actual del proyecto no permite esta operación de Presupuestos.",
+  AlreadySent: "La cotización ya fue enviada a Comercial.",
+  InvalidState: "El proyecto ya no se encuentra en un estado válido para enviarlo a Comercial.",
+  SgChangedAfterConfirmation: "El SG actual del proyecto no coincide con el SG de la cotización confirmada.",
+  DocumentUnavailable: "No fue posible encontrar el archivo confirmado necesario para generar la cotización operativa de Comercial.",
+  DocumentMismatch: "La información de la cotización cambió durante el envío. Actualiza el proyecto antes de continuar.",
 };
 export function quotationError(error: unknown): string {
   if (!(error instanceof ApiError)) return "No pudimos completar la operación. Intenta de nuevo.";

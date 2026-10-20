@@ -1,6 +1,6 @@
 import { ApiError } from "@/lib/api/apiError";
 import type { ProjectTask } from "@/features/tasks/types";
-import type { BudgetQuotationPreviewResponse, ConfirmedBudgetQuotationResponse, ItemValues, QuotationDocument } from "./types";
+import type { BudgetQuotationPreviewResponse, ConfirmedBudgetQuotationResponse, ItemValues, QuotationDocument, BudgetQuotationStatusResponse, SendToCommercialResponse } from "./types";
 
 export const valueFields = ["itemNumber", "location", "system", "glass", "aluminumFinish", "lockType", "observations", "width", "height", "squareMeters", "quantity"] as const;
 export const imageTypes = ["image/png", "image/jpeg", "image/gif", "image/bmp", "image/tiff"] as const;
@@ -63,14 +63,40 @@ export function parsePreview(value: unknown, projectId: string): BudgetQuotation
   });
   return { projectId, projectSgCode: required(v.projectSgCode), document: document(v.document), itemCount, totalQuantity: positive(v.totalQuantity, true), items, warnings };
 }
-function task(value: unknown, projectId: string): ProjectTask {
+function task(value: unknown, projectId: string, type: "PrepareQuotation" | "ReviewQuotation" = "PrepareQuotation"): ProjectTask {
   const v = object(value, ["id", "projectId", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "assignedToGoogleSubject", "deadlineAt", "wasOverdue", "leakTimeStatus"]);
   if (required(v.projectId) !== projectId) invalid();
-  return { id: required(v.id), projectId, area: choice(v.area, ["Budgets"]), type: choice(v.type, ["PrepareQuotation"]),
+  return { id: required(v.id), projectId, area: choice(v.area, [type === "PrepareQuotation" ? "Budgets" : "Commercial"]), type: choice(v.type, [type]),
     status: choice(v.status, ["Pending", "InProgress", "Completed"]), assignedAt: date(v.assignedAt), startedAt: nullable(v.startedAt, date),
     completedAt: nullable(v.completedAt, date), deadlineAt: nullable(v.deadlineAt, date), assignedToGoogleSubject: nullable(v.assignedToGoogleSubject, required),
     wasOverdue: nullable(v.wasOverdue, (b) => typeof b === "boolean" ? b : invalid()),
     leakTimeStatus: choice(v.leakTimeStatus, ["NotStarted", "OnTrack", "DueSoon", "DueToday", "Overdue", "CompletedOnTime", "CompletedLate", "UntrackedLegacy"]) };
+}
+
+export function parseStatus(value: unknown, projectId: string): BudgetQuotationStatusResponse {
+  const v = object(value, ["projectId", "status", "versionNumber", "confirmedAt", "itemCount", "totalQuantity", "documentSgCode", "currentProjectSgCode", "canSendToCommercial", "sendBlockReason"]);
+  if (required(v.projectId) !== projectId || typeof v.canSendToCommercial !== "boolean") invalid();
+  const status = choice(v.status, ["NotConfirmed", "Confirmed", "SentToCommercial"]);
+  const sendBlockReason = choice(v.sendBlockReason, ["None", "SgChangedAfterConfirmation", "InvalidState"]);
+  const versionNumber = nullable(v.versionNumber, (n) => positive(n, true));
+  const confirmedAt = nullable(v.confirmedAt, date);
+  const documentSgCode = nullable(v.documentSgCode, required);
+  const currentProjectSgCode = nullable(v.currentProjectSgCode, required);
+  const count = (n: unknown) => n === 0 ? 0 : positive(n, true);
+  const itemCount = count(v.itemCount), totalQuantity = count(v.totalQuantity);
+  if (status === "NotConfirmed" && (versionNumber !== null || confirmedAt !== null || documentSgCode !== null || itemCount !== 0 || totalQuantity !== 0 || v.canSendToCommercial || sendBlockReason !== "None")) invalid();
+  if (status !== "NotConfirmed" && (versionNumber === null || confirmedAt === null || documentSgCode === null)) invalid();
+  if (status === "SentToCommercial" && (v.canSendToCommercial || sendBlockReason !== "None")) invalid();
+  if (status === "Confirmed" && (v.canSendToCommercial !== (sendBlockReason === "None"))) invalid();
+  return { projectId, status, versionNumber, confirmedAt, itemCount, totalQuantity, documentSgCode, currentProjectSgCode, canSendToCommercial: v.canSendToCommercial, sendBlockReason };
+}
+
+export function parseSendToCommercial(value: unknown, projectId: string): SendToCommercialResponse {
+  const v = object(value, ["projectId", "budgetTask", "commercialTask", "quotationVersionId", "commercialCatalogId", "commercialFileAvailable"]);
+  if (required(v.projectId) !== projectId || typeof v.commercialFileAvailable !== "boolean") invalid();
+  const budgetTask = task(v.budgetTask, projectId), commercialTask = task(v.commercialTask, projectId, "ReviewQuotation");
+  if (budgetTask.status !== "Completed" || commercialTask.status !== "InProgress") invalid();
+  return { projectId, budgetTask, commercialTask, quotationVersionId: required(v.quotationVersionId), commercialCatalogId: required(v.commercialCatalogId), commercialFileAvailable: v.commercialFileAvailable };
 }
 export function parseConfirmation(value: unknown, projectId: string): ConfirmedBudgetQuotationResponse {
   const v = object(value, ["quotationVersionId", "versionNumber", "commercialCatalogId", "projectId", "confirmedAt", "document", "itemCount", "totalQuantity", "items", "prepareQuotationTask"]);

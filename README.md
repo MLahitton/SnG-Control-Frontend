@@ -66,9 +66,9 @@ El detalle reúne encabezado, estado actual, documentación, acciones disponible
 
 Todo usa el BFF y cliente API compartidos. Los documentos generales siguen siendo opacos. La cotización XLSX tiene su flujo técnico específico descrito a continuación; revisión comercial, aprobación y pago siguen pendientes. No hay roles inventados, permisos simulados ni métricas inventadas. Intelligence se integra como experiencia separada de consulta.
 
-## Presupuestos — preview y confirmación XLSX (4C)
+## Presupuestos — cotización XLSX y envío a Comercial (4C/4D)
 
-En el detalle del proyecto, después de las acciones de SG y antes de actividad/tareas, aparece **Cotización de Presupuestos** únicamente para el Subject asignado a PrepareQuotation, con tarea InProgress y SG existente. La autorización real sigue en backend.
+En el detalle del proyecto, después de las acciones de SG y antes de actividad/tareas, aparece **Cotización de Presupuestos** para el Subject asignado a PrepareQuotation, con tarea InProgress o Completed. El editor requiere tarea InProgress, SG existente y estado oficial NotConfirmed. La autorización real sigue en backend.
 
 Selecciona un único `.xlsx` estándar con hoja **COTIZACIÓN** y SG coincidente, y pulsa **Generar preview**. El backend extrae metadata, ítems principales/adicionales en su orden, imágenes y advertencias. La falta o ambigüedad de imágenes no impide confirmar. Las imágenes se muestran solo con MIME raster permitido; no se acepta SVG ni HTML.
 
@@ -78,7 +78,11 @@ Puedes corregir exactamente once campos: número, ubicación, sistema, cristal, 
 
 El preview es stateless: archivo y correcciones permanecen solo en memoria React. Cambiar archivo, proyecto, Subject o SG limpia el borrador; recargar también lo pierde. Durante las solicitudes se bloquean dobles envíos y cambios incompatibles. No se guardan XLSX ni previews en almacenamiento del navegador.
 
-El envío persistente a Comercial sigue pendiente: falta un read model que permita conocer después de recargar si la cotización inicial está confirmada/lista para envío. Solo se informa el siguiente paso tras confirmar en esta sesión; no se envía automáticamente ni se ofrece un botón basado en memoria local. La revisión Comercial todavía no está implementada.
+Al abrir o recargar, se consulta `GET projects/{id}/budget-quotation/status`: NotConfirmed mantiene el flujo de carga; Confirmed muestra versión, fecha y cantidades persistidas sin volver a ofrecer el editor; SentToCommercial conserva ese resumen histórico incluso con PrepareQuotation completada. No se usa almacenamiento del navegador para recuperar el estado.
+
+**Enviar a Comercial** aparece únicamente cuando backend devuelve `canSendToCommercial=true`. Primero pide confirmación humana; Cancelar no envía nada. Confirmar ejecuta el POST existente sin body. Las tareas de la respuesta se muestran de inmediato y se refrescan estado, tareas y actividad: PrepareQuotation Completed y ReviewQuotation InProgress con fechas y notificación del backend. No hay envío automático ni cálculos locales de deadlines.
+
+Si cambió el SG después de confirmar, se muestran ambos SG y el bloqueo sin corregir archivos ni catálogo. Los estados incompatibles y conflictos ofrecen mensajes seguros y actualización. El estado “Enviada a Comercial” sobrevive F5 y no vuelve a ofrecer envío. La revisión Comercial en UI todavía no está implementada.
 
 ## Gerencia — Frontend 3A
 

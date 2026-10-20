@@ -7,6 +7,7 @@ import type { ProjectTask } from "@/features/tasks/types";
 import { client, project, task, inProgressTask, notification, deferred, mockBackend, renderOperational } from "./operationalFixtures";
 import { user } from "./fixtures";
 import { projectDocuments } from "./documentFixtures";
+import { notConfirmedStatus } from "./budgetQuotationFixtures";
 
 // Synthetic identities: same email/name, different stable Subjects.
 const assignedUser = { ...user, subject: task.assignedToGoogleSubject! };
@@ -19,6 +20,7 @@ function backend(initialTasks: ProjectTask[] = [], initialProject: Project = pro
     if (path === "projects/project-1") return state.project;
     if (path === "clients/client-1") return client;
     if (path === "projects/project-1/tasks") return state.tasks;
+    if (path === "projects/project-1/budget-quotation/status") return notConfirmedStatus;
     if (path === "projects/project-1/notifications") return state.notifications;
     if (path === "projects/project-1/documents") return { ...projectDocuments, canSendToBudgets: state.tasks.length === 0 };
     throw new Error("Unexpected test endpoint");

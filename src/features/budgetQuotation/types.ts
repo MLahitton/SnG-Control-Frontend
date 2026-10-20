@@ -39,3 +39,15 @@ export interface ConfirmedBudgetQuotationResponse {
 }
 export interface Confirmation { items: (ItemValues & ItemKey)[] }
 export type ItemDraft = { [K in keyof ItemValues]: string };
+
+export type QuotationStatus = "NotConfirmed" | "Confirmed" | "SentToCommercial";
+export type SendBlockReason = "None" | "SgChangedAfterConfirmation" | "InvalidState";
+export interface BudgetQuotationStatusResponse {
+  projectId: string; status: QuotationStatus; versionNumber: number | null; confirmedAt: string | null;
+  itemCount: number; totalQuantity: number; documentSgCode: string | null; currentProjectSgCode: string | null;
+  canSendToCommercial: boolean; sendBlockReason: SendBlockReason;
+}
+export interface SendToCommercialResponse {
+  projectId: string; budgetTask: ProjectTask; commercialTask: ProjectTask;
+  quotationVersionId: string; commercialCatalogId: string; commercialFileAvailable: boolean;
+}

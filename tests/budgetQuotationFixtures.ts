@@ -1,4 +1,4 @@
-import type { BudgetQuotationPreviewResponse, ConfirmedBudgetQuotationResponse, ItemValues } from "@/features/budgetQuotation/types";
+import type { BudgetQuotationPreviewResponse, ConfirmedBudgetQuotationResponse, ItemValues, BudgetQuotationStatusResponse, SendToCommercialResponse } from "@/features/budgetQuotation/types";
 
 export const technicalValues: ItemValues = {
   itemNumber: "V-2", location: "Sala", system: "Corrediza", glass: "Claro", aluminumFinish: "Natural", lockType: "Central", observations: "",
@@ -30,4 +30,20 @@ export const quotationConfirmed: ConfirmedBudgetQuotationResponse = {
     assignedAt: "2026-10-15T15:00:00Z", startedAt: "2026-10-15T16:00:00Z", completedAt: null,
     assignedToGoogleSubject: "private-assignee-subject", deadlineAt: "2026-10-22T22:00:00Z", wasOverdue: null, leakTimeStatus: "OnTrack",
   },
+};
+
+export const notConfirmedStatus: BudgetQuotationStatusResponse = {
+  projectId: "project-1", status: "NotConfirmed", versionNumber: null, confirmedAt: null, itemCount: 0, totalQuantity: 0,
+  documentSgCode: null, currentProjectSgCode: "SG001", canSendToCommercial: false, sendBlockReason: "None",
+};
+export const confirmedStatus: BudgetQuotationStatusResponse = {
+  ...notConfirmedStatus, status: "Confirmed", versionNumber: 1, confirmedAt: quotationConfirmed.confirmedAt,
+  itemCount: quotationConfirmed.itemCount, totalQuantity: quotationConfirmed.totalQuantity, documentSgCode: "SG001", canSendToCommercial: true,
+};
+export const sentStatus: BudgetQuotationStatusResponse = { ...confirmedStatus, status: "SentToCommercial", canSendToCommercial: false };
+export const sentQuotation: SendToCommercialResponse = {
+  projectId: "project-1", quotationVersionId: "version-1", commercialCatalogId: "catalog-1", commercialFileAvailable: true,
+  budgetTask: { ...quotationConfirmed.prepareQuotationTask, status: "Completed", completedAt: "2026-10-20T18:00:00Z", wasOverdue: false, leakTimeStatus: "CompletedOnTime" },
+  commercialTask: { ...quotationConfirmed.prepareQuotationTask, id: "review-1", area: "Commercial", type: "ReviewQuotation", assignedToGoogleSubject: "synthetic-commercial-head",
+    assignedAt: "2026-10-20T18:00:00Z", startedAt: "2026-10-20T18:00:00Z", deadlineAt: "2026-10-26T22:00:00Z", leakTimeStatus: "OnTrack" },
 };

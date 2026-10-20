@@ -1,6 +1,7 @@
 export const backendRoots = ["clients", "projects", "project-tasks", "notifications"] as const;
 
 export function isBackendPath(segments: string[]): boolean {
+  if (segments[0] === "projects" && segments[2] === "send-to-commercial") return isSendToCommercialPath(segments);
   if (segments[0] === "projects" && segments[2] === "budget-quotation") {
     return isBudgetQuotationPath(segments);
   }
@@ -13,7 +14,11 @@ export function isBackendPath(segments: string[]): boolean {
 
 export function isBudgetQuotationPath(segments: string[]): boolean {
   return segments.length === 4 && segments[0] === "projects" && /^[A-Za-z0-9_-]{1,200}$/.test(segments[1])
-    && segments[2] === "budget-quotation" && ["preview", "confirm"].includes(segments[3]);
+    && segments[2] === "budget-quotation" && ["preview", "confirm", "status"].includes(segments[3]);
+}
+
+export function isSendToCommercialPath(segments: string[]): boolean {
+  return segments.length === 3 && segments[0] === "projects" && /^[A-Za-z0-9_-]{1,200}$/.test(segments[1]) && segments[2] === "send-to-commercial";
 }
 
 export function isDocumentRemovalPath(segments: string[]): boolean {

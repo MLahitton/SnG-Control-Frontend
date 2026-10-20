@@ -1,90 +1,103 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
 import type { ProjectTask } from "@/features/tasks/types";
+import { ApiError } from "@/lib/api/apiError";
+import { useResource } from "@/lib/api/useResource";
 import { formatDate } from "@/lib/formatDate";
+import { BudgetQuotationEditor } from "./BudgetQuotationEditor";
 import { budgetQuotationService } from "./service";
-import { buildConfirmation, createDraft, quotationError } from "./validation";
+import { quotationError } from "./validation";
 import { valueFields } from "./parser";
-import type { BudgetQuotationPreviewResponse, ConfirmedBudgetQuotationResponse, ItemDraft } from "./types";
-import { BudgetQuotationPreview } from "./BudgetQuotationPreview";
 import styles from "./BudgetQuotation.module.css";
 
-export function BudgetQuotationPanel({ projectId, disabled, onBusyChange, onConfirmed }: {
-  projectId: string; disabled: boolean; onBusyChange: (busy: boolean) => void; onConfirmed: (task: ProjectTask) => void;
+export function BudgetQuotationPanel({ projectId, canEdit, disabled, reviewStatus, onBusyChange, onTasksUpdated, onRefreshRelated }: {
+  projectId: string; canEdit: boolean; disabled: boolean; reviewStatus?: ProjectTask["status"];
+  onBusyChange: (busy: boolean) => void; onTasksUpdated: (tasks: ProjectTask[]) => void;
+  onRefreshRelated: (signal: AbortSignal) => Promise<void>;
 }) {
   const api = useApiClient();
-  const [file, setFile] = useState<File | null>(null);
-  // File and parsed preview are a single snapshot. Confirmation never uses the selector's state.
-  const [snapshot, setSnapshot] = useState<{ file: File; preview: BudgetQuotationPreviewResponse } | null>(null);
-  const [draft, setDraft] = useState<ItemDraft[]>([]);
-  const [confirmed, setConfirmed] = useState<ConfirmedBudgetQuotationResponse | null>(null);
-  const [phase, setPhase] = useState<"preview" | "confirm" | null>(null);
-  const [error, setError] = useState("");
+  const load = useCallback((signal: AbortSignal) => budgetQuotationService.getStatus(api, projectId, signal), [api, projectId]);
+  const status = useResource(load);
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const [refreshError, setRefreshError] = useState<unknown>();
+  const [sent, setSent] = useState(false);
+  const [confirmed, setConfirmed] = useState<{ adjusted: number } | null>(null);
   const operation = useRef<AbortController | null>(null);
   const locked = useRef(false);
   useEffect(() => () => { operation.current?.abort(); onBusyChange(false); }, [onBusyChange]);
+  const current = status.data;
 
-  function selectFile(files: FileList | null) {
-    if (locked.current || disabled) return;
-    operation.current?.abort();
-    setSnapshot(null); setDraft([]); setConfirmed(null); setError(""); setFile(null);
-    if (!files?.length) return;
-    if (files.length !== 1 || !/\.xlsx$/i.test(files[0].name)) { setError("Selecciona un solo archivo .xlsx. No se admiten .xls, .csv ni .xlsm."); return; }
-    setFile(files[0]);
+  async function refreshRelated(signal: AbortSignal) {
+    try { await onRefreshRelated(signal); }
+    catch (failure) { if (!signal.aborted) setRefreshError(failure); }
   }
-  async function run(action: "preview" | "confirm") {
-    if (locked.current || disabled || !file || confirmed) return;
-    const payload = action === "confirm" && snapshot ? buildConfirmation(snapshot.preview, draft) : null;
-    if (action === "confirm" && (!snapshot || !payload)) {
-      setError("Revisa los ítems: el número es obligatorio, las medidas deben ser mayores que cero y la cantidad debe ser un entero positivo."); return;
-    }
-    locked.current = true; setPhase(action); onBusyChange(true); setError("");
+  async function send() {
+    if (locked.current || disabled || !confirmSend || !current?.canSendToCommercial || sent) return;
+    locked.current = true; setSending(true); onBusyChange(true); setError(undefined); setRefreshError(undefined);
     const controller = new AbortController(); operation.current = controller;
-    if (action === "preview") { setSnapshot(null); setDraft([]); }
     try {
-      if (action === "preview") {
-        const preview = await budgetQuotationService.preview(api, projectId, file, controller.signal);
-        if (controller.signal.aborted) return;
-        setSnapshot({ file, preview }); setDraft(createDraft(preview));
-      } else if (snapshot && payload) {
-        const response = await budgetQuotationService.confirm(api, projectId, snapshot.file, payload, controller.signal);
-        if (controller.signal.aborted) return;
-        setConfirmed(response); setSnapshot(null); setDraft([]); setFile(null);
-        onConfirmed(response.prepareQuotationTask);
-      }
-    } catch (failure) { if (!controller.signal.aborted) setError(quotationError(failure)); }
-    finally { if (!controller.signal.aborted) { locked.current = false; setPhase(null); onBusyChange(false); } }
+      const response = await budgetQuotationService.sendToCommercial(api, projectId, controller.signal);
+      if (controller.signal.aborted) return;
+      setSent(true); setConfirmSend(false);
+      onTasksUpdated([response.budgetTask, response.commercialTask]);
+      status.refresh(); await refreshRelated(controller.signal);
+    } catch (failure) {
+      if (controller.signal.aborted) return;
+      setError(failure); setConfirmSend(false);
+      if (failure instanceof ApiError && failure.status === 409) { status.refresh(); await refreshRelated(controller.signal); }
+    } finally {
+      if (!controller.signal.aborted) { locked.current = false; setSending(false); onBusyChange(false); }
+    }
   }
-  function submit(event: FormEvent) { event.preventDefault(); void run("confirm"); }
-  const adjusted = confirmed?.items.filter((item) => valueFields.some((field) => item.extracted[field] !== item.confirmed[field])).length ?? 0;
-
+  async function retryRelated() {
+    if (locked.current) return;
+    operation.current?.abort();
+    const controller = new AbortController(); operation.current = controller;
+    setRefreshError(undefined); await refreshRelated(controller.signal);
+  }
   return <section className={styles.panel} aria-labelledby="budget-quotation-title">
     <h2 id="budget-quotation-title" className={styles.title}>Cotización de Presupuestos</h2>
-    {error && <p role="alert" className="error-message">{error}</p>}
-    {phase && <p role="status">{phase === "preview" ? "Generando preview…" : "Confirmando cotización…"}</p>}
-    {confirmed ? <div className={styles.stack}>
-      <p role="status" className="success-notice">Cotización de Presupuestos confirmada.</p>
+    {sent && <p role="status" className="success-notice">Cotización enviada a Comercial.</p>}
+    {confirmed && !sent && <p role="status" className="success-notice">Cotización de Presupuestos confirmada.</p>}
+    {!!confirmed?.adjusted && <p>{confirmed.adjusted === 1 ? "1 ítem fue ajustado" : `${confirmed.adjusted} ítems fueron ajustados`} antes de confirmar.</p>}
+    {sending && <p role="status">Enviando cotización a Comercial…</p>}
+    {!!error && <p role="alert" className="error-message">{quotationError(error)}</p>}
+    {!!refreshError && <div role="alert" className="error-message"><p>No se pudo actualizar toda la actividad del proyecto.</p><p>{quotationError(refreshError)}</p><button className="button-secondary" onClick={() => void retryRelated()}>Actualizar actividad</button></div>}
+    {status.loading && <p role="status">Consultando estado de cotización…</p>}
+    {!!status.error && <div role="alert" className="error-message"><p>{quotationError(status.error)}</p><button className="button-secondary" onClick={status.refresh}>Actualizar estado</button></div>}
+    {current?.status === "NotConfirmed" && !confirmed && !sent && (canEdit
+      ? <BudgetQuotationEditor projectId={projectId} disabled={disabled} onBusyChange={onBusyChange} onConfirmed={(response) => {
+        setConfirmed({ adjusted: response.items.filter((item) => valueFields.some((field) => item.extracted[field] !== item.confirmed[field])).length });
+        onTasksUpdated([response.prepareQuotationTask]); status.refresh();
+      }} />
+      : <p role="status">Cotización sin confirmar. La preparación debe estar en curso y tener SG para cargar el archivo.</p>)}
+    {current && current.status !== "NotConfirmed" && <div className={styles.stack}>
+      <p role="status" className="success-notice">{current.status === "SentToCommercial" ? "Enviada a Comercial" : "Cotización confirmada"}</p>
       <dl className={styles.summary}>
-        <div><dt>Versión</dt><dd>{confirmed.versionNumber}</dd></div><div><dt>Fecha</dt><dd>{formatDate(confirmed.confirmedAt)}</dd></div>
-        <div><dt>Cantidad de ítems</dt><dd>{confirmed.itemCount}</dd></div><div><dt>Cantidad total</dt><dd>{confirmed.totalQuantity}</dd></div>
+        <div><dt>Versión</dt><dd>{current.versionNumber}</dd></div><div><dt>Fecha de confirmación</dt><dd>{formatDate(current.confirmedAt)}</dd></div>
+        <div><dt>Cantidad de ítems</dt><dd>{current.itemCount}</dd></div><div><dt>Cantidad total</dt><dd>{current.totalQuantity}</dd></div>
       </dl>
-      {adjusted > 0 && <p>{adjusted === 1 ? "1 ítem fue ajustado" : `${adjusted} ítems fueron ajustados`} antes de confirmar.</p>}
-      <p>La cotización quedó confirmada. El proyecto continúa en Presupuestos hasta enviarlo a Comercial.</p>
-      <p>Siguiente paso: enviar a Comercial</p>
-    </div> : <>
-      <h3 className={styles.title}>Cargar cotización</h3>
-      <p id="quotation-file-help">El archivo debe ser un Excel .xlsx con la hoja estándar COTIZACIÓN y el mismo SG del proyecto.</p>
-      <label className="field-label">Seleccionar archivo<input className="form-control" type="file" accept=".xlsx" disabled={!!phase || disabled}
-        aria-describedby="quotation-file-help" onChange={(e) => selectFile(e.target.files)} /></label>
-      <p className={styles.note}>El preview y las correcciones se conservan solo mientras permanezcas en este proyecto. Al recargar se perderán.</p>
-      <div><button className="button-secondary" disabled={!file || !!phase || disabled} onClick={() => void run("preview")}>Generar preview</button></div>
-      {snapshot && <form className={styles.stack} onSubmit={submit} noValidate>
-        <BudgetQuotationPreview preview={snapshot.preview} draft={draft} disabled={!!phase || disabled}
-          onChange={(index, field, value) => setDraft((current) => current.map((item, i) => i === index ? { ...item, [field]: value } : item))} />
-        <div><button className="button-primary" disabled={!!phase || disabled}>Confirmar cotización</button></div>
-      </form>}
-    </>}
+      {current.status === "SentToCommercial" ? <p>La preparación de Presupuestos finalizó. {reviewStatus === "Completed" ? "La revisión Comercial ya finalizó." : reviewStatus === "InProgress" ? "La cotización se encuentra ahora en revisión Comercial." : "La cotización fue entregada a Comercial."}</p> : <>
+        <p>La cotización quedó confirmada. El proyecto continúa en Presupuestos hasta enviarlo a Comercial.</p>
+        {current.sendBlockReason === "SgChangedAfterConfirmation" && <div role="alert" className="error-message">
+          <p>La cotización fue confirmada con un SG diferente al SG actual del proyecto. No puede enviarse a Comercial hasta resolver esta inconsistencia.</p>
+          {current.documentSgCode && <p>SG cotización: {current.documentSgCode}</p>}{current.currentProjectSgCode && <p>SG proyecto: {current.currentProjectSgCode}</p>}
+        </div>}
+        {current.sendBlockReason === "InvalidState" && <p role="alert" className="error-message">La cotización está confirmada, pero el estado actual del proyecto no permite enviarla a Comercial.</p>}
+        {current.canSendToCommercial && !sent && <>
+          <p>La cotización está lista para continuar a Comercial.</p>
+          {confirmSend ? <div role="group" aria-label="Confirmar envío a Comercial" className={styles.stack}>
+            <p>¿Confirmas el envío de esta cotización a Comercial? Esta acción finalizará la tarea de Presupuestos e iniciará la revisión del Jefe Comercial.</p>
+            <div className="flex flex-wrap gap-3"><button className="button-primary" disabled={sending || disabled} onClick={() => void send()}>Confirmar envío</button>
+              <button className="button-secondary" disabled={sending || disabled} onClick={() => setConfirmSend(false)}>Cancelar</button></div>
+          </div> : <div><button className="button-primary" disabled={sending || disabled} onClick={() => setConfirmSend(true)}>Enviar a Comercial</button></div>}
+        </>}
+        {!current.canSendToCommercial && <div><button className="button-secondary" disabled={sending || disabled} onClick={() => { setConfirmSend(false); status.refresh(); }}>Actualizar</button></div>}
+      </>}
+    </div>}
   </section>;
 }

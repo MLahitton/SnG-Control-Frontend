@@ -120,6 +120,10 @@ function ProjectDetailContent({ id }: { id: string }) {
     const notifications = await notificationsService.forProject(api, id, signal);
     if (data && !signal.aborted) resource.update({ ...data, notifications });
   }
+  async function refreshQuotationRelated(signal: AbortSignal) {
+    const [tasks, notifications] = await Promise.all([tasksService.forProject(api, id, signal), notificationsService.forProject(api, id, signal)]);
+    if (data && !signal.aborted) resource.update({ ...data, tasks, notifications });
+  }
 
   return <div className={styles.projectSurface}>
     <Link className={styles.backLink} href="/projects">Volver a proyectos</Link>
@@ -161,9 +165,11 @@ function ProjectDetailContent({ id }: { id: string }) {
         {validation && <p id="sg-error" role="alert" className="error-message mt-3">{validation}</p>}
       </section>}
       </div>
-      {canCorrect && <div className={styles.quotation}><BudgetQuotationPanel key={data.project.sgCode} projectId={id}
+      {isPreparationAssignee && preparation?.status !== "Pending" && <div className={styles.quotation}><BudgetQuotationPanel key={data.project.sgCode} projectId={id}
+        canEdit={canCorrect} reviewStatus={data.tasks.find((task) => task.type === "ReviewQuotation")?.status}
         disabled={busy || documentBusy} onBusyChange={setQuotationBusy}
-        onConfirmed={(task) => resource.update({ ...data, tasks: data.tasks.map((current) => current.id === task.id ? task : current) })} /></div>}
+        onRefreshRelated={refreshQuotationRelated}
+        onTasksUpdated={(tasks) => resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] })} /></div>}
       <section aria-labelledby="project-notifications-title" className={styles.activity}><h2 id="project-notifications-title" className={styles.sectionLabel}>Actividad del proyecto</h2><NotificationList notifications={data.notifications} variant="activity" /></section>
       <section aria-labelledby="project-tasks-title" className={styles.tasks}><h2 id="project-tasks-title" className={styles.sectionLabel}>Tareas del proyecto</h2><TaskList tasks={data.tasks} compact /></section>
       </div>

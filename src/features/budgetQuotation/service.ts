@@ -1,8 +1,14 @@
 import type { ApiClient } from "@/lib/api/types";
-import { parseConfirmation, parsePreview } from "./parser";
+import { parseConfirmation, parsePreview, parseStatus, parseSendToCommercial } from "./parser";
 import type { Confirmation } from "./types";
 
 export const budgetQuotationService = {
+  async getStatus(api: ApiClient, projectId: string, signal: AbortSignal) {
+    return parseStatus(await api.get<unknown>(`projects/${projectId}/budget-quotation/status`, { signal }), projectId);
+  },
+  async sendToCommercial(api: ApiClient, projectId: string, signal: AbortSignal) {
+    return parseSendToCommercial(await api.post<unknown>(`projects/${projectId}/send-to-commercial`, undefined, { signal }), projectId);
+  },
   async preview(api: ApiClient, projectId: string, file: File, signal: AbortSignal) {
     const body = new FormData();
     body.append("file", file);

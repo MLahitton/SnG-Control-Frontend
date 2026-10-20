@@ -8,15 +8,21 @@ import type { CurrentUser } from "@/features/auth/types/auth";
 import type { ProjectTask } from "@/features/tasks/types";
 import { client, project, task, inProgressTask, deferred, mockBackend, renderOperational } from "./operationalFixtures";
 import { projectDocuments } from "./documentFixtures";
-import { quotationConfirmed, quotationPreview } from "./budgetQuotationFixtures";
+import { quotationConfirmed, quotationPreview, notConfirmedStatus, confirmedStatus } from "./budgetQuotationFixtures";
 import { token, user } from "./fixtures";
 
 const assignedUser = { ...user, subject: inProgressTask.assignedToGoogleSubject! };
 const file = () => new File(["opaque workbook test bytes"], "cotizacion.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 function backend(tasks: ProjectTask[] = [inProgressTask], sgCode: string | null = "SG001") {
+  let status = notConfirmedStatus;
   let mutation: (path: string, init: RequestInit) => unknown = (path) => path.endsWith("/preview") ? quotationPreview : quotationConfirmed;
-  const fetchMock = mockBackend((path, init) => {
-    if (init.method !== "GET") return mutation(path, init);
+  const fetchMock = mockBackend(async (path, init) => {
+    if (init.method !== "GET") {
+      const response = await mutation(path, init);
+      if (path.endsWith("/confirm") && !(response instanceof Response)) status = confirmedStatus;
+      return response;
+    }
+    if (path.endsWith("/budget-quotation/status")) return { ...status, projectId: path.split("/")[1] };
     if (path.endsWith("/tasks")) return tasks;
     if (path.endsWith("/notifications")) return [];
     if (path.endsWith("/documents")) return { ...projectDocuments, canSendToBudgets: false };
@@ -39,8 +45,6 @@ describe("quotation visibility", () => {
     { tasks: [], sg: "SG001", current: assignedUser },
     { tasks: [task], sg: "SG001", current: assignedUser },
     { tasks: [inProgressTask], sg: "SG001", current: user },
-    { tasks: [inProgressTask], sg: null, current: assignedUser },
-    { tasks: [{ ...inProgressTask, status: "Completed" as const }], sg: "SG001", current: assignedUser },
   ])("does not offer quotation outside assigned InProgress + SG ($tasks.0.status / $sg)", async ({ tasks, sg, current }) => {
     backend(tasks, sg); renderOperational(<ProjectDetailPage id="project-1" />, current);
     await screen.findByRole("heading", { name: project.name });
@@ -124,7 +128,7 @@ describe("quotation confirmation", () => {
     expect(await quotation().findByText("Cotización de Presupuestos confirmada.")).toBeInTheDocument();
     expect(quotation().getByText("1 ítem fue ajustado antes de confirmar.")).toBeInTheDocument();
     expect(quotation().getByText(/proyecto continúa en Presupuestos/)).toBeInTheDocument();
-    expect(quotation().queryByRole("button", { name: "Enviar a Comercial" })).not.toBeInTheDocument();
+    expect(await quotation().findByRole("button", { name: "Enviar a Comercial" })).toBeInTheDocument();
     expect(quotation().queryByText(/version-1|catalog-1/)).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Tareas del proyecto" }).textContent).toBe(before);
     expect(calls(fetchMock).map(([url]) => url)).not.toContain(expect.stringContaining("send-to-commercial"));

@@ -1,6 +1,6 @@
 import "server-only";
 import { getApiBaseUrl } from "@/lib/config/server-env";
-import { isBackendPath, isBudgetQuotationPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
+import { isBackendPath, isBudgetQuotationPath, isSendToCommercialPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
 import { budgetQuotationProblem } from "./budgetQuotationProblem";
 import { safeProblem } from "./apiError";
 import { downloadFilename } from "./contentDisposition";
@@ -55,7 +55,8 @@ async function hasPayload(body: ReadableStream<Uint8Array>, signal: AbortSignal)
 }
 
 export async function forwardBackend(request: Request, segments: string[]): Promise<Response> {
-  if (isBudgetQuotationPath(segments) && request.method !== "POST") return problem(405, undefined, new Headers({ Allow: "POST" }));
+  const quotationMethod = isBudgetQuotationPath(segments) ? (segments[3] === "status" ? "GET" : "POST") : isSendToCommercialPath(segments) ? "POST" : null;
+  if (quotationMethod && request.method !== quotationMethod) return problem(405, undefined, new Headers({ Allow: quotationMethod }));
   if (segments[0] === "management" && request.method !== "GET") {
     return problem(405, undefined, new Headers({ Allow: "GET" }));
   }
@@ -76,7 +77,7 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
   try {
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(isLargeDocumentTransfer(request.method, segments) ? 600_000 : 120_000)]);
     let body: ReadableStream<Uint8Array> | null = null;
-    if (request.method === "DELETE") {
+    if (request.method === "DELETE" || isSendToCommercialPath(segments) || (isBudgetQuotationPath(segments) && segments[3] === "status")) {
       if (Number(request.headers.get("Content-Length")) > 0 || (request.body && await hasPayload(request.body, signal))) return problem(415);
     } else if (request.method !== "GET") {
       const contentType = request.headers.get("Content-Type");
