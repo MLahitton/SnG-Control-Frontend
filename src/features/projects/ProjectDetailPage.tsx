@@ -20,6 +20,7 @@ import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
 import { useProjectDocuments } from "@/features/documents/useProjectDocuments";
 import { documentErrorMessage } from "@/features/documents/validation";
 import { BudgetQuotationPanel } from "@/features/budgetQuotation/BudgetQuotationPanel";
+import { CommercialQuotationPanel } from "@/features/commercialQuotation/CommercialQuotationPanel";
 
 export function ProjectDetailPage({ id }: { id: string }) {
   const { user } = useAuth();
@@ -42,6 +43,7 @@ function ProjectDetailContent({ id }: { id: string }) {
   const documents = useProjectDocuments(api, id);
   const [documentBusy, setDocumentBusy] = useState(false);
   const [quotationBusy, setQuotationBusy] = useState(false);
+  const [commercialBusy, setCommercialBusy] = useState(false);
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), []);
   const { data } = resource;
@@ -55,6 +57,9 @@ function ProjectDetailContent({ id }: { id: string }) {
   const [conflict, setConflict] = useState("");
   const [notice, setNotice] = useState("");
   const preparation = data?.tasks.find((task) => task.type === "PrepareQuotation");
+  const review = data?.tasks.find((task) => task.type === "ReviewQuotation");
+  const canReview = !!user && user.subject === review?.assignedToGoogleSubject
+    && (review.status === "InProgress" || review.status === "Completed");
   // Presentation only; the backend's BudgetsAssignee policy authorizes the PUT.
   const isPreparationAssignee = !!user && user.subject === preparation?.assignedToGoogleSubject;
   const pendingSg = preparation?.status === "Pending" && data?.project.sgCode === null;
@@ -62,7 +67,7 @@ function ProjectDetailContent({ id }: { id: string }) {
   const canCorrect = isPreparationAssignee && preparation?.status === "InProgress" && !!data?.project.sgCode;
 
   async function mutate(action: "send" | "sg") {
-    if (locked.current || documentBusy || quotationBusy || !data) return;
+    if (locked.current || documentBusy || quotationBusy || commercialBusy || !data) return;
     if (action === "send" && (!confirmSend || !documents.data?.canSendToBudgets)) return;
     const normalizedSg = sgCode.trim().toUpperCase();
     if (action === "sg") {
@@ -142,7 +147,7 @@ function ProjectDetailContent({ id }: { id: string }) {
       <ProjectStatusStrip tasks={data.tasks} />
       {pendingSg && !isPreparationAssignee && <p role="status" className={styles.waiting}>Pendiente de asignación de SG por Presupuestos.</p>}
       <div className={styles.workspace}>
-      <div className={styles.documents}><DocumentsPanel projectId={id} resource={documents} hasPreparation={!!preparation} disabled={busy || quotationBusy}
+      <div className={styles.documents}><DocumentsPanel projectId={id} resource={documents} hasPreparation={!!preparation} disabled={busy || quotationBusy || commercialBusy}
         onBusyChange={setDocumentBusy} onUpdated={refreshDocumentNotifications} /></div>
       <div className={styles.actions}>
       {documents.data?.canModify && !documents.data.documents.some((document) => document.isCurrent) && <section className={styles.actionArea} aria-labelledby="upload-action-title"><p className={styles.actionLabel}>Acción actual</p><h2 id="upload-action-title" className={styles.actionTitle}>Cargar documentación</h2><p role="status" className={styles.actionText}>Debes cargar al menos un documento del proyecto antes de enviarlo a Presupuestos.</p><a className="text-link" href="#documents-title">Ir a documentos</a></section>}
@@ -151,23 +156,27 @@ function ProjectDetailContent({ id }: { id: string }) {
         <p className={styles.actionText}>El plazo de Presupuestos comenzará cuando se asigne el SG.</p>
         {confirmSend ? <div role="group" aria-label="Confirmar envío a Presupuestos" className="space-y-3">
           <p>¿Confirmas el envío de este proyecto a Presupuestos?</p>
-          <div className="flex flex-wrap gap-3"><button className="button-primary" disabled={busy || documentBusy} onClick={() => void mutate("send")}>{busy ? "Enviando…" : "Confirmar envío"}</button><button className="button-secondary" disabled={busy || documentBusy} onClick={() => setConfirmSend(false)}>Cancelar</button></div>
-        </div> : <button className="button-primary" disabled={busy || documentBusy} onClick={() => setConfirmSend(true)}>Enviar a Presupuestos</button>}
+          <div className="flex flex-wrap gap-3"><button className="button-primary" disabled={busy || documentBusy || quotationBusy || commercialBusy} onClick={() => void mutate("send")}>{busy ? "Enviando…" : "Confirmar envío"}</button><button className="button-secondary" disabled={busy || documentBusy || quotationBusy || commercialBusy} onClick={() => setConfirmSend(false)}>Cancelar</button></div>
+        </div> : <button className="button-primary" disabled={busy || documentBusy || quotationBusy || commercialBusy} onClick={() => setConfirmSend(true)}>Enviar a Presupuestos</button>}
       </section>}
       {(canAssign || canCorrect) && <section className={styles.actionArea} aria-labelledby="sg-title">
         <p className={styles.actionLabel}>Acción actual</p>
         <h2 id="sg-title" className={styles.actionTitle}>{canCorrect ? "Corregir SG" : "Asignar SG"}</h2>
         <p className={styles.actionText}>{canCorrect ? "La corrección conserva el inicio y vencimiento de la tarea." : "La primera asignación inicia el plazo de preparación de la cotización."}</p>
         <form onSubmit={submitSg} className="stack">
-          <label className="field-label">Código SG<input className="form-control" required value={sgCode} disabled={busy || quotationBusy} aria-invalid={!!validation} aria-describedby={validation ? "sg-error" : undefined} onChange={(e) => { setSgCode(e.target.value); setValidation(""); }} placeholder={data.project.sgCode ?? "SG001"} /></label>
-          <button className="button-primary" disabled={busy || documentBusy || quotationBusy || !sgCode.trim()}>{busy ? "Guardando…" : canCorrect ? "Guardar corrección" : "Asignar SG"}</button>
+          <label className="field-label">Código SG<input className="form-control" required value={sgCode} disabled={busy || quotationBusy || commercialBusy} aria-invalid={!!validation} aria-describedby={validation ? "sg-error" : undefined} onChange={(e) => { setSgCode(e.target.value); setValidation(""); }} placeholder={data.project.sgCode ?? "SG001"} /></label>
+          <button className="button-primary" disabled={busy || documentBusy || quotationBusy || commercialBusy || !sgCode.trim()}>{busy ? "Guardando…" : canCorrect ? "Guardar corrección" : "Asignar SG"}</button>
         </form>
         {validation && <p id="sg-error" role="alert" className="error-message mt-3">{validation}</p>}
       </section>}
       </div>
       {isPreparationAssignee && preparation?.status !== "Pending" && <div className={styles.quotation}><BudgetQuotationPanel key={data.project.sgCode} projectId={id}
         canEdit={canCorrect} reviewStatus={data.tasks.find((task) => task.type === "ReviewQuotation")?.status}
-        disabled={busy || documentBusy} onBusyChange={setQuotationBusy}
+        disabled={busy || documentBusy || commercialBusy} onBusyChange={setQuotationBusy}
+        onRefreshRelated={refreshQuotationRelated}
+        onTasksUpdated={(tasks) => resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] })} /></div>}
+      {canReview && review && review.status !== "Pending" && <div className={styles.commercial}><CommercialQuotationPanel projectId={id} reviewStatus={review.status}
+        disabled={busy || documentBusy || quotationBusy} onBusyChange={setCommercialBusy}
         onRefreshRelated={refreshQuotationRelated}
         onTasksUpdated={(tasks) => resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] })} /></div>}
       <section aria-labelledby="project-notifications-title" className={styles.activity}><h2 id="project-notifications-title" className={styles.sectionLabel}>Actividad del proyecto</h2><NotificationList notifications={data.notifications} variant="activity" /></section>

@@ -1,6 +1,6 @@
 # SnG Control Frontend
 
-Frontend de Steel & Glass. Incluye acceso con Google, el flujo operativo Cliente → Proyecto → Documentos → Envío a Presupuestos → SG → Preview y confirmación de cotización XLSX, y Frontend 3A — Gerencia, con resumen ejecutivo y consulta transversal de tareas de SnG-Control-Backend.
+Frontend de Steel & Glass. Incluye acceso con Google, el flujo operativo Cliente → Proyecto → Documentos → Presupuestos → SG → Cotización XLSX → Revisión Comercial → Asesor responsable, y Frontend 3A — Gerencia, con resumen ejecutivo y consulta transversal de tareas de SnG-Control-Backend. El flujo implementado termina al iniciar la tarea de presentación al cliente.
 
 ## Estado funcional
 
@@ -44,7 +44,7 @@ Frontend 3A conserva el flujo de 2B.5 y ofrece estas rutas protegidas:
 | `/clients` | Listar y crear clientes por nombre |
 | `/projects` | Listado de proyectos con cliente, ciudad, línea, SG y fecha |
 | `/projects/new` | Crear proyecto con un cliente existente y línea Classic, Essential, Bioconfort o Signature |
-| `/projects/[id]` | Datos, documentos vigentes/históricos, envío inicial a Presupuestos, SG, cotización técnica, tareas y notificaciones |
+| `/projects/[id]` | Datos, documentos, envío a Presupuestos, SG, cotización técnica, revisión Comercial, tareas y notificaciones |
 | `/tasks` | Tareas filtradas explícitamente por área y estado |
 | `/notifications` | Notificaciones personales y alertas activas/resueltas |
 | `/management` | Resumen ejecutivo, solo Gerencia |
@@ -64,7 +64,7 @@ Las notificaciones conservan el historial, incluidas alertas de atraso resueltas
 
 El detalle reúne encabezado, estado actual, documentación, acciones disponibles y actividad en un expediente continuo con divisores. Las tareas del proyecto muestran sus fechas directamente. El shell combina navegación azul pálido y una cabecera discreta; las demás páginas conservan sus componentes actuales.
 
-Todo usa el BFF y cliente API compartidos. Los documentos generales siguen siendo opacos. La cotización XLSX tiene su flujo técnico específico descrito a continuación; revisión comercial, aprobación y pago siguen pendientes. No hay roles inventados, permisos simulados ni métricas inventadas. Intelligence se integra como experiencia separada de consulta.
+Todo usa el BFF y cliente API compartidos. Los documentos generales siguen siendo opacos. La cotización XLSX tiene los flujos de Presupuestos y revisión Comercial descritos a continuación; presentación al cliente, aprobación y pago siguen pendientes. No hay roles inventados, permisos simulados ni métricas inventadas. Intelligence se integra como experiencia separada de consulta.
 
 ## Presupuestos — cotización XLSX y envío a Comercial (4C/4D)
 
@@ -82,7 +82,21 @@ Al abrir o recargar, se consulta `GET projects/{id}/budget-quotation/status`: No
 
 **Enviar a Comercial** aparece únicamente cuando backend devuelve `canSendToCommercial=true`. Primero pide confirmación humana; Cancelar no envía nada. Confirmar ejecuta el POST existente sin body. Las tareas de la respuesta se muestran de inmediato y se refrescan estado, tareas y actividad: PrepareQuotation Completed y ReviewQuotation InProgress con fechas y notificación del backend. No hay envío automático ni cálculos locales de deadlines.
 
-Si cambió el SG después de confirmar, se muestran ambos SG y el bloqueo sin corregir archivos ni catálogo. Los estados incompatibles y conflictos ofrecen mensajes seguros y actualización. El estado “Enviada a Comercial” sobrevive F5 y no vuelve a ofrecer envío. La revisión Comercial en UI todavía no está implementada.
+Si cambió el SG después de confirmar, se muestran ambos SG y el bloqueo sin corregir archivos ni catálogo. Los estados incompatibles y conflictos ofrecen mensajes seguros y actualización. El estado “Enviada a Comercial” sobrevive F5 y no vuelve a ofrecer envío.
+
+## Revisión Comercial de cotización (4E)
+
+El expediente muestra **Revisión Comercial** al usuario cuyo Subject coincide con el asignado a ReviewQuotation. Con tarea InProgress puede descargar la cotización operativa de Presupuestos, editarla externamente en Excel y seleccionar un único `.xlsx` revisado. La autorización real corresponde al backend; email, nombre, creador del proyecto e indicador de Gerencia no conceden esta acción.
+
+**Generar preview** muestra el total del proyecto, precios unitarios/totales, ítems en el orden recibido y diferencias técnicas con atribución **Antes (Presupuestos)** / **Ahora (Comercial)**. Es solo lectura: no hay edición web ni cálculos económicos locales. Para cambiar valores se edita Excel y se genera otro preview. Reemplazar el archivo, incluso con el mismo nombre, descarta el preview y la confirmación pendiente.
+
+**Confirmar cotización comercial** requiere una confirmación humana; Cancelar no envía nada. Se remite exactamente el mismo archivo del preview para que backend vuelva a interpretarlo. El éxito muestra ReviewQuotation Completed y PresentQuotationToClient InProgress asignada por backend al asesor creador original, y actualiza tareas/actividad. No se calculan fechas ni se implementa todavía la presentación al cliente.
+
+Tras confirmar, el Jefe Comercial consulta el resumen y puede **Descargar cotización final**, sin otro upload/preview/confirmación. F5 recupera el estado completado desde las tareas oficiales. El contrato actual no ofrece una consulta del resumen económico confirmado: tras recargar no se inventan importe ni cantidad de diferencias; permanecen el estado, las tareas y la descarga final. Los archivos se conservan únicamente en memoria durante la operación y se descartan al cambiar de cuenta/proyecto.
+
+Los errores de estructura muestran filas faltantes/inesperadas por sección; no se intenta reconciliar el Excel. Conflictos de SG, economía, archivo, permisos o confirmación previa tienen mensajes seguros. AlreadyConfirmed refresca las tareas y bloquea otra confirmación. Las descargas mantienen los bytes del servidor y su filename en la descarga convencional; con selector nativo se respeta el nombre elegido por el usuario.
+
+**Deuda funcional conocida:** el backend actual soporta la primera cotización de Presupuestos y la primera confirmación Comercial. El futuro ciclo cliente solicita cambios → Comercial registra solicitud → vuelve a Presupuestos → Jefe Comercial notificado → nueva cotización → nueva revisión → nueva presentación aún no está implementado. 4E conserva las invariantes V1.
 
 ## Gerencia — Frontend 3A
 

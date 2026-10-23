@@ -236,6 +236,10 @@ Las rutas `/clients`, `/projects`, `/projects/new`, `/projects/[id]`, `/tasks` y
 | Confirmación inicial Presupuestos | POST `projects/{id}/budget-quotation/confirm`, multipart `file` + `confirmation` |
 | Estado persistente de cotización | GET `projects/{id}/budget-quotation/status`, sin body |
 | Envío a Comercial | POST `projects/{id}/send-to-commercial`, sin body |
+| Excel operativo Comercial | GET `projects/{id}/budget-quotation/commercial-file` |
+| Preview Comercial | POST `projects/{id}/commercial-quotation/preview`, multipart solo `file` |
+| Confirmación Comercial | POST `projects/{id}/commercial-quotation/confirm`, multipart solo `file` |
+| Excel comercial final | GET `projects/{id}/commercial-quotation/file` |
 | Tareas filtradas | GET `project-tasks?area={area}&status={status}` |
 | Notificaciones personales | GET `notifications`, sin query params |
 
@@ -253,7 +257,7 @@ Todas las mutaciones tienen bloqueo síncrono contra doble submit y controles de
 
 `features/budgetQuotation` separa tipos, parser cerrado, service, validación y componentes de panel/preview/editor. `ProjectDetailPage` monta el panel con PrepareQuotation InProgress o Completed y coincidencia `user.subject === assignedToGoogleSubject`; backend sigue autorizando con BudgetsAssignee. El editor 4C requiere InProgress, SG existente y status NotConfirmed. El panel ocupa el ancho del expediente entre acciones y actividad/tareas, con cards y grids adaptables.
 
-`budgetQuotationService` usa `api.upload` con AbortSignal y rutas del BFF existente. Preview envía exactamente `file`; confirm envía exactamente `file` y `confirmation`, Blob `application/json; charset=utf-8`. El navegador genera el boundary. El BFF pasa el stream original sin leer/reconstruir multipart/XLSX; mantiene origen fijo server-only, cabeceras permitidas, no-store y sanitización. El subpath budget-quotation admite POST preview/confirm y GET status; send-to-commercial admite solo POST sin payload, incluidos streams técnicamente presentes pero vacíos. Se rechazan métodos/subrutas adicionales sin ampliar documentos ni otras rutas.
+`budgetQuotationService` usa `api.upload` con AbortSignal y rutas del BFF existente. Preview envía exactamente `file`; confirm envía exactamente `file` y `confirmation`, Blob `application/json; charset=utf-8`. El navegador genera el boundary. El BFF pasa el stream original sin leer/reconstruir multipart/XLSX; mantiene origen fijo server-only, cabeceras permitidas, no-store y sanitización. El subpath budget-quotation admite POST preview/confirm y GET status/commercial-file; send-to-commercial admite solo POST sin payload, incluidos streams técnicamente presentes pero vacíos. Se rechazan métodos/subrutas adicionales sin ampliar documentos ni otras rutas.
 
 Los parsers rechazan claves desconocidas, tipos/nulabilidad incorrectos, números no finitos/no positivos, cantidades fraccionarias, identidades duplicadas y respuestas de otro proyecto. El preview conserva metadata documental, orden de ítems, Main/Additional, imágenes y warnings. Se admiten data URLs únicamente de PNG, JPEG, GIF, BMP y TIFF con base64 válido; SVG/HTML y otros MIME rechazan el contrato. La disponibilidad de decodificación de TIFF depende del navegador. MissingImage/AmbiguousImage se muestran sin bloquear confirmación. La respuesta confirmada trae `image: {status, contentType}`, no los bytes del preview.
 
@@ -271,7 +275,7 @@ NotConfirmed permite montar `BudgetQuotationEditor` con las condiciones de 4C. C
 
 Enviar abre confirmación inline accesible. Solo Confirmar envío llama `api.post(..., undefined, {signal})`: sin JSON, FormData ni Content-Type inventados. El parser valida la respuesta oficial y sus tareas. Estas actualizan inmediatamente el expediente; GET status, tareas y notificaciones convergen después con backend. Un fallo de refresco conserva el éxito del POST y permite reintentar solo lecturas. Los 409 AlreadySent, InvalidState, SgChangedAfterConfirmation, DocumentMismatch y DocumentUnavailable tienen mensajes seguros y refrescan status/tareas/actividad. Los locks y aborts protegen doble submit, SG/documentos concurrentes, desmontaje y cambio de identidad/proyecto.
 
-El estado recuperado sobrevive F5 porque procede de PostgreSQL a través del read model, no de flags persistidos/localStorage/sessionStorage. El GET no devuelve bytes, imágenes, storage keys ni extracción completa; el backend comparte la validación con el comando y este revalida bajo bloqueo. Gerencia no obtiene nuevos permisos y SnG Intelligence no consume este endpoint. Revisión Comercial en UI permanece pendiente.
+El estado recuperado sobrevive F5 porque procede de PostgreSQL a través del read model, no de flags persistidos/localStorage/sessionStorage. El GET no devuelve bytes, imágenes, storage keys ni extracción completa; el backend comparte la validación con el comando y este revalida bajo bloqueo. Gerencia no obtiene nuevos permisos y SnG Intelligence no consume este endpoint. La revisión Comercial se integra en el bloque 4E descrito abajo.
 
 Los códigos UnreadableWorkbook, UnsupportedWorkbookFormat, InvalidDocumentSgCode y TechnicalLimitExceeded conservan el sanitizer existente y tienen mensajes españoles. El backend actual devuelve ciertos 400/409 sin code; `budgetQuotationProblem` traduce exclusivamente títulos exactos conocidos en estos dos endpoints a InvalidConfirmation, AlreadyConfirmed, SgCodeMismatch o InvalidWorkflowState antes del sanitizer. No preserva texto libre ni extensiones desconocidas. 401 invalida sesión; 403 conserva sesión; 404, 413, red y 5xx muestran mensajes seguros. La sanitización del frontend no altera las reglas del backend.
 
@@ -280,6 +284,24 @@ Los códigos UnreadableWorkbook, UnsupportedWorkbookFormat, InvalidDocumentSgCod
 `TaskList` y `TaskTimingStatus` presentan los tipos/estados y `leakTimeStatus` del backend en español. `formatDate` usa `Intl.DateTimeFormat` con **America/Bogota**, incluyendo hora para vencimientos. No compara deadlines con el reloj ni reconstruye días hábiles. Cuando PrepareQuotation está NotStarted sin deadline, indica que el plazo comienza al asignar SG.
 
 `NotificationList` conserva Informational, Active y Resolved. Resalta Overdue Active y mantiene Overdue Resolved como historial. Muestra título, mensaje, tipo de tarea, fechas y estado; las personales enlazan al proyecto. No muestra recipientGoogleSubject ni incorpora leído/no leído, contadores o acciones de mutación.
+
+### Comercial 4E — revisión de cotización
+
+`features/commercialQuotation` contiene tipos, parser cerrado, service, mensajes seguros, `CommercialQuotationPanel`, preview de solo lectura y estilos responsive. Se monta en el expediente después de Presupuestos y antes de actividad/tareas, únicamente para el Subject asignado a ReviewQuotation InProgress/Completed. La tarea InProgress permite actuar; Completed muestra estado y descarga final. No se infieren roles por email, nombre, creador o isManagement.
+
+Auditoría backend: preview/confirm y archivo operativo requieren CommercialHead; el archivo final permite Jefe Comercial o creador original, sin ampliar el panel al asesor. El multipart acepta únicamente `file`; backend valida SG, estructura exacta Section + SourceRow, workbook y economía. La confirmación reinterpreta el XLSX, conserva sus bytes como archivo final y completa ReviewQuotation/inicia PresentQuotationToClient para el creador original. No hubo cambios backend para 4E.
+
+El parser valida projectId, claves exactas, enums, nulabilidad, números finitos, importes no negativos, medidas positivas y cantidad entera. El preview conserva orden, sección, sourceRow, commercialCatalogItemId, los once valores técnicos, unitPrice, totalPrice y technicalDifferences. Las diferencias solo admiten los once TechnicalField oficiales y strings previousValue/currentValue; su conteo se verifica contra el resumen recibido. No hay comparación técnica local ni cálculo económico. El formato COP conserva los dígitos significativos del número JSON recibido, sin redondearlo a dos decimales. Los contratos JSON actuales usan números JavaScript, no strings de decimal arbitrario.
+
+Archivo y preview forman un snapshot `{file, data}` en React. Confirmar requiere el mismo objeto File y un paso humano inline; el multipart contiene solo `file`, sin precios, IDs ni correcciones declaradas por frontend. Los locks bloquean doble preview/confirm y operaciones incompatibles; cambiar archivo invalida preview/errores/prompt. El remount proyecto + Subject aborta solicitudes, descarta resultados tardíos y elimina el estado efímero, sin almacenamiento persistente de XLSX ni contenido comercial.
+
+La respuesta cerrada de confirmación aporta projectId, commercialQuotationId, projectTotal, commercialFileAvailable, reviewTask, presentQuotationToClientTask, hasTechnicalDifferences y technicalDifferencesCount. Actualiza inmediatamente las tareas oficiales y después relee tareas/notificaciones. Si la actualización falla, conserva el éxito del comando y permite reintentar solo lecturas. F5 reconstruye Completed desde tareas, sin reabrir editor. No existe endpoint para recuperar importe/conteo de diferencias finales: después de F5 se muestra el estado y la descarga, sin fabricar ese resumen ni conservarlo en storage.
+
+El BFF limita estos subpaths a los cuatro métodos/rutas de la tabla. Conserva origen fijo server-only, Authorization permitido, redirect:error, no-store, boundary y stream multipart intactos. Las descargas usan `api.downloadStream` y `saveDownload`: escritura por stream donde existe selector nativo; fallback Blob del mecanismo existente, con Content-Disposition seguro. No se regenera, previsualiza ni interpreta XLSX. El selector nativo respeta la elección de nombre del usuario; el fallback usa el nombre backend.
+
+Se mapean ProjectNotFound, Forbidden, InvalidWorkflowState, AlreadyConfirmed, ProjectCreatorUnavailable, DocumentUnavailable, SgCodeMismatch, StructuralMismatch, InvalidWorkbook e InvalidEconomics, además de InvalidState del archivo operativo. StructuralMismatch muestra solo claves de filas sanitizadas; no reconcilia por número de ítem u orden. AlreadyConfirmed bloquea otro envío y refresca tareas. 401 invalida sesión, 403 mantiene sesión y los demás errores conservan sanitización central, sin paths, tokens, stacks ni origen backend.
+
+4E termina al iniciar PresentQuotationToClient. Deuda funcional: cliente solicita cambios → Comercial registra → Presupuestos → notificación al Jefe Comercial → nueva cotización/revisión/presentación. Este ciclo V2 no está implementado; se conserva el modelo V1 de primera cotización/primera confirmación. Intelligence permanece fuera de este flujo.
 
 ### Gerencia — Frontend 3A
 
@@ -300,7 +322,7 @@ El detalle de proyecto sigue usando assignee/estado para SG y capabilities del b
 
 La creación de clientes/proyectos se oculta para `isManagement: true`, incluyendo acceso directo a `/projects/new`, y no se ofrece mediante shortcuts. **Es UX, no seguridad**: el backend todavía acepta creación general por cualquier Google autenticado. El contrato no expone una capability general que distinga Gerencia pura de Gerencia con permiso comercial de creación; esta ocultación también alcanza a identidades mixtas hasta que exista ese contrato. No se intenta inferirlo desde Subject, email, nombre ni tareas. Clientes/proyectos vuelven a consultar al cambiar Subject; la forma de creación de cliente se remonta también si cambia el flag.
 
-Intelligence tiene su bloque separado descrito a continuación. Presupuestos incluye confirmación inicial, recuperación persistente y envío a Comercial. Revisión comercial en UI, aprobación y pago siguen pendientes.
+Intelligence tiene su bloque separado descrito a continuación. Presupuestos incluye confirmación inicial, recuperación persistente y envío a Comercial. La revisión Comercial 4E completa el handoff al asesor; presentación al cliente, aprobación y pago siguen pendientes.
 
 ### Intelligence 1C: arquitectura, contratos y voz
 
@@ -493,7 +515,7 @@ Smoke real pendiente de Realtime Voice 2C: iniciar desde el micrófono principal
 
 ## Límites y siguiente bloque
 
-Frontend 3A agrega Gerencia al flujo y sistema visual de 2B.5. Presupuestos 4C/4D agrega preview técnico XLSX, edición de once campos, confirmación inicial, estado persistente y envío a Comercial. La revisión comercial en UI sigue pendiente. Intelligence agrega consulta textual/voz como feature separada. No implementa aprobación/pago, roles inventados, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad.
+Frontend 3A agrega Gerencia al flujo y sistema visual de 2B.5. Presupuestos 4C/4D agrega preview técnico XLSX, edición de once campos, confirmación inicial, estado persistente y envío a Comercial. Comercial 4E agrega descarga operativa, preview de solo lectura con economía y diferencias, y confirmación que inicia PresentQuotationToClient. Intelligence agrega consulta textual/voz como feature separada. No implementa aprobación/pago, roles inventados, permisos simulados ni cálculos de negocio. El backend sigue siendo la autoridad.
 
 ### Smoke de Presupuestos 4C/4D
 
@@ -510,6 +532,20 @@ El usuario confirmó el smoke principal real de 4C: versión 1, 22 ítems, canti
 El usuario verificó el smoke real de 4D: reload después de confirmar conserva Confirmed y recupera metadata del Backend; Enviar a Comercial exige confirmación humana y Cancelar no modifica estado; el envío exitoso completa PrepareQuotation, crea/inicia ReviewQuotation y actualiza tareas/actividad; el reload posterior conserva SentToCommercial sin botón de reenvío. Para regresión por cambio SG, usar únicamente un proyecto sintético o un caso seguro, sin manipular proyectos reales para forzar el error.
 
 El smoke funcional principal de 4D está aprobado por el usuario. No se ha confirmado en este cierre la inspección responsive/teclado de 375, 768, 1024 px y desktop; los tests con red mockeada no la sustituyen.
+
+### Smoke preparado de Comercial 4E
+
+Pendiente de ejecución real y revisión visual; los tests con red mockeada no sustituyen Excel, login real ni inspección de navegador.
+
+1. Login como Jefe Comercial; abrir un proyecto enviado por Presupuestos con ReviewQuotation InProgress. Comprobar que aparece Revisión Comercial; otro Subject no debe ver el panel.
+2. Descargar cotización y abrirla en Excel. Verificar estructura, formato y valores confirmados por Presupuestos.
+3. Modificar de forma controlada un valor técnico y precios, guardar XLSX y generar preview. Comparar total del proyecto, unitarios/totales, diferencias reales y ausencia de falsos cambios con el archivo.
+4. Pulsar Confirmar cotización comercial y Cancelar: nada debe cambiar. Repetir y Confirmar usando el mismo archivo.
+5. Verificar ReviewQuotation Completed y PresentQuotationToClient InProgress asignada al asesor creador original, con fechas y actividad oficiales.
+6. F5: no reaparecen upload/preview/confirmación; las tareas persisten. Descargar cotización final y verificar que es el XLSX confirmado.
+7. Revisar 375, 768, 1024 px y desktop amplio: cards, precios y diferencias legibles sin overflow horizontal obligatorio. Verificar etiquetas, foco y confirmación/cancelación por teclado.
+
+No alterar proyectos reales para provocar errores artificiales. Los escenarios de fallo/concurrencia/identidad están cubiertos con mocks.
 
 Deuda funcional: la autorización actual permite crear clientes/proyectos a cualquier Google autenticado. Gerencia tiene una restricción únicamente de UX descrita arriba. La seguridad de estas operaciones y una capability de creación para identidades mixtas requieren futura autorización general de Comercial en backend.
 

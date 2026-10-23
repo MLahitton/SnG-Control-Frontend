@@ -1,0 +1,24 @@
+.panel { display: grid; gap: 18px; min-width: 0; padding: 24px; border-block: 1px solid var(--border); }
+.panel h2 { font-size: 20px; font-weight: 650; }
+.panel h3, .panel h4, .panel h5, .panel h6 { font-weight: 600; }
+.panel h4 { font-size: 17px; }
+.panel p, .panel dd, .panel input, .panel button { overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
+.muted { color: var(--ink-soft); font-size: 13px; }
+.stack, .items { display: grid; gap: 20px; min-width: 0; }
+.summary, .prices, .values, .comparison { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.summary { padding: 18px; background: #f0f7fa; border: 1px solid #d4e5ec; }
+.summary dt, .values dt, .prices dt, .comparison dt { font-size: 12px; color: var(--ink-soft); margin-bottom: 5px; }
+.summary dd, .prices dd { font-weight: 600; font-variant-numeric: tabular-nums; }
+.item { display: grid; gap: 18px; min-width: 0; border: 1px solid var(--border); padding: 20px; }
+.prices { padding-block: 16px; border-block: 1px solid var(--border); }
+.differences { display: grid; gap: 16px; padding: 16px; border-left: 3px solid #36718c; background: #f5f9fb; }
+.change h6 { margin-bottom: 12px; }
+.comparison dd { white-space: pre-wrap; }
+.confirmation { display: grid; gap: 16px; padding: 20px; border: 1px solid #9bbac9; background: #f5f9fb; }
+.buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+@media (min-width: 640px) {
+  .values, .prices, .comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1100px) { .items { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
+@media (max-width: 479px) { .panel { padding: 20px 16px; } .item, .differences, .confirmation { padding: 14px; } }

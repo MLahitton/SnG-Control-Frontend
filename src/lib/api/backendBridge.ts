@@ -1,6 +1,6 @@
 import "server-only";
 import { getApiBaseUrl } from "@/lib/config/server-env";
-import { isBackendPath, isBudgetQuotationPath, isSendToCommercialPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
+import { isBackendPath, isBudgetQuotationPath, isCommercialQuotationPath, isSendToCommercialPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
 import { budgetQuotationProblem } from "./budgetQuotationProblem";
 import { safeProblem } from "./apiError";
 import { downloadFilename } from "./contentDisposition";
@@ -55,7 +55,8 @@ async function hasPayload(body: ReadableStream<Uint8Array>, signal: AbortSignal)
 }
 
 export async function forwardBackend(request: Request, segments: string[]): Promise<Response> {
-  const quotationMethod = isBudgetQuotationPath(segments) ? (segments[3] === "status" ? "GET" : "POST") : isSendToCommercialPath(segments) ? "POST" : null;
+  const quotationMethod = isBudgetQuotationPath(segments) || isCommercialQuotationPath(segments)
+    ? (["status", "commercial-file", "file"].includes(segments[3]) ? "GET" : "POST") : isSendToCommercialPath(segments) ? "POST" : null;
   if (quotationMethod && request.method !== quotationMethod) return problem(405, undefined, new Headers({ Allow: quotationMethod }));
   if (segments[0] === "management" && request.method !== "GET") {
     return problem(405, undefined, new Headers({ Allow: "GET" }));
