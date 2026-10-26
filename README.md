@@ -273,3 +273,35 @@ cada reload. No concede permisos: Backend valida X-SnG-Active-Role en cada reque
 Cambiar área cancela consultas, limpia estados, remonta la experiencia y abre su inicio;
 logout o cambio de Subject descartan la preferencia anterior. El responsable comercial
 del proyecto y las asignaciones permanecen intactos; el header muestra el área de sesión.
+
+
+## Estabilidad de turnos Live
+
+El micrófono solicita constraints estándar opcionales: `echoCancellation`, `noiseSuppression`,
+`autoGainControl` y `channelCount: 1`. Si la combinación produce `OverconstrainedError`, se intenta
+una sola vez `audio: true`; errores de permiso o dispositivo no disparan ese fallback.
+Los navegadores pueden ignorar constraints. Esto mitiga eco/ruido sin garantizar su eliminación.
+
+Se mantiene full-duplex, mute manual (`track.enabled`) y `playbackBlocked`/`resumeAudio()`.
+No se apaga el micrófono durante la respuesta ni se envía `response.cancel`. `activity.ts`
+sigue siendo un medidor para UI/latencia, nunca control de turno ni VAD.
+
+Los terminales `response.completed/failed/incomplete` conservan su correlación. Limpian `working`
+y `responses`; eventos duplicados o tardíos no afectan una respuesta posterior. Al completar se
+descarta la estimación acústica pendiente para evitar un Pensando indefinido, sin declarar que
+el audio haya terminado. Failed/incomplete muestran error de delegación y cierran la sesión.
+Todos los cierres limpian trabajo inmediatamente, sin esperar el ACK remoto. `session.closed`
+inesperado se muestra como expired/network/unavailable, nunca como una sesión aún escuchando.
+
+En desarrollo, `live_event` registra únicamente categoría, estado, número de respuesta,
+working_count y fallo clasificado. No imprime eventos crudos, IDs, transcripts, SDP o credenciales.
+El servidor Intelligence mantiene el diagnóstico estructurado correlacionado por request_id.
+No se agrega un endpoint de telemetry ni persistencia del navegador.
+
+Smoke manual pendiente: (A) audífonos y respuesta completa; (B) repetir con altavoces a volumen
+normal; (C) sonido breve sin habla durante la respuesta, que no debería cortarla; (D) decir
+«espera, otra cosa» claramente y completar la nueva pregunta, comprobando barge-in intencional.
+Verificar también mute/reactivación y playback bloqueado. Registrar solo resultado, dispositivo,
+navegador y metadata segura, sin grabaciones ni transcripts. Si el fallo aparece solo con altavoces,
+documentar la diferencia de hardware/browser antes de considerar otra mitigación. Los tests no
+simulan eco real; la aprobación acústica requiere este smoke.

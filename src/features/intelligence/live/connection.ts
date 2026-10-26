@@ -75,9 +75,14 @@ export class LiveConnection {
   private events = new Set<string>();
   private responses = new Map<string, string>();
   private working = new Set<string>();
+  private seenResponses = new Set<string>();
 
   constructor(private api: ApiClient, private notify: (view: LiveView) => void) {}
   private publish(patch: Partial<LiveView>) { this.view = { ...this.view, ...patch }; this.notify(this.view); }
+  private diagnose(event: "session.started" | "session.closed" | "response.created" | "response.completed" | "response.failed" | "response.incomplete" | "error" | "session.closing" | "microphone.constraints_fallback", failure?: LiveFailure) {
+    // Closed categories and counters only; never stringify a provider event or error.
+    if (process.env.NODE_ENV === "development") console.info(JSON.stringify({ operation: "live_event", event, state: this.view.state, response_number: this.seenResponses.size, working_count: this.working.size, failure }));
+  }
   private activity(state: LiveState) {
     if (this.ready && !this.closing && !this.closed && this.view.state !== state) this.publish({ state });
   }
@@ -87,7 +92,15 @@ export class LiveConnection {
     if (typeof RTCPeerConnection === "undefined" || typeof MediaStream === "undefined") { this.fail("unsupported"); return; }
     this.connectTimer = setTimeout(() => this.fail("unavailable"), 45_000);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+      } catch (error) {
+        if (this.closing || this.closed) return;
+        if (!error || typeof error !== "object" || !("name" in error) || error.name !== "OverconstrainedError") throw error;
+        this.diagnose("microphone.constraints_fallback");
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       if (this.closing || this.closed) { stream.getTracks().forEach((track) => track.stop()); return; }
       this.microphone = stream;
       const pc = new RTCPeerConnection(); this.pc = pc;
@@ -146,15 +159,16 @@ export class LiveConnection {
     const event = parseLiveEvent(data);
     if (!event || this.closed) return;
     if (event.type === "closed") {
+      this.diagnose("session.closed");
       this.finalized = true;
       if (this.closing) this.finishClose?.();
       else if (event.reason === "expired") this.fail("expired");
       else if (event.reason === "connection_lost") this.fail("network");
-      else void this.close();
+      else this.fail("unavailable");
       return;
     }
     if (this.closing) return;
-    if (event.type === "started") { this.startedId = event.sessionId; this.markReady(); return; }
+    if (event.type === "started") { this.diagnose("session.started"); this.startedId = event.sessionId; this.markReady(); return; }
     if (event.type === "failure") { this.fail(event.code.includes("rate_limit") ? "limit" : event.code.includes("expired") ? "expired" : event.code === "delegation_failed" ? "delegation" : "unavailable"); return; }
     if (!this.ready) return;
     if (event.type === "transcript") {
@@ -166,12 +180,29 @@ export class LiveConnection {
       this.activity(event.role === "user" ? "user_speaking" : "assistant_speaking");
     }
     if (event.type === "response") {
-      if (this.responses.size >= 128) { this.fail("limit"); return; }
+      if (this.seenResponses.has(event.responseId)) return;
+      if (this.seenResponses.size >= 128) { this.fail("limit"); return; }
+      this.seenResponses.add(event.responseId);
       const previous = this.responses.get(event.delegationId);
       if (previous) this.working.delete(previous);
       this.responses.set(event.delegationId, event.responseId); this.working.add(event.responseId); this.activity("assistant_thinking");
+      this.diagnose("response.created");
     }
-    if (event.type === "response_finished") { this.working.delete(event.responseId); if (!this.working.size && !this.latency.waiting && this.view.state === "assistant_thinking") this.activity("listening"); }
+    if (event.type === "response_finished") {
+      const active = this.responses.get(event.delegationId);
+      // A late terminal event must not finish or fail a newer response.
+      if (active && active !== event.responseId) return;
+      if (!active && this.seenResponses.has(event.responseId)) return;
+      this.working.delete(event.responseId); this.responses.delete(event.delegationId);
+      this.diagnose(event.outcome === "completed" ? "response.completed" : event.outcome === "failed" ? "response.failed" : "response.incomplete");
+      if (event.outcome !== "completed") { this.fail("delegation"); return; }
+      if (!this.working.size) {
+        // Discard an unfinished acoustic estimate; it cannot keep the UI thinking forever.
+        // Completion of delegated work is not proof that speech has finished playing.
+        this.latency.reset();
+        if (this.view.state === "assistant_thinking") this.activity("listening");
+      }
+    }
   }
   private send(value: object) {
     if (this.channel?.readyState !== "open") throw new Error("Channel unavailable");
@@ -192,9 +223,11 @@ export class LiveConnection {
     try { await this.audio?.play(); if (!this.closed && !this.closing) this.publish({ playbackBlocked: false }); }
     catch { if (!this.closed && !this.closing) this.publish({ playbackBlocked: true }); }
   }
-  private fail(failure: LiveFailure) { if (!this.closing && !this.closed) void this.close(failure); }
+  private fail(failure: LiveFailure) { if (!this.closing && !this.closed) { this.diagnose("error", failure); void this.close(failure); } }
   close(failure?: LiveFailure, immediate = false): Promise<void> {
     if (this.closePromise) { if (immediate) this.finishClose?.(); return this.closePromise; }
+    this.diagnose("session.closing", failure);
+    this.responses.clear(); this.working.clear();
     this.closing = true; this.ready = false; clearTimeout(this.connectTimer); clearTimeout(this.lifetimeTimer);
     this.latency.close(); this.controller.abort(); this.meter();
     this.microphone?.getTracks().forEach((track) => { track.onended = null; track.stop(); });
@@ -215,7 +248,7 @@ export class LiveConnection {
       await drained;
       if (this.channel) { this.channel.onmessage = null; this.channel.onclose = null; this.channel.onerror = null; this.channel.close(); }
       if (this.pc) { this.pc.ontrack = null; this.pc.onconnectionstatechange = null; this.pc.close(); }
-      this.closed = true; this.events.clear(); this.responses.clear(); this.working.clear(); this.startedId = undefined;
+      this.closed = true; this.events.clear(); this.responses.clear(); this.working.clear(); this.seenResponses.clear(); this.startedId = undefined;
       const revoked = await revoke;
       this.publish({ state: failure ? "error" : "idle", closeUnconfirmed: (!!sessionId && !this.finalized) || !revoked });
     })();

@@ -44,7 +44,7 @@ describe("Live session lifecycle", () => {
     expect(getUserMedia).not.toHaveBeenCalled();
     await act(async () => { await Promise.all([result.current.start(), result.current.start()]); });
     const pc = LivePeer.instances[0];
-    expect(getUserMedia).toHaveBeenCalledExactlyOnceWith({ audio: true });
+    expect(getUserMedia).toHaveBeenCalledExactlyOnceWith({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
     expect(pc.addTrack).toHaveBeenCalledWith(track, stream); expect(pc.createDataChannel).toHaveBeenCalledWith("oai-events");
     expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ sdp: liveSdp });
     expect(pc.setRemoteDescription).toHaveBeenCalledWith({ type: "answer", sdp: liveSdp });
@@ -93,6 +93,7 @@ describe("Live session lifecycle", () => {
     await act(async () => { await result.current.start(); });
     expect(result.current.failure).toBe(name === "NotAllowedError" ? "permission" : "microphone");
     expect(result.current.state).toBe("error"); expect(LivePeer.instances).toHaveLength(0);
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
   });
   it.each(["cancel", "unmount"])("releases permission granted after %s", async (action) => {
     const { getUserMedia, stream, track } = mockLiveBrowser(); const pending = deferred<MediaStream>(); getUserMedia.mockReturnValue(pending.promise);
@@ -199,4 +200,76 @@ describe("Live delegation and continuous context", () => {
   });
 
 
+});
+
+
+describe("Live turn stability", () => {
+  it("retries only optional overconstraints once and keeps the session full duplex", async () => {
+    const { getUserMedia, track } = mockLiveBrowser();
+    getUserMedia.mockRejectedValueOnce(new DOMException("private diagnostic", "OverconstrainedError"));
+    const { result, channel } = await start();
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(getUserMedia.mock.calls[0]).toEqual([{ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }]);
+    expect(getUserMedia.mock.calls[1]).toEqual([{ audio: true }]);
+    expect(result.current.state).toBe("listening");
+    act(() => channel.emit(liveCaption("assistant", "Respuesta", 100)));
+    expect(track.enabled).toBe(true); expect(track.stop).not.toHaveBeenCalled();
+    act(() => result.current.mute()); expect(track.enabled).toBe(false);
+    act(() => result.current.mute()); expect(track.enabled).toBe(true);
+    expect(LivePeer.instances).toHaveLength(1); expect(channel.send).not.toHaveBeenCalled();
+  });
+  it("does not retry permissions after the compatibility fallback", async () => {
+    const { getUserMedia } = mockLiveBrowser();
+    getUserMedia.mockRejectedValueOnce(new DOMException("private", "OverconstrainedError"));
+    getUserMedia.mockRejectedValueOnce(new DOMException("private", "NotAllowedError"));
+    const api = client(); const { result } = renderHook(() => useLiveVoice(api));
+    await act(async () => { await result.current.start(); });
+    expect(getUserMedia).toHaveBeenCalledTimes(2); expect(result.current.failure).toBe("permission");
+  });
+  it("does not request fallback microphone permission after cancellation", async () => {
+    const { getUserMedia } = mockLiveBrowser(); const pending = deferred<MediaStream>();
+    getUserMedia.mockReturnValueOnce(pending.promise);
+    const api = client(); const { result } = renderHook(() => useLiveVoice(api));
+    let starting!: Promise<void>;
+    act(() => { starting = result.current.start(); });
+    await act(async () => { await result.current.stop(); });
+    await act(async () => { pending.reject(new DOMException("private", "OverconstrainedError")); await starting; });
+    expect(getUserMedia).toHaveBeenCalledTimes(1); expect(LivePeer.instances).toHaveLength(0);
+  });
+  it.each(["failed", "incomplete"] as const)("clears all pending responses immediately on response.%s", async (outcome) => {
+    vi.stubEnv("NODE_ENV", "development");
+    const logs = vi.spyOn(console, "info").mockImplementation(() => {});
+    const { result, channel } = await start(); channel.acknowledgeClose = false;
+    const event = (type: string, id: string) => ({ type: "response.event", delegation_id: `delegation_${id}`, event: { type, response: { id } } });
+    act(() => { channel.emit(event("response.created", "r1")); channel.emit(event("response.created", "r2")); });
+    expect(result.current.state).toBe("assistant_thinking");
+    act(() => channel.emit(event(`response.${outcome}`, "r1")));
+    expect(result.current.state).toBe("error"); expect(result.current.failure).toBe("delegation");
+    // Cleanup is synchronous even when the remote close acknowledgement is delayed.
+    act(() => channel.emit({ type: "session.closed", reason: "close_requested" }));
+    await waitFor(() => expect(channel.close).toHaveBeenCalled());
+    const rows = logs.mock.calls.map(([line]) => JSON.parse(String(line)));
+    expect(rows.find((row) => row.event === "session.closed").working_count).toBe(0);
+    expect(rows.some((row) => row.event === `response.${outcome}`)).toBe(true);
+    expect(JSON.stringify(rows)).not.toContain("delegation_r1");
+    expect(JSON.stringify(rows)).not.toContain(token);
+  });
+  it("ignores late completion/failure for a superseded response and admits the next turn", async () => {
+    const { result, channel } = await start();
+    const emit = (type: string, id: string) => channel.emit({ type: "response.event", delegation_id: "d1", event: { type, response: { id } } });
+    act(() => { emit("response.created", "r1"); emit("response.created", "r2"); emit("response.failed", "r1"); });
+    expect(result.current.state).toBe("assistant_thinking"); expect(result.current.failure).toBeUndefined();
+    act(() => emit("response.completed", "r2")); expect(result.current.state).toBe("listening");
+    act(() => { emit("response.created", "r2"); emit("response.failed", "r2"); });
+    expect(result.current.state).toBe("listening");
+    act(() => emit("response.created", "r3")); expect(result.current.state).toBe("assistant_thinking");
+    act(() => emit("response.completed", "r3")); expect(result.current.state).toBe("listening");
+    expect(channel.send).not.toHaveBeenCalled();
+  });
+  it.each([["unknown", "unavailable"], ["close_requested", "unavailable"], ["connection_lost", "network"], ["expired", "expired"]] as const)("unexpected session.closed %s is not a live listening session", async (reason, failure) => {
+    const { result, channel, pc } = await start();
+    await act(async () => channel.emit({ type: "session.closed", reason }));
+    expect(result.current.state).toBe("error"); expect(result.current.failure).toBe(failure);
+    expect(pc.close).toHaveBeenCalled();
+  });
 });

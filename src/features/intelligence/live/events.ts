@@ -6,7 +6,7 @@ export type LiveEvent =
   | { type: "failure"; code: string }
   | { type: "transcript"; eventId: string; role: "user" | "assistant"; text: string; start: number; end: number }
   | { type: "response"; delegationId: string; responseId: string }
-  | { type: "response_finished"; responseId: string };
+  | { type: "response_finished"; delegationId: string; responseId: string; outcome: "completed" | "failed" | "incomplete" };
 
 // GPT-Live events, not Realtime API conversation.item.* or arguments deltas.
 // https://developers.openai.com/api/docs/guides/live-delegation
@@ -25,8 +25,11 @@ export function parseLiveEvent(data: unknown): LiveEvent | null {
     if (v.type !== "response.event") return null;
     const e = record(v.event);
     if (e.type === "response.created") return { type: "response", delegationId: opaqueId(v.delegation_id), responseId: opaqueId(record(e.response).id) };
-    if (e.type === "response.failed" || e.type === "response.incomplete") return { type: "failure", code: "delegation_failed" };
-    if (e.type === "response.completed") return { type: "response_finished", responseId: opaqueId(record(e.response).id) };
+    if (e.type === "response.completed" || e.type === "response.failed" || e.type === "response.incomplete") {
+      try {
+        return { type: "response_finished", delegationId: opaqueId(v.delegation_id), responseId: opaqueId(record(e.response).id), outcome: e.type === "response.completed" ? "completed" : e.type === "response.failed" ? "failed" : "incomplete" };
+      } catch { return { type: "failure", code: "delegation_failed" }; }
+    }
     // Tools and their arguments are exclusively owned by the private server sideband.
     return null;
   } catch { return null; }

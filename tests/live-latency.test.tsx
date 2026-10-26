@@ -58,10 +58,10 @@ it("shows thinking at acoustic speech stop; captions and tools never enter telem
   act(() => audio.update(true, false)); expect(result.current.state).toBe("user_speaking");
   act(() => audio.update(false, false)); expect(result.current.state).toBe("assistant_thinking");
   act(() => { pc.channel.emit(liveCaption("user", "PRIVATE PROJECT CLIENT")); pc.channel.emit(completedCall()); });
-  expect(logs).not.toHaveBeenCalled();
+  expect(logs.mock.calls.filter(([line]) => JSON.parse(String(line)).operation === "live_latency")).toHaveLength(0);
   act(() => audio.update(false, true)); expect(result.current.state).toBe("assistant_speaking");
-  expect(logs).toHaveBeenCalledTimes(1);
-  const log = logs.mock.calls[0][0];
+  expect(logs.mock.calls.filter(([line]) => JSON.parse(String(line)).operation === "live_latency")).toHaveLength(1);
+  const log = logs.mock.calls.find(([line]) => JSON.parse(String(line)).operation === "live_latency")![0];
   expect(log).not.toContain(token); expect(log).not.toContain("PRIVATE"); expect(log).not.toContain("question");
   expect(fetchMock).toHaveBeenCalledTimes(1); expect(pc.channel.send).not.toHaveBeenCalled();
   await act(async () => { await result.current.stop(); });
@@ -74,5 +74,18 @@ it.each(["stop", "identity-unmount"])("cleans latency on %s and ignores late met
   if (mode === "stop") await act(async () => { await result.current.stop(); });
   else unmount();
   act(() => audio.update(false, true));
-  expect(logs).not.toHaveBeenCalled(); expect(audio.cleanup).toHaveBeenCalled();
+  expect(logs.mock.calls.filter(([line]) => JSON.parse(String(line)).operation === "live_latency")).toHaveLength(0); expect(audio.cleanup).toHaveBeenCalled();
+});
+
+it("RMS overlap never sends cancellation or mutes tracks; completion clears pending thinking", async () => {
+  const { result, pc } = await start();
+  const track = pc.addTrack.mock.calls[0][0];
+  act(() => { audio.update(true, true); audio.update(false, false); });
+  expect(result.current.state).toBe("assistant_thinking");
+  const lifecycle = (type: string) => ({ type: "response.event", delegation_id: "d1", event: { type, response: { id: "r1" } } });
+  act(() => { pc.channel.emit(lifecycle("response.created")); pc.channel.emit(lifecycle("response.completed")); audio.update(false, false); });
+  expect(result.current.state).toBe("listening");
+  act(() => audio.update(true, true)); expect(track.enabled).toBe(true);
+  expect(track.stop).not.toHaveBeenCalled(); expect(pc.channel.send).not.toHaveBeenCalled();
+  await act(async () => { await result.current.stop(); });
 });

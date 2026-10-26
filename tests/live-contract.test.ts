@@ -57,3 +57,7 @@ describe("closed GPT-Live contracts", () => {
   });
 
 });
+
+it.each(["completed", "failed", "incomplete"] as const)("projects only correlated response.%s metadata", (outcome) => {
+  expect(parse({ type: "response.event", delegation_id: "d1", event: { type: `response.${outcome}`, response: { id: "r1", error: { message: "PRIVATE" }, output: ["PRIVATE"] } } })).toEqual({ type: "response_finished", delegationId: "d1", responseId: "r1", outcome });
+});
