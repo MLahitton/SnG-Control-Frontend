@@ -1,9 +1,9 @@
-import type { LeakTimeStatus, TaskArea, TaskStatus } from "@/features/tasks/types";
+import type { LeadTimeStatus, TaskArea, TaskStatus } from "@/features/tasks/types";
 
 export interface ManagementOverview {
   totalProjects: number;
   tasks: { pending: number; inProgress: number; completed: number };
-  leakTime: {
+  LeadTime: {
     notStarted: number; onTrack: number; dueSoon: number; dueToday: number;
     overdue: number; completedOnTime: number; completedLate: number; untrackedLegacy: number;
   };
@@ -16,7 +16,7 @@ export interface ManagementOverview {
     items: Array<{
       taskId: string; projectId: string; projectName: string; clientName: string;
       sgCode: string | null; area: TaskArea; taskType: string; taskStatus: TaskStatus;
-      leakTimeStatus: LeakTimeStatus; deadlineAt: string | null; startedAt: string | null;
+      LeadTimeStatus: LeadTimeStatus; deadlineAt: string | null; startedAt: string | null;
     }>;
   };
 }
@@ -26,5 +26,5 @@ export interface ManagementTask {
   clientId: string; clientName: string; sgCode: string | null;
   city: string; productLine: string; area: TaskArea; type: string; status: TaskStatus;
   assignedAt: string; startedAt: string | null; completedAt: string | null;
-  deadlineAt: string | null; wasOverdue: boolean | null; leakTimeStatus: LeakTimeStatus;
+  deadlineAt: string | null; wasOverdue: boolean | null; LeadTimeStatus: LeadTimeStatus;
 }

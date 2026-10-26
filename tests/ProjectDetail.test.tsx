@@ -10,7 +10,7 @@ import { projectDocuments } from "./documentFixtures";
 import { notConfirmedStatus } from "./budgetQuotationFixtures";
 
 // Synthetic identities: same email/name, different stable Subjects.
-const assignedUser = { ...user, subject: task.assignedToGoogleSubject! };
+const assignedUser = { ...user, roles: ["Budgets" as const], subject: task.assignedToGoogleSubject! };
 
 function backend(initialTasks: ProjectTask[] = [], initialProject: Project = project) {
   const state = { project: initialProject, tasks: initialTasks, notifications: [notification] };

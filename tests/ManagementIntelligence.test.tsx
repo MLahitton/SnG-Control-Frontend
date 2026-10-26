@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { conversationCreated } from "./intelligenceFixtures";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -17,8 +18,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => 
 beforeEach(() => { mockVoiceBrowser(); location.pathname = "/management"; });
 function context() {
   const invalidateSession = vi.fn();
-  return { status: "authenticated" as const, user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession,
-    apiClient: createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession }) };
+  return { status: "authenticated" as const, ...roleContext("Management"), user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession,
+    apiClient: createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession }) };
 }
 function backend(handler?: (path: string, options: RequestInit) => unknown) {
   const mock = vi.fn(async (path: string, options: RequestInit) => {
@@ -55,7 +56,7 @@ describe("Management and Intelligence integration", () => {
     location.pathname = `/projects/${projectId}`;
     view.rerender(<AuthContext.Provider value={state}><AppLayout><h1>Detalle del proyecto</h1></AppLayout></AuthContext.Provider>);
     expect(screen.getByRole("main")).toHaveTextContent("Detalle del proyecto");
-    expect(screen.getByRole("link", { name: "Proyectos" })).toHaveAttribute("aria-current", "page");
+    expect(within(screen.getByRole("navigation", { name: "Principal" })).getByRole("link", { name: "Proyectos" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Resumen" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abrir SnG Intelligence" })).toBeInTheDocument();
     if (mobile) {

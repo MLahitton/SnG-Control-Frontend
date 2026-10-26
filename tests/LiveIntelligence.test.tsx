@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { conversationCreated } from "./intelligenceFixtures";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,7 +17,7 @@ import { FakeRecorder, mockVoiceBrowser } from "./intelligenceUiSetup";
 const { router } = vi.hoisted(() => ({ router: { replace: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 function context() {
-  return { status: "authenticated" as const, user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() }) };
+  return { status: "authenticated" as const, ...roleContext("Management"), user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: vi.fn() }) };
 }
 function network() {
   const fetchMock = vi.fn<(path: string, options: RequestInit) => Promise<Response>>(async (path) => {

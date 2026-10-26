@@ -1,6 +1,7 @@
+import { ACTIVE_ROLE_HEADER, isSystemRole } from "@/features/auth/types/auth";
 import "server-only";
 import { getApiBaseUrl } from "@/lib/config/server-env";
-import { isBackendPath, isBudgetQuotationPath, isCommercialQuotationPath, isSendToCommercialPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
+import { isQuotationImagePath, isBackendPath, isBudgetQuotationPath, isCommercialQuotationPath, isSendToCommercialPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
 import { budgetQuotationProblem } from "./budgetQuotationProblem";
 import { safeProblem } from "./apiError";
 import { downloadFilename } from "./contentDisposition";
@@ -10,7 +11,7 @@ function problem(status: number, payload?: unknown, headers?: Headers) {
   const safeHeaders = new Headers(headers);
   safeHeaders.set("Content-Type", "application/problem+json");
   safeHeaders.set("Cache-Control", "no-store");
-  safeHeaders.set("Vary", "Authorization");
+  safeHeaders.set("Vary", "Authorization, X-SnG-Active-Role");
   return Response.json(safeProblem(status, payload), { status, headers: safeHeaders });
 }
 
@@ -55,8 +56,8 @@ async function hasPayload(body: ReadableStream<Uint8Array>, signal: AbortSignal)
 }
 
 export async function forwardBackend(request: Request, segments: string[]): Promise<Response> {
-  const quotationMethod = isBudgetQuotationPath(segments) || isCommercialQuotationPath(segments)
-    ? (["status", "commercial-file", "file"].includes(segments[3]) ? "GET" : "POST") : isSendToCommercialPath(segments) ? "POST" : null;
+  const quotationMethod = isQuotationImagePath(segments) ? "GET" : isBudgetQuotationPath(segments) || isCommercialQuotationPath(segments)
+    ? (["status", "commercial-file", "file", "view"].includes(segments[3]) ? "GET" : "POST") : isSendToCommercialPath(segments) ? "POST" : null;
   if (quotationMethod && request.method !== quotationMethod) return problem(405, undefined, new Headers({ Allow: quotationMethod }));
   if (segments[0] === "management" && request.method !== "GET") {
     return problem(405, undefined, new Headers({ Allow: "GET" }));
@@ -68,11 +69,14 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
   const authorization = request.headers.get("Authorization");
   if (!authorization || !/^Bearer [A-Za-z0-9._~+/-]+=*$/i.test(authorization)) return problem(401);
 
+  const activeRole = request.headers.get(ACTIVE_ROLE_HEADER);
+  if (!isSystemRole(activeRole)) return problem(403);
+
   let base: URL;
   try { base = getApiBaseUrl(); } catch { return problem(503); }
   const url = new URL(`/api/${segments.map(encodeURIComponent).join("/")}`, base);
   url.search = new URL(request.url).search;
-  const headers = new Headers({ Authorization: authorization });
+  const headers = new Headers({ Authorization: authorization, [ACTIVE_ROLE_HEADER]: activeRole });
   const accept = request.headers.get("Accept");
   if (accept) headers.set("Accept", accept);
   try {
@@ -102,7 +106,7 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
       ...(body ? { body, duplex: "half" } : {}),
     };
     const response = await fetch(url, init);
-    const responseHeaders = new Headers({ "Cache-Control": "no-store", Vary: "Authorization" });
+    const responseHeaders = new Headers({ "Cache-Control": "no-store", Vary: "Authorization, X-SnG-Active-Role" });
     const retry = response.headers.get("Retry-After");
     if (retry && (/^\d{1,10}$/.test(retry) || /^[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(retry))) {
       responseHeaders.set("Retry-After", retry);
@@ -122,6 +126,13 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
     const contentType = response.headers.get("Content-Type") ?? "";
     const mediaType = contentType.split(";")[0].trim().toLowerCase();
     const documentFile = request.method === "GET" && isDocumentFilePath(segments);
+    if (isQuotationImagePath(segments)) {
+      if (!["image/png", "image/jpeg", "image/gif", "image/bmp", "image/tiff"].includes(mediaType)) return problem(502);
+      responseHeaders.set("Content-Type", mediaType);
+      responseHeaders.set("X-Content-Type-Options", "nosniff");
+      return new Response(response.body, { status: response.status, headers: responseHeaders });
+    }
+
     if (!documentFile && (mediaType === "application/json" || /^application\/[a-z0-9.+-]+\+json$/.test(mediaType))) {
       const data = await response.json() as JsonValue;
       responseHeaders.set("Content-Type", mediaType);

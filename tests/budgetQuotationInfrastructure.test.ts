@@ -11,7 +11,7 @@ import { token } from "./fixtures";
 
 const fetchMock = vi.fn<typeof fetch>();
 const invalidate = vi.fn();
-const api = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: invalidate });
+const api = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Budgets" as const}), invalidateSession: invalidate });
 const signal = new AbortController().signal;
 const file = new File([new Uint8Array([80, 75, 0, 255])], "original.xlsx");
 const payload = buildConfirmation(quotationPreview, createDraft(quotationPreview))!;
@@ -45,7 +45,7 @@ describe("quotation API service", () => {
   });
 });
 function request(method: string, body?: BodyInit) {
-  return new Request("https://frontend.example.test/api/backend/projects/project-1/budget-quotation/preview", { method, body, headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+  return new Request("https://frontend.example.test/api/backend/projects/project-1/budget-quotation/preview", { method, body, headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "Budgets", Accept: "application/json" } });
 }
 describe("quotation BFF", () => {
   it.each(["preview", "confirm"])("streams %s multipart without reading/rebuilding bytes and preserves status", async (endpoint) => {

@@ -12,12 +12,12 @@ const fetchMock = vi.fn<typeof fetch>();
 const missingItems: CommercialItemKey[] = [{ section: "Main", sourceRow: 15 }];
 const unexpectedItems: CommercialItemKey[] = [{ section: "Additional", sourceRow: 120 }];
 const request = () => new Request("https://frontend.example.test/api/backend/projects", {
-  headers: { Authorization: `Bearer ${token}` },
+  headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "CommercialHead" },
 });
 const context = { params: Promise.resolve({ path: ["projects"] }) };
 const invalidateSession = vi.fn();
 const api = () => createApiClient({
-  getSession: () => ({ token, generation: 1 }), invalidateSession,
+  getSession: () => ({ token, generation: 1 , activeRole: "CommercialAdvisor" as const}), invalidateSession,
 });
 
 beforeEach(() => {
@@ -112,7 +112,7 @@ describe.each(["BFF", "ApiClient"] as const)("%s commercial error contract", (bo
     it("projects only section/sourceRow and removes extra objects, diagnostics and credentials", async () => {
       const privateFields = {
         detail: "private diagnostic", stackTrace: "private stack",
-        path: "C:\\private\\quotation.xlsx", token, Authorization: `Bearer ${token}`,
+        path: "C:\\private\\quotation.xlsx", token, Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "CommercialHead",
         backendUrl: backend, unknown: { arbitrary: "private data" },
       };
       const result = await sanitize({

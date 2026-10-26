@@ -29,7 +29,7 @@ describe("Intelligence contract and client", () => {
   it("uses same-origin session/chat, sends no history or token in JSON, and passes AbortSignal", async () => {
     const fetchMock = vi.fn(async (path: string) => Response.json(path.endsWith("session") ? { authenticated: true, isManagement: true } : intelligenceResponse));
     vi.stubGlobal("fetch", fetchMock);
-    const api = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
+    const api = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: vi.fn() });
     const signal = new AbortController().signal;
     await intelligenceService.session(api, signal);
     await intelligenceService.chat(api, "Consulta", signal);
@@ -49,20 +49,20 @@ describe("Intelligence contract and client", () => {
       return Response.json({ ...intelligenceResponse, transcript: "Consulta hablada" });
     });
     vi.stubGlobal("fetch", fetchMock);
-    const api = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
+    const api = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: vi.fn() });
     await intelligenceService.voice(api, new File(["audio"], "voice.m4a", { type: "audio/mp4" }));
     expect((await intelligenceService.speech(api, intelligenceResponse.spokenAnswer, "direct")).size).toBe(3);
   });
   it.each([401, 403, 422, 429, 503])("preserves HTTP %s, safe requestId and session rules", async (status) => {
     const invalidate = vi.fn();
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ requestId, detail: "private", error: "provider-secret" }, { status })));
-    const api = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: invalidate });
+    const api = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: invalidate });
     await expect(intelligenceService.chat(api, "Consulta")).rejects.toMatchObject({ status, requestId });
     expect(invalidate).toHaveBeenCalledTimes(status === 401 ? 1 : 0);
   });
   it("rejects unsupported client routes, methods and queries before fetch", async () => {
     const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
-    const api = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
+    const api = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: vi.fn() });
     await expect(api.get("intelligence/health")).rejects.toMatchObject({ status: 400 });
     await expect(api.put("intelligence/chat", {})).rejects.toMatchObject({ status: 400 });
     await expect(api.get("intelligence/session", { query: new URLSearchParams("url=https://evil.test") })).rejects.toMatchObject({ status: 400 });
@@ -73,7 +73,7 @@ describe("Intelligence contract and client", () => {
     let resolve!: (response: Response) => void;
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((done) => { resolve = done; })));
     const invalidate = vi.fn();
-    const api = createApiClient({ getSession: () => ({ token, generation }), invalidateSession: invalidate });
+    const api = createApiClient({ getSession: () => ({ token, generation, activeRole: "Management" }), invalidateSession: invalidate });
     const result = intelligenceService.session(api);
     generation = 2;
     resolve(new Response(null, { status: 401 }));

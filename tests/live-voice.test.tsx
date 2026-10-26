@@ -7,7 +7,7 @@ import { LivePeer, LiveTrack, mockLiveBrowser } from "./liveBrowser";
 import { FakeAudio } from "./intelligenceUiSetup";
 import { token } from "./fixtures";
 import { deferred } from "./operationalFixtures";
-const client = () => createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
+const client = () => createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: vi.fn() });
 function network() {
   const fetchMock = vi.fn<(path: string, options: RequestInit) => Promise<Response>>(async (path) => Response.json(path.endsWith("/session") ? liveCreated : { closed: true }));
   vi.stubGlobal("fetch", fetchMock); return fetchMock;
@@ -135,12 +135,12 @@ describe("Live session lifecycle", () => {
     expect(result.current.failure).toBe("expired");
   });
   it("cleans up immediately on unmount and uses the original auth for backend close", async () => {
-    const { track } = mockLiveBrowser(); const fetchMock = network(); let snapshot = { token, generation: 1 };
+    const { track } = mockLiveBrowser(); const fetchMock = network(); let snapshot = { token, generation: 1 , activeRole: "Management" as const};
     const invalidateSession = vi.fn(); const api = createApiClient({ getSession: () => snapshot, invalidateSession });
     const { result, unmount } = renderHook(() => useLiveVoice(api));
     await act(async () => { await result.current.start(); }); act(() => LivePeer.instances[0].started());
     fetchMock.mockResolvedValueOnce(Response.json({}, { status: 401 }));
-    snapshot = { token: "next-test-account", generation: 2 };
+    snapshot = { token: "next-test-account", generation: 2 , activeRole: "Management" as const};
     await act(async () => unmount());
     expect(track.stop).toHaveBeenCalled(); expect(LivePeer.instances[0].close).toHaveBeenCalled();
     expect(new Headers(fetchMock.mock.calls[1][1].headers).get("Authorization")).toBe(`Bearer ${token}`);

@@ -52,3 +52,7 @@
   .main { padding: 28px; }
 }
 @media (min-width: 1440px) { .main { padding: 32px; } }
+
+.role { display: grid; gap: 3px; min-width: 0; max-width: 100%; font-size: 11px; color: var(--ink-soft); }
+.role select { width: 190px; max-width: 100%; font-size: 13px; }
+@media (max-width: 639px) { .role { width: 100%; } .role select { width: 100%; } .user { flex-wrap: wrap; } }

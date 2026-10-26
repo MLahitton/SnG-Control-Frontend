@@ -3,7 +3,7 @@
 export type IntelligenceResponseType = "direct" | "management_brief" | "project_status" | "list" | "comparison" | "clarification" | "unavailable" | "document_analysis";
 export interface Metric { key: string; label: string; value: number }
 export interface ProjectItem { kind: "project"; projectId: string; projectName: string; sgCode: string | null; clientName: string | null; city: string | null }
-export interface TaskItem { kind: "task"; projectId: string; projectName: string; sgCode: string | null; taskId: string; area: string | null; task: string | null; status: string | null; leakTimeStatus: string | null; deadlineAt: string | null }
+export interface TaskItem { kind: "task"; projectId: string; projectName: string; sgCode: string | null; taskId: string; area: string | null; task: string | null; status: string | null; LeadTimeStatus: string | null; deadlineAt: string | null }
 export interface DocumentSource { kind: "document"; documentId: string; projectId: string; filename: string; sizeBytes?: number; uploadedAt: string; isCurrent: boolean; inInitialHandoff: boolean; replacedByDocumentId?: string | null }
 export type EntityItem = ProjectItem | TaskItem | DocumentSource;
 export interface AreaItem { area: string | null; pending: number; inProgress: number; completed: number; overdue: number; dueToday: number; dueSoon: number }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
+import { capabilitiesFor } from "@/features/shell/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { clientsService } from "@/features/clients/service";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
@@ -14,13 +15,14 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export function ProjectsPage() {
-  const { user } = useAuth();
-  return <ProjectsContent key={user?.subject} />;
+  const { user, activeRole } = useAuth();
+  return <ProjectsContent key={`${user?.subject}:${activeRole}`} />;
 }
 
 function ProjectsContent() {
-  const { user } = useAuth();
-  const showCreation = user?.isManagement === false;
+  const { activeRole } = useAuth();
+  const capabilities = capabilitiesFor(activeRole);
+  const showCreation = capabilities.createProject;
   const api = useApiClient();
   const load = useCallback(async (signal: AbortSignal) => {
     const [projects, clients] = await Promise.all([projectsService.list(api, signal), clientsService.list(api, signal)]);
@@ -31,7 +33,7 @@ function ProjectsContent() {
     <PageHeader title="Proyectos" description="Seguimiento de proyectos comerciales y operativos." action={showCreation && <Link className="button-primary" href="/projects/new">Crear proyecto</Link>} />
     {loading && <p role="status" className="loading-notice">Cargando proyectos…</p>}
     <ErrorNotice error={error} retry={refresh} />
-    {data?.projects.length === 0 && <EmptyState title="Todavía no hay proyectos." description={showCreation ? "Crea el primer proyecto para comenzar." : undefined} />}
+    {data?.projects.length === 0 && <EmptyState title={capabilities.emptyProjects} description={showCreation ? "Crea el primer proyecto para comenzar." : undefined} />}
     {data && data.projects.length > 0 && <div className="table-scroll" role="region" aria-label="Lista de proyectos" tabIndex={0}>
       <table className="data-table"><caption className="sr-only">Proyectos registrados. Fechas en hora de Colombia.</caption>
         <thead><tr>{["Proyecto", "Cliente", "Ciudad", "Línea", "SG", "Creación"].map((title) => <th key={title} scope="col">{title}</th>)}</tr></thead>

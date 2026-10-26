@@ -1,13 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useMemo, useRef, useState, Fragment, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AuthError, getCurrentUser } from "@/features/auth/services/authService";
-import type { AuthStatus, CurrentUser } from "@/features/auth/types/auth";
+import { isAvailableRole, isSystemRole, type AvailableRole, type AuthStatus, type CurrentUser, type SystemRole } from "@/features/auth/types/auth";
 import { createApiClient } from "@/lib/api/apiClient";
 import type { ApiClient } from "@/lib/api/types";
 
 export const SESSION_TOKEN_KEY = "sng.google.id_token";
+export const ACTIVE_ROLE_KEY = "sng.active_role";
 const storageError = "No se pudo guardar la sesión en esta pestaña. Habilita el almacenamiento del navegador e inténtalo de nuevo.";
 
 interface AuthState {
@@ -21,6 +22,9 @@ interface AuthContextValue extends AuthState {
   logout: () => void;
   invalidateSession: () => void;
   apiClient: ApiClient;
+  activeRole: AvailableRole | null;
+  availableRoles: AvailableRole[];
+  setActiveRole: (role: SystemRole) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -29,6 +33,7 @@ const signedOut: AuthState = { status: "unauthenticated", user: null, error: nul
 function clearStoredToken(): boolean {
   try {
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    sessionStorage.removeItem(ACTIVE_ROLE_KEY);
     return true;
   } catch {
     return false;
@@ -38,6 +43,8 @@ function clearStoredToken(): boolean {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [state, setState] = useState<AuthState>({ status: "loading", user: null, error: null });
+  const [activeRole, updateActiveRole] = useState<AvailableRole | null>(null);
+  const roleSession = useRef<{ role: AvailableRole | null; controller: AbortController }>({ role: null, controller: new AbortController() });
   const pending = useRef<AbortController | null>(null);
   const session = useRef({ generation: 0, authenticated: false, invalidated: false });
 
@@ -53,6 +60,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState({ ...signedOut, error: storageError });
         return;
       }
+      let selected: AvailableRole | null = null;
+      const roles = user.roles.filter(isAvailableRole);
+      try {
+        const stored: unknown = JSON.parse(sessionStorage.getItem(ACTIVE_ROLE_KEY) ?? "null");
+        if (stored && typeof stored === "object" && "subject" in stored && stored.subject === user.subject
+          && "role" in stored && isSystemRole(stored.role) && isAvailableRole(stored.role) && roles.includes(stored.role)) selected = stored.role;
+        sessionStorage.removeItem(ACTIVE_ROLE_KEY);
+      } catch { sessionStorage.removeItem(ACTIVE_ROLE_KEY); }
+      if (!selected && roles.length === 1) selected = roles[0];
+      if (selected) sessionStorage.setItem(ACTIVE_ROLE_KEY, JSON.stringify({ subject: user.subject, role: selected }));
+      roleSession.current = { role: selected, controller: new AbortController() };
+      updateActiveRole(selected);
       session.current.authenticated = true;
       setState({ status: "authenticated", user, error: null });
     } catch (error) {
@@ -83,6 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [validate]);
 
   const signIn = useCallback(async (idToken: string) => {
+    roleSession.current.controller.abort();
+    roleSession.current.role = null;
+    updateActiveRole(null);
     pending.current?.abort();
     session.current = { generation: session.current.generation + 1, authenticated: false, invalidated: false };
     const controller = new AbortController();
@@ -93,6 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [validate]);
 
   const endSession = useCallback((error: string | null) => {
+    roleSession.current.controller.abort();
+    roleSession.current.role = null;
+    updateActiveRole(null);
     pending.current?.abort();
     session.current = { generation: session.current.generation + 1, authenticated: false, invalidated: true };
     const cleared = clearStoredToken();
@@ -106,12 +131,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     endSession("Tu sesión ya no es válida. Inicia sesión de nuevo.");
   }, [endSession]);
 
+  const availableRoles = state.user?.roles.filter(isAvailableRole) ?? [];
+  const setActiveRole = (role: SystemRole) => {
+    if (!isAvailableRole(role) || !availableRoles.includes(role) || role === activeRole || !state.user) return;
+    roleSession.current.controller.abort();
+    roleSession.current = { role, controller: new AbortController() };
+    session.current.generation++;
+    try { sessionStorage.setItem(ACTIVE_ROLE_KEY, JSON.stringify({ subject: state.user.subject, role })); } catch { /* Preference only. */ }
+    updateActiveRole(role);
+    router.replace(role === "Management" ? "/management" : "/");
+  };
+
   const getSession = useCallback(() => {
     let token: string | null = null;
     try {
       if (session.current.authenticated) token = sessionStorage.getItem(SESSION_TOKEN_KEY);
     } catch { /* A blocked or missing session must never authorize a request. */ }
-    return { token, generation: session.current.generation };
+    return { token, generation: session.current.generation, activeRole: roleSession.current.role, signal: roleSession.current.controller.signal };
   }, []);
 
   const apiClient = useMemo<ApiClient>(() => {
@@ -131,5 +167,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [getSession, invalidateSession]);
 
-  return <AuthContext.Provider value={{ ...state, signIn, logout, invalidateSession, apiClient }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ ...state, signIn, logout, invalidateSession, apiClient, activeRole, availableRoles, setActiveRole }}><Fragment key={`${state.user?.subject}:${activeRole}`}>{children}</Fragment></AuthContext.Provider>;
 }

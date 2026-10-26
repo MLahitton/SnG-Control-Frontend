@@ -33,7 +33,7 @@ describe("4D closed contracts", () => {
   });
   it("services use same-origin GET status and bodyless POST send with AbortSignal", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(Response.json(confirmedStatus)).mockResolvedValueOnce(Response.json(sentQuotation)); vi.stubGlobal("fetch", fetchMock);
-    const api = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
+    const api = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Budgets" as const}), invalidateSession: vi.fn() });
     const signal = new AbortController().signal;
     await budgetQuotationService.getStatus(api, "project-1", signal); await budgetQuotationService.sendToCommercial(api, "project-1", signal);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/projects/project-1/budget-quotation/status");
@@ -45,7 +45,7 @@ describe("4D closed contracts", () => {
 });
 describe("4D BFF scope", () => {
   const root = ["projects", "project-1"];
-  const request = (method: string, body?: BodyInit) => new Request("https://frontend.example.test/api/backend/projects/project-1", { method, body, headers: { Authorization: `Bearer ${token}` } });
+  const request = (method: string, body?: BodyInit) => new Request("https://frontend.example.test/api/backend/projects/project-1", { method, body, headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "Budgets" } });
   it.each([["GET", ["budget-quotation", "status"]], ["POST", ["send-to-commercial"]]] as const)("forwards %s %j without invented payload", async (method, suffix) => {
     vi.stubEnv("SNG_API_BASE_URL", "https://backend.example.test"); const fetchMock = vi.fn().mockResolvedValue(Response.json(method === "GET" ? confirmedStatus : sentQuotation)); vi.stubGlobal("fetch", fetchMock);
     expect((await forwardBackend(request(method), [...root, ...suffix])).status).toBe(200);

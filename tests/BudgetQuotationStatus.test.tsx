@@ -8,7 +8,7 @@ import { projectDocuments } from "./documentFixtures";
 import { confirmedStatus, notConfirmedStatus, sentStatus, sentQuotation } from "./budgetQuotationFixtures";
 import { user, token } from "./fixtures";
 
-const assigned = { ...user, subject: inProgressTask.assignedToGoogleSubject! };
+const assigned = { ...user, roles: ["Budgets" as const], subject: inProgressTask.assignedToGoogleSubject! };
 const panel = () => within(screen.getByRole("region", { name: "Cotización de Presupuestos" }));
 function backend(initial: BudgetQuotationStatusResponse = confirmedStatus) {
   const state = { status: initial, tasks: initial.status === "SentToCommercial" ? [sentQuotation.budgetTask, sentQuotation.commercialTask] : [inProgressTask],

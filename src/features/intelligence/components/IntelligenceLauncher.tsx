@@ -6,9 +6,9 @@ import { IntelligencePanel } from "./IntelligencePanel";
 import styles from "./Intelligence.module.css";
 
 export function IntelligenceLauncher() {
-  const { status, user } = useAuth();
-  if (status !== "authenticated" || user?.isManagement !== true) return null;
-  return <Launcher key={user.subject} />;
+  const { status, user, activeRole } = useAuth();
+  if (status !== "authenticated" || !user || activeRole !== "Management" || !user.roles.includes("Management")) return null;
+  return <Launcher key={`${user.subject}:${activeRole}`} />;
 }
 function Launcher() {
   const [opened, setOpened] = useState(false);

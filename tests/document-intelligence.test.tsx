@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -93,7 +94,7 @@ it("continues document follow-ups across text/Live/text with the existing conver
     return Response.json(response);
   });
   vi.stubGlobal("fetch", fetchMock);
-  const state = { status: "authenticated" as const, user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() }) };
+  const state = { status: "authenticated" as const, ...roleContext("Management"), user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: vi.fn() }) };
   render(<AuthContext.Provider value={state}><IntelligenceLauncher /></AuthContext.Provider>);
   await userEvent.click(screen.getByRole("button", { name: "Abrir SnG Intelligence" }));
   await waitFor(() => expect(screen.getByLabelText("Tu consulta")).toBeEnabled());

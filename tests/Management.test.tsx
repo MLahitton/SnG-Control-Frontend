@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -18,8 +19,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 function sessionContext() {
   const invalidateSession = vi.fn();
-  const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession });
-  return { status: "authenticated" as const, user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession, apiClient };
+  const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession });
+  return { status: "authenticated" as const, ...roleContext("Management"), user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession, apiClient };
 }
 
 describe("management access and session", () => {
@@ -30,12 +31,12 @@ describe("management access and session", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.queryByText("Proyecto Norte")).not.toBeInTheDocument();
   });
-  it("adds a home entry only for the validated management flag", () => {
+  it("adds a home entry only for the owned active Management role", () => {
     const context = sessionContext();
     const view = render(<AuthContext.Provider value={context}><Home /></AuthContext.Provider>);
-    expect(screen.getByRole("link", { name: /Gerencia/ })).toHaveAttribute("href", "/management");
+    expect(screen.getByRole("link", { name: /Resumen/ })).toHaveAttribute("href", "/management");
     view.rerender(<AuthContext.Provider value={{ ...context, user }}><Home /></AuthContext.Provider>);
-    expect(screen.queryByRole("link", { name: /Gerencia/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Resumen/ })).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Accesos rápidos" })).toBeInTheDocument();
   });
   it.each([OverviewPage, TasksPage])("discards late data and aborts when management access disappears, even for the same Subject", async (Page) => {
@@ -126,7 +127,7 @@ describe("management overview", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/management/overview");
   });
   it("renders zero counts and empty areas/attention without invented rows", async () => {
-    mockBackend(() => ({ ...overview, totalProjects: 0, tasks: { pending: 0, inProgress: 0, completed: 0 }, leakTime: Object.fromEntries(Object.keys(overview.leakTime).map((key) => [key, 0])), areas: [], attention: { total: 0, items: [] } }));
+    mockBackend(() => ({ ...overview, totalProjects: 0, tasks: { pending: 0, inProgress: 0, completed: 0 }, LeadTime: Object.fromEntries(Object.keys(overview.LeadTime).map((key) => [key, 0])), areas: [], attention: { total: 0, items: [] } }));
     renderOperational(<OverviewPage />, manager);
     expect(await screen.findByText("Todavía no hay proyectos.")).toBeInTheDocument();
     expect(screen.getByText("Todavía no hay tareas registradas.")).toBeInTheDocument();
@@ -182,7 +183,7 @@ describe("management operation", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/management/tasks");
   });
   it.each(Object.entries(timingLabels))("filters the backend situation %s without computing dates", async (value, label) => {
-    mockBackend(() => [{ ...managementTask, leakTimeStatus: value }, { ...managementTask, taskId: "other", projectName: "Otra obra", leakTimeStatus: value === "NotStarted" ? "Overdue" : "NotStarted" }]);
+    mockBackend(() => [{ ...managementTask, LeadTimeStatus: value }, { ...managementTask, taskId: "other", projectName: "Otra obra", LeadTimeStatus: value === "NotStarted" ? "Overdue" : "NotStarted" }]);
     renderOperational(<TasksPage />, manager);
     await screen.findByRole("table");
     await userEvent.selectOptions(screen.getByLabelText("Situación"), value);

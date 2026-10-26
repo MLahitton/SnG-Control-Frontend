@@ -13,7 +13,7 @@ function request(method = "GET", body?: BodyInit, contentType?: string) {
     method, body,
     ...(body instanceof ReadableStream ? { duplex: "half" as const } : {}),
     headers: {
-      Authorization: `Bearer ${token}`, Accept: "application/json",
+      Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "CommercialAdvisor", Accept: "application/json",
       Cookie: "private=cookie", Host: "untrusted.example", Origin: "https://untrusted.example",
       Referer: "https://untrusted.example/private", Connection: "keep-alive", "X-Internal": "private",
       ...(contentType ? { "Content-Type": contentType } : {}),
@@ -68,7 +68,7 @@ describe("controlled backend bridge", () => {
     await GET(request(), context());
     const options = fetchMock.mock.calls[0][1]!;
     expect(Object.fromEntries(new Headers(options.headers))).toEqual({
-      authorization: `Bearer ${token}`, accept: "application/json",
+      authorization: `Bearer ${token}`, "x-sng-active-role": "CommercialAdvisor", accept: "application/json",
     });
     expect(options).toMatchObject({ cache: "no-store", redirect: "error" });
     expect(options.signal).toBeInstanceOf(AbortSignal);
@@ -107,7 +107,7 @@ describe("controlled backend bridge", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const options = fetchMock.mock.calls[0][1]!;
     expect(options.method).toBe(method);
-    expect(Object.fromEntries(new Headers(options.headers))).toEqual({ authorization: `Bearer ${token}`, accept: "application/json" });
+    expect(Object.fromEntries(new Headers(options.headers))).toEqual({ authorization: `Bearer ${token}`, "x-sng-active-role": "CommercialAdvisor", accept: "application/json" });
     expect(options).not.toHaveProperty("body");
     expect(options).not.toHaveProperty("duplex");
   });
@@ -245,7 +245,7 @@ describe("controlled backend bridge", () => {
     expect((await GET(request(), context())).headers.get("Retry-After")).toBe("120");
   });
 
-  it("does not leak internal values in JSON responses or extensions", async () => {
+  it("does not Lead internal values in JSON responses or extensions", async () => {
     fetchMock.mockResolvedValue(Response.json({
       id: "safe", link: upstream + "/private", stackTrace: "private", authorization: token,
       path: "C:\\private\\file", nested: { token, base: upstream },

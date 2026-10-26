@@ -1,8 +1,9 @@
+import { roleContext } from "./roleFixtures";
 import type { ReactNode } from "react";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
 import { AuthContext } from "@/features/auth/context/AuthProvider";
-import type { CurrentUser } from "@/features/auth/types/auth";
+import { isAvailableRole, type CurrentUser } from "@/features/auth/types/auth";
 import { createApiClient } from "@/lib/api/apiClient";
 import type { Client } from "@/features/clients/types";
 import type { Project } from "@/features/projects/types";
@@ -18,10 +19,10 @@ export const project: Project = {
 export const task: ProjectTask = {
   id: "task-1", projectId: project.id, area: "Budgets", type: "PrepareQuotation", status: "Pending",
   assignedAt: "2026-10-15T15:00:00Z", startedAt: null, completedAt: null,
-  assignedToGoogleSubject: "private-assignee-subject", deadlineAt: null, wasOverdue: null, leakTimeStatus: "NotStarted",
+  assignedToGoogleSubject: "private-assignee-subject", deadlineAt: null, wasOverdue: null, LeadTimeStatus: "NotStarted",
 };
 export const inProgressTask: ProjectTask = {
-  ...task, status: "InProgress", startedAt: "2026-10-15T16:00:00Z", deadlineAt: "2026-10-22T22:00:00Z", leakTimeStatus: "OnTrack",
+  ...task, status: "InProgress", startedAt: "2026-10-15T16:00:00Z", deadlineAt: "2026-10-22T22:00:00Z", LeadTimeStatus: "OnTrack",
 };
 export const notification: ProjectNotification = {
   id: "notification-1", projectId: project.id, projectTaskId: task.id, recipientGoogleSubject: "private-recipient-subject",
@@ -30,13 +31,17 @@ export const notification: ProjectNotification = {
 };
 
 export function renderOperational(children: ReactNode, currentUser: CurrentUser = user) {
-  const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
-  return render(<AuthContext.Provider value={{ status: "authenticated", user: currentUser, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient }}>{children}</AuthContext.Provider>);
+  const activeRole = currentUser.roles.filter(isAvailableRole)[0] ?? "CommercialAdvisor";
+  const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole}), invalidateSession: vi.fn() });
+  return render(<AuthContext.Provider value={{ status: "authenticated", ...roleContext(activeRole), user: currentUser, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient }}>{children}</AuthContext.Provider>);
 }
 
-export function mockBackend(handler: (path: string, init: RequestInit) => unknown | Promise<unknown>) {
+export function mockBackend(handler: (path: string, init: RequestInit) => unknown | Promise<unknown>, quotationViews?: (path: string, init: RequestInit) => unknown | Promise<unknown>) {
   const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
-    const result = await handler(url.replace("/api/backend/", ""), init);
+    const path = url.replace("/api/backend/", "");
+    const result = await (init.method === "GET" && /\/(budget|commercial)-quotation\/view$/.test(path)
+      ? quotationViews ? quotationViews(path, init) : Response.json({}, { status: 404 })
+      : handler(path, init));
     return result instanceof Response ? result : Response.json(result);
   });
   vi.stubGlobal("fetch", fetchMock);

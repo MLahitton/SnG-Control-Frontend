@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -269,13 +270,13 @@ describe("document removal and handoff", () => {
 describe("document downloads and identity changes", () => {
   it("replaces already loaded read-only capabilities when signing in with another Subject", async () => {
     const { state, fetchMock } = setup({ ...handedOffDocuments, canModify: false }, [task]);
-    const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
-    const context = { status: "authenticated" as const, user: { ...user, subject: "test-budgets-subject" }, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient };
+    const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "CommercialAdvisor" as const}), invalidateSession: vi.fn() });
+    const context = { status: "authenticated" as const, ...roleContext("CommercialAdvisor"), user: { ...user, subject: "test-budgets-subject" }, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient };
     const view = render(<AuthContext.Provider value={context}><ProjectDetailPage id="project-1" /></AuthContext.Provider>);
     await screen.findByRole("heading", { name: "Envío inicial a Presupuestos" });
     expect(screen.queryByRole("button", { name: "Subir documentos" })).not.toBeInTheDocument();
     state.documents = handedOffDocuments;
-    view.rerender(<AuthContext.Provider value={{ ...context, user: { ...user, subject: "test-commercial-subject" } }}><ProjectDetailPage id="project-1" /></AuthContext.Provider>);
+    view.rerender(<AuthContext.Provider value={{ ...context, user: { ...user, subject: user.subject } }}><ProjectDetailPage id="project-1" /></AuthContext.Provider>);
     expect(await screen.findByRole("button", { name: "Subir documentos" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reemplazar" })).toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/documents"))).toHaveLength(2);
@@ -310,11 +311,11 @@ describe("document downloads and identity changes", () => {
       if (path === "clients/client-1") return client;
       return [];
     });
-    const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
-    const context = { status: "authenticated" as const, user: { ...user, subject: currentSubject }, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient };
+    const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "CommercialAdvisor" as const}), invalidateSession: vi.fn() });
+    const context = { status: "authenticated" as const, ...roleContext("CommercialAdvisor"), user: { ...user, subject: currentSubject }, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient };
     const view = render(<AuthContext.Provider value={context}><ProjectDetailPage id="project-1" /></AuthContext.Provider>);
     await screen.findByRole("heading", { name: "Vista anterior" });
-    currentSubject = "test-commercial-subject";
+    currentSubject = user.subject;
     view.rerender(<AuthContext.Provider value={{ ...context, user: { ...user, subject: currentSubject } }}><ProjectDetailPage id="project-1" /></AuthContext.Provider>);
     expect(screen.queryByText("Vista anterior")).not.toBeInTheDocument();
     await screen.findByRole("heading", { name: "Vista actual" });

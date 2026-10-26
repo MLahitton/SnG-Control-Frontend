@@ -28,7 +28,7 @@ export const quotationConfirmed: ConfirmedBudgetQuotationResponse = {
   prepareQuotationTask: {
     id: "task-1", projectId: "project-1", area: "Budgets", type: "PrepareQuotation", status: "InProgress",
     assignedAt: "2026-10-15T15:00:00Z", startedAt: "2026-10-15T16:00:00Z", completedAt: null,
-    assignedToGoogleSubject: "private-assignee-subject", deadlineAt: "2026-10-22T22:00:00Z", wasOverdue: null, leakTimeStatus: "OnTrack",
+    assignedToGoogleSubject: "private-assignee-subject", deadlineAt: "2026-10-22T22:00:00Z", wasOverdue: null, LeadTimeStatus: "OnTrack",
   },
 };
 
@@ -43,7 +43,7 @@ export const confirmedStatus: BudgetQuotationStatusResponse = {
 export const sentStatus: BudgetQuotationStatusResponse = { ...confirmedStatus, status: "SentToCommercial", canSendToCommercial: false };
 export const sentQuotation: SendToCommercialResponse = {
   projectId: "project-1", quotationVersionId: "version-1", commercialCatalogId: "catalog-1", commercialFileAvailable: true,
-  budgetTask: { ...quotationConfirmed.prepareQuotationTask, status: "Completed", completedAt: "2026-10-20T18:00:00Z", wasOverdue: false, leakTimeStatus: "CompletedOnTime" },
+  budgetTask: { ...quotationConfirmed.prepareQuotationTask, status: "Completed", completedAt: "2026-10-20T18:00:00Z", wasOverdue: false, LeadTimeStatus: "CompletedOnTime" },
   commercialTask: { ...quotationConfirmed.prepareQuotationTask, id: "review-1", area: "Commercial", type: "ReviewQuotation", assignedToGoogleSubject: "synthetic-commercial-head",
-    assignedAt: "2026-10-20T18:00:00Z", startedAt: "2026-10-20T18:00:00Z", deadlineAt: "2026-10-26T22:00:00Z", leakTimeStatus: "OnTrack" },
+    assignedAt: "2026-10-20T18:00:00Z", startedAt: "2026-10-20T18:00:00Z", deadlineAt: "2026-10-26T22:00:00Z", LeadTimeStatus: "OnTrack" },
 };

@@ -49,7 +49,7 @@ describe("management read-only UX", () => {
     expect(screen.getByRole("button", { name: "Descargar documentos del envío inicial" })).toBeEnabled();
     if (preparation.status === "InProgress") expect(screen.getByText("SG001")).toBeInTheDocument();
   });
-  it.each([task, inProgressTask])("preserves actual SG assignment capabilities alongside management ($status)", async (preparation) => {
+  it.each([task, inProgressTask])("requires active Budgets for SG when the account also owns Management ($status)", async (preparation) => {
     mockBackend((path) => {
       if (path.endsWith("/documents")) return { ...handedOffDocuments, canModify: false };
       if (path.endsWith("/tasks")) return [preparation];
@@ -57,18 +57,18 @@ describe("management read-only UX", () => {
       if (path.startsWith("clients/")) return client;
       return { ...project, sgCode: preparation.status === "InProgress" ? "SG001" : null };
     });
-    renderOperational(<ProjectDetailPage id="project-1" />, { ...manager, subject: task.assignedToGoogleSubject! });
+    renderOperational(<ProjectDetailPage id="project-1" />, { ...manager, roles: ["Budgets", "Management"], subject: task.assignedToGoogleSubject! });
     expect(await screen.findByLabelText("Código SG")).toBeEnabled();
     expect(screen.getByRole("button", { name: preparation.status === "Pending" ? "Asignar SG" : "Guardar corrección" })).toBeInTheDocument();
   });
-  it("preserves backend document and handoff capabilities alongside management", async () => {
+  it("permits owned documents only after activating Advisor on a multi-role account", async () => {
     mockBackend((path) => {
       if (path.endsWith("/documents")) return projectDocuments;
       if (path.endsWith("/tasks") || path.endsWith("/notifications")) return [];
       if (path.startsWith("clients/")) return client;
       return project;
     });
-    renderOperational(<ProjectDetailPage id="project-1" />, manager);
+    renderOperational(<ProjectDetailPage id="project-1" />, { ...manager, roles: ["CommercialAdvisor", "Management"] });
     const documents = await screen.findByRole("region", { name: "Documentos del proyecto" });
     expect(await within(documents).findByRole("button", { name: "Seleccionar archivos" })).toBeEnabled();
     expect(within(documents).getByRole("button", { name: "Reemplazar" })).toBeEnabled();

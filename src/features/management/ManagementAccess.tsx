@@ -13,10 +13,10 @@ export function ManagementDenied() {
 // This is a presentation gate; backend authorization remains authoritative.
 // Remount all permission-dependent resources when the validated identity changes.
 export function ManagementAccess({ children }: { children: ReactNode }) {
-  const { status, user } = useAuth();
+  const { status, user, activeRole } = useAuth();
   if (status === "loading") return <p role="status">Validando sesión…</p>;
-  if (status !== "authenticated" || user?.isManagement !== true) return <ManagementDenied />;
-  return <Fragment key={user.subject}>{children}</Fragment>;
+  if (status !== "authenticated" || !user || activeRole !== "Management" || !user.roles.includes("Management")) return <ManagementDenied />;
+  return <Fragment key={`${user.subject}:${activeRole}`}>{children}</Fragment>;
 }
 
 export function ManagementError({ error, retry }: { error: unknown; retry: () => void }) {

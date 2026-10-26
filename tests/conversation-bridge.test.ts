@@ -7,7 +7,7 @@ import { token } from "./fixtures";
 import { liveSdp, liveCreated } from "./liveFixtures";
 const fetchMock = vi.fn<typeof fetch>();
 function request(body: unknown = {}, method = "POST") {
-  return new Request("https://frontend.example.test/api/intelligence/conversation", { method, ...(method === "POST" ? { body: JSON.stringify(body) } : {}), headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
+  return new Request("https://frontend.example.test/api/intelligence/conversation", { method, ...(method === "POST" ? { body: JSON.stringify(body) } : {}), headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "Management", "Content-Type": "application/json" } });
 }
 beforeEach(() => { vi.stubEnv("SNG_INTELLIGENCE_BASE_URL", "https://intelligence.example.test"); vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); });
 it("allows only explicit create/close with validated fields and preserves 201", async () => {

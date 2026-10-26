@@ -27,7 +27,7 @@ function TasksContent() {
   const [search, setSearch] = useState("");
   const query = search.trim().toLocaleLowerCase("es-CO");
   const tasks = data?.filter((task) => (!area || task.area === area) && (!status || task.status === status)
-    && (!timing || task.leakTimeStatus === timing)
+    && (!timing || task.LeadTimeStatus === timing)
     && (!query || [task.projectName, task.clientName, task.sgCode ?? "", task.city].some((text) => text.toLocaleLowerCase("es-CO").includes(query))));
   return <div className="page-stack">
     <PageHeader title="Operación" description="Gerencia · Tareas actuales e históricas de todas las áreas." action={<Link className="text-link" href="/management">Ver resumen</Link>} />

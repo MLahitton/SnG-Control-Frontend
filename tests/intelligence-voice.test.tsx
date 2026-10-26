@@ -92,7 +92,7 @@ describe("recorder lifecycle", () => {
 });
 
 describe("speech lifecycle", () => {
-  const client = () => createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
+  const client = () => createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: vi.fn() });
   const speechResponse = () => new Response(new Uint8Array([73, 68, 51]), { headers: { "Content-Type": "audio/mpeg" } });
   it("stops previous audio, revokes URLs on replacement/end, and supports replay", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => speechResponse()));

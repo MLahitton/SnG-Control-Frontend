@@ -29,8 +29,8 @@ function OverviewContent() {
       <dl className={styles.kpis} aria-label="Indicadores de operación">
         <div className="panel"><dt>Total de proyectos</dt><dd>{data.totalProjects}</dd></div>
         <div className="panel"><dt>Tareas activas</dt><dd><span>{data.tasks.pending + data.tasks.inProgress}</span><p className="metadata font-normal">Pendientes + en curso</p></dd></div>
-        <div className={`panel ${styles.overdue}`}><dt>Tareas atrasadas</dt><dd>{data.leakTime.overdue}</dd></div>
-        <div className={`panel ${styles.due}`}><dt>Vencen hoy</dt><dd>{data.leakTime.dueToday}</dd></div>
+        <div className={`panel ${styles.overdue}`}><dt>Tareas atrasadas</dt><dd>{data.LeadTime.overdue}</dd></div>
+        <div className={`panel ${styles.due}`}><dt>Vencen hoy</dt><dd>{data.LeadTime.dueToday}</dd></div>
       </dl>
       {data.totalProjects === 0 && <EmptyState title="Todavía no hay proyectos." />}
       <section className="panel" aria-labelledby="management-work-title">
@@ -39,7 +39,7 @@ function OverviewContent() {
           <div><dt>Pendientes</dt><dd>{data.tasks.pending}</dd></div>
           <div><dt>En curso</dt><dd>{data.tasks.inProgress}</dd></div>
           <div><dt>Completadas</dt><dd>{data.tasks.completed}</dd></div>
-          <div><dt>Vencen pronto</dt><dd>{data.leakTime.dueSoon}</dd></div>
+          <div><dt>Vencen pronto</dt><dd>{data.LeadTime.dueSoon}</dd></div>
         </dl>
         {data.tasks.pending + data.tasks.inProgress + data.tasks.completed === 0 && <p className="metadata mt-3">Todavía no hay tareas registradas.</p>}
       </section>

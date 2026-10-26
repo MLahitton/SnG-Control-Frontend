@@ -93,7 +93,7 @@ The .NET backend is the authority for:
 - authorization
 - workflow state
 - deadlines
-- Leak Time
+- Lead Time
 - notifications
 - quotation data
 - task status
@@ -104,7 +104,7 @@ Do not calculate locally:
 - overdue state
 - business days
 - Colombian holidays
-- Leak Time status
+- Lead Time status
 - quotation totals
 - prices
 - workflow transitions
@@ -197,10 +197,10 @@ Task types currently supported:
 - PrepareQuotation
 - ReviewQuotation
 - PresentQuotationToClient
-Task UI should use backend-provided area, status, assignedToGoogleSubject, AssignedAt, StartedAt, DeadlineAt, CompletedAt, WasOverdue and LeakTimeStatus when available.
-Do NOT recalculate Leak Time in React.
-15. Leak Time presentation
-Leak Time is backend-owned.
+Task UI should use backend-provided area, status, assignedToGoogleSubject, AssignedAt, StartedAt, DeadlineAt, CompletedAt, WasOverdue and LeadTimeStatus when available.
+Do NOT recalculate Lead Time in React.
+15. Lead Time presentation
+Lead Time is backend-owned.
 The frontend may visually map statuses such as:
 - NotStarted
 - OnTrack
@@ -217,7 +217,7 @@ User-facing text should be operational, for example:
 - “Cotización atrasada”
 - “Revisión de cotización atrasada”
 - “Presentación al cliente atrasada”
-Avoid exposing internal engineering terms like Leak Time exceeded unless used in technical admin/debug contexts.
+Avoid exposing internal engineering terms like Lead Time exceeded unless used in technical admin/debug contexts.
 16. Notifications
 Backend is the source of truth for notifications.
 Do not implement frontend-only notification history.
@@ -460,3 +460,5 @@ Efficiency must never mean inventing backend behavior or skipping final verifica
 - Preserve the existing conversationId and Live protocol; never execute document tools in browser
   or send provider credentials, document content or fabricated reference metadata to Intelligence.
 - Existing operational document upload/download behavior remains outside this feature.
+
+Identity & Areas V1: available roles come only from Backend auth/me. One activeRole controls navigation and actions; sessionStorage is a non-authoritative preference revalidated on restore. Operational requests send X-SnG-Active-Role through the closed BFF. Role switches cancel/remount the experience and clean up Management Intelligence/voice; do not change project ownership or task assignments.

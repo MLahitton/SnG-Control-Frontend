@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -17,7 +18,7 @@ vi.mock("@react-oauth/google", () => ({
 }));
 
 const signIn = vi.fn().mockResolvedValue(undefined);
-const context = { status: "unauthenticated" as const, user: null, error: null, signIn, logout: vi.fn(), invalidateSession: vi.fn(), apiClient: testApiClient };
+const context = { status: "unauthenticated" as const, user: null, error: null, signIn, logout: vi.fn(), invalidateSession: vi.fn(), ...roleContext(), apiClient: testApiClient };
 function mount() {
   return render(<AuthContext.Provider value={context}><GoogleSignInButton /></AuthContext.Provider>);
 }

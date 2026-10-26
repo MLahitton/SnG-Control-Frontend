@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { TasksPage } from "@/features/tasks/TasksPage";
 import { TaskList, TaskTimingStatus } from "@/features/tasks/TaskList";
-import type { LeakTimeStatus } from "@/features/tasks/types";
+import type { LeadTimeStatus } from "@/features/tasks/types";
 import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { formatDate } from "@/lib/formatDate";
 import { project, task, notification, deferred, mockBackend, renderOperational } from "./operationalFixtures";
@@ -32,11 +32,11 @@ describe("Tasks", () => {
     await act(async () => old.resolve([task]));
     expect(screen.queryByText("Preparar cotización")).not.toBeInTheDocument();
   });
-  it.each<[LeakTimeStatus, string]>([
+  it.each<[LeadTimeStatus, string]>([
     ["NotStarted", "Sin iniciar"], ["OnTrack", "En tiempo"], ["DueSoon", "Vence pronto"], ["DueToday", "Vence hoy"],
     ["Overdue", "Atrasada"], ["CompletedOnTime", "Completada a tiempo"], ["CompletedLate", "Completada con retraso"], ["UntrackedLegacy", "Sin seguimiento histórico"],
-  ])("presents %s exactly from backend", (leakTimeStatus, label) => {
-    render(<TaskTimingStatus task={{ ...task, leakTimeStatus, deadlineAt: "2020-01-01T22:00:00Z" }} />);
+  ])("presents %s exactly from backend", (LeadTimeStatus, label) => {
+    render(<TaskTimingStatus task={{ ...task, LeadTimeStatus, deadlineAt: "2020-01-01T22:00:00Z" }} />);
     expect(screen.getByText(label)).toBeInTheDocument();
   });
   it("shows no invented deadline or overdue evidence for newly assigned preparation", () => {
@@ -85,7 +85,7 @@ describe("Notifications", () => {
     mockBackend(() => []); renderOperational(<NotificationsPage />);
     expect(await screen.findByText("No hay notificaciones para mostrar.")).toBeInTheDocument();
   });
-  it("shows safe failures without leaking raw errors", async () => {
+  it("shows safe failures without Leading raw errors", async () => {
     mockBackend(() => { throw new Error("secret backend URL"); });
     renderOperational(<NotificationsPage />);
     await screen.findByRole("alert");

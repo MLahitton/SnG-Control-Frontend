@@ -1,3 +1,4 @@
+import { ACTIVE_ROLE_HEADER, type SystemRole } from "@/features/auth/types/auth";
 import { ApiError } from "./apiError";
 import { intelligenceMethod } from "@/features/intelligence/paths";
 import { IntelligenceError } from "@/features/intelligence/errors";
@@ -8,6 +9,8 @@ import type { ApiClient, ApiRequestOptions, JsonValue } from "./types";
 interface SessionSnapshot {
   token: string | null;
   generation: number;
+  activeRole: SystemRole | null;
+  signal?: AbortSignal;
 }
 
 interface SessionAccess {
@@ -40,7 +43,11 @@ export function createApiClient(session: SessionAccess): ApiClient {
       invalidate(snapshot.generation);
       throw new ApiError(401);
     }
+    if (!snapshot.activeRole || (intelligence && snapshot.activeRole !== "Management")) throw new ApiError(403);
+    const signal = intelligence && path.endsWith("/close") ? options.signal : snapshot.signal ? AbortSignal.any([snapshot.signal, ...(options.signal ? [options.signal] : [])]) : options.signal;
+    signal?.throwIfAborted();
     const headers = new Headers({
+      [ACTIVE_ROLE_HEADER]: snapshot.activeRole,
       Authorization: `Bearer ${snapshot.token}`,
       Accept: intelligence && binary ? "audio/mpeg" : binary ? "application/octet-stream, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/zip" : "application/json",
     });
@@ -54,13 +61,15 @@ export function createApiClient(session: SessionAccess): ApiClient {
     let response: Response;
     try {
       response = await fetch(`${intelligence ? "/api/" : "/api/backend/"}${path}${query ? `?${query}` : ""}`, {
-        method, headers, body: requestBody, signal: options.signal,
+        method, headers, body: requestBody, signal,
         cache: "no-store", credentials: "omit", redirect: "error",
       });
     } catch {
-      if (options.signal?.aborted) throw new DOMException("Solicitud cancelada.", "AbortError");
+      if (signal?.aborted) throw new DOMException("Solicitud cancelada.", "AbortError");
       throw new ApiError(0);
     }
+    // Late Intelligence creation responses must reach lifecycle cleanup so their IDs can be revoked.
+    if (!intelligence) signal?.throwIfAborted();
     if (response.status === 401) invalidate(snapshot.generation);
     if (!response.ok) {
       let payload: unknown;

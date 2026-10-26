@@ -15,8 +15,8 @@ beforeEach(() => {
 
 describe("GET /api/auth/me bridge", () => {
   it.each([true, false])("preserves validated isManagement %s", async (isManagement) => {
-    fetchMock.mockResolvedValue(Response.json({ ...user, isManagement, internal: "private" }));
-    expect(await (await GET(request())).json()).toEqual({ ...user, isManagement });
+    fetchMock.mockResolvedValue(Response.json({ ...user, isManagement, roles: isManagement ? ["Management"] : user.roles, internal: "private" }));
+    expect(await (await GET(request())).json()).toEqual({ ...user, isManagement, roles: isManagement ? ["Management"] : user.roles });
   });
   it.each([undefined, null, "true", 1])("rejects an invalid management flag %j", async (isManagement) => {
     fetchMock.mockResolvedValue(Response.json({ ...user, isManagement }));

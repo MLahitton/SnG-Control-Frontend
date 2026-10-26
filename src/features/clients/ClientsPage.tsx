@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useRef, useState, type FormEvent } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
+import { capabilitiesFor } from "@/features/shell/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { useResource } from "@/lib/api/useResource";
@@ -11,13 +13,13 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export function ClientsPage() {
-  const { user } = useAuth();
-  return <ClientsContent key={`${user?.subject}:${user?.isManagement}`} />;
+  const { user, activeRole } = useAuth();
+  return <ClientsContent key={`${user?.subject}:${activeRole}`} />;
 }
 
 function ClientsContent() {
-  const { user } = useAuth();
-  const showCreation = user?.isManagement === false;
+  const { activeRole } = useAuth();
+  const showCreation = capabilitiesFor(activeRole).createClient;
   const api = useApiClient();
   const load = useCallback((signal: AbortSignal) => clientsService.list(api, signal), [api]);
   const resource = useResource(load);
@@ -38,7 +40,7 @@ function ClientsContent() {
     finally { locked.current = false; setBusy(false); }
   }
   return <div className="page-stack">
-    <PageHeader title="Clientes" description="Registro de clientes para tus proyectos." />
+    <PageHeader title="Clientes" description="Clientes disponibles para consulta y trabajo." />
     <div className={showCreation ? "split-layout" : "stack"}>
     {showCreation && <section className="panel lg:col-start-2 lg:row-start-1" aria-labelledby="create-client-title">
       <h2 id="create-client-title" className="section-title">Crear cliente</h2>
@@ -54,9 +56,9 @@ function ClientsContent() {
       <h2 id="clients-title" className="section-title">Clientes registrados</h2>
       {resource.loading && <p role="status" className="mt-4">Cargando clientes…</p>}
       <ErrorNotice error={resource.error} retry={resource.refresh} />
-      {resource.data?.length === 0 && <EmptyState title={showCreation ? "Todavía no hay clientes. Crea el primero para registrar proyectos." : "Todavía no hay clientes."} />}
+      {resource.data?.length === 0 && <EmptyState title={showCreation ? "Todavía no hay clientes. Crea el primero para registrar proyectos." : "No hay clientes relacionados con tus proyectos disponibles."} />}
       {resource.data && resource.data.length > 0 && <ul className="mt-3 dense-list">
-        {resource.data.map((client) => <li key={client.id} className="section-header"><p className="font-semibold break-words">{client.name}</p><p className="metadata">Creado: {formatDate(client.createdAt)}</p></li>)}
+        {resource.data.map((client) => <li key={client.id} className="section-header"><Link className="text-link font-semibold break-words" href={`/clients/${encodeURIComponent(client.id)}`}>{client.name}</Link><p className="metadata">Creado: {formatDate(client.createdAt)}</p></li>)}
       </ul>}
     </section>
     </div>

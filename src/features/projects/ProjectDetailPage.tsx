@@ -20,18 +20,19 @@ import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
 import { useProjectDocuments } from "@/features/documents/useProjectDocuments";
 import { documentErrorMessage } from "@/features/documents/validation";
 import { BudgetQuotationPanel } from "@/features/budgetQuotation/BudgetQuotationPanel";
+import { BudgetQuotationReadView, CommercialQuotationReadView } from "@/features/quotationViews/QuotationReadViews";
 import { CommercialQuotationPanel } from "@/features/commercialQuotation/CommercialQuotationPanel";
 
 export function ProjectDetailPage({ id }: { id: string }) {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   // Remount every permission-dependent resource and action on identity changes,
   // even when AuthProvider keeps the same API client and the URL stays unchanged.
-  return user ? <ProjectDetailContent key={`${id}:${user.subject}`} id={id} /> : <p role="status">Validando sesión…</p>;
+  return user ? <ProjectDetailContent key={`${id}:${user.subject}:${activeRole}`} id={id} /> : <p role="status">Validando sesión…</p>;
 }
 
 function ProjectDetailContent({ id }: { id: string }) {
   const api = useApiClient();
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
   const load = useCallback(async (signal: AbortSignal) => {
     const [project, tasks, notifications] = await Promise.all([
       projectsService.get(api, id, signal), tasksService.forProject(api, id, signal), notificationsService.forProject(api, id, signal),
@@ -40,9 +41,17 @@ function ProjectDetailContent({ id }: { id: string }) {
     return { project, client, tasks, notifications };
   }, [api, id]);
   const resource = useResource(load);
-  const documents = useProjectDocuments(api, id);
+  const documentResource = useProjectDocuments(api, id);
+  const canEditDocuments = activeRole === "CommercialAdvisor" && user?.subject === resource.data?.project.createdBy?.subject;
+  const documents = { ...documentResource, data: documentResource.data ? {
+    ...documentResource.data,
+    canModify: canEditDocuments && documentResource.data.canModify,
+    canRemove: canEditDocuments && documentResource.data.canRemove,
+    canSendToBudgets: activeRole === "CommercialAdvisor" && canEditDocuments && documentResource.data.canSendToBudgets,
+  } : documentResource.data };
   const [documentBusy, setDocumentBusy] = useState(false);
   const [quotationBusy, setQuotationBusy] = useState(false);
+  const [quotationRevision, setQuotationRevision] = useState(0);
   const [commercialBusy, setCommercialBusy] = useState(false);
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), []);
@@ -58,17 +67,20 @@ function ProjectDetailContent({ id }: { id: string }) {
   const [notice, setNotice] = useState("");
   const preparation = data?.tasks.find((task) => task.type === "PrepareQuotation");
   const review = data?.tasks.find((task) => task.type === "ReviewQuotation");
-  const canReview = !!user && user.subject === review?.assignedToGoogleSubject
+  const canReview = activeRole === "CommercialHead" && !!user && user.subject === review?.assignedToGoogleSubject
     && (review.status === "InProgress" || review.status === "Completed");
   // Presentation only; the backend's BudgetsAssignee policy authorizes the PUT.
-  const isPreparationAssignee = !!user && user.subject === preparation?.assignedToGoogleSubject;
+  const isPreparationAssignee = activeRole === "Budgets" && !!user && user.subject === preparation?.assignedToGoogleSubject;
+  const advisorOwner = activeRole === "CommercialAdvisor" && user?.subject === data?.project.createdBy?.subject;
+  const canReadBudget = advisorOwner || isPreparationAssignee || canReview || activeRole === "Management";
+  const canReadCommercial = advisorOwner || canReview || activeRole === "Management";
   const pendingSg = preparation?.status === "Pending" && data?.project.sgCode === null;
   const canAssign = isPreparationAssignee && pendingSg;
   const canCorrect = isPreparationAssignee && preparation?.status === "InProgress" && !!data?.project.sgCode;
 
   async function mutate(action: "send" | "sg") {
     if (locked.current || documentBusy || quotationBusy || commercialBusy || !data) return;
-    if (action === "send" && (!confirmSend || !documents.data?.canSendToBudgets)) return;
+    if (action === "send" && (activeRole !== "CommercialAdvisor" || !confirmSend || !documents.data?.canSendToBudgets)) return;
     const normalizedSg = sgCode.trim().toUpperCase();
     if (action === "sg") {
       if (!canAssign && !canCorrect) return;
@@ -151,7 +163,7 @@ function ProjectDetailContent({ id }: { id: string }) {
         onBusyChange={setDocumentBusy} onUpdated={refreshDocumentNotifications} /></div>
       <div className={styles.actions}>
       {documents.data?.canModify && !documents.data.documents.some((document) => document.isCurrent) && <section className={styles.actionArea} aria-labelledby="upload-action-title"><p className={styles.actionLabel}>Acción actual</p><h2 id="upload-action-title" className={styles.actionTitle}>Cargar documentación</h2><p role="status" className={styles.actionText}>Debes cargar al menos un documento del proyecto antes de enviarlo a Presupuestos.</p><a className="text-link" href="#documents-title">Ir a documentos</a></section>}
-      {documents.data?.canSendToBudgets && <section className={styles.actionArea} aria-labelledby="send-title">
+      {activeRole === "CommercialAdvisor" && documents.data?.canSendToBudgets && <section className={styles.actionArea} aria-labelledby="send-title">
         <p className={styles.actionLabel}>Siguiente acción</p><h2 id="send-title" className={styles.actionTitle}>Enviar a Presupuestos</h2>
         <p className={styles.actionText}>El plazo de Presupuestos comenzará cuando se asigne el SG.</p>
         {confirmSend ? <div role="group" aria-label="Confirmar envío a Presupuestos" className="space-y-3">
@@ -170,15 +182,19 @@ function ProjectDetailContent({ id }: { id: string }) {
         {validation && <p id="sg-error" role="alert" className="error-message mt-3">{validation}</p>}
       </section>}
       </div>
-      {isPreparationAssignee && preparation?.status !== "Pending" && <div className={styles.quotation}><BudgetQuotationPanel key={data.project.sgCode} projectId={id}
-        canEdit={canCorrect} reviewStatus={data.tasks.find((task) => task.type === "ReviewQuotation")?.status}
-        disabled={busy || documentBusy || commercialBusy} onBusyChange={setQuotationBusy}
-        onRefreshRelated={refreshQuotationRelated}
-        onTasksUpdated={(tasks) => resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] })} /></div>}
-      {canReview && review && review.status !== "Pending" && <div className={styles.commercial}><CommercialQuotationPanel projectId={id} reviewStatus={review.status}
-        disabled={busy || documentBusy || quotationBusy} onBusyChange={setCommercialBusy}
-        onRefreshRelated={refreshQuotationRelated}
-        onTasksUpdated={(tasks) => resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] })} /></div>}
+      {canReadBudget && <div className={styles.quotation}>
+        {isPreparationAssignee && preparation?.status !== "Pending" ? <BudgetQuotationPanel key={data.project.sgCode} projectId={id}
+          canEdit={canCorrect} reviewStatus={review?.status} disabled={busy || documentBusy || commercialBusy} onBusyChange={setQuotationBusy}
+          readView={<BudgetQuotationReadView key={quotationRevision} projectId={id} />} onRefreshRelated={refreshQuotationRelated}
+          onTasksUpdated={(tasks) => { setQuotationRevision(value => value + 1); resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] }); }} />
+          : <BudgetQuotationReadView key={quotationRevision} projectId={id} />}
+      </div>}
+      {canReadCommercial && <div className={styles.commercial}>
+        <CommercialQuotationReadView key={`${quotationRevision}:${review?.status}`} projectId={id} allowDownload={advisorOwner} />
+        {canReview && review && review.status !== "Pending" && <CommercialQuotationPanel projectId={id} reviewStatus={review.status}
+          disabled={busy || documentBusy || quotationBusy} onBusyChange={setCommercialBusy} onRefreshRelated={refreshQuotationRelated}
+          onTasksUpdated={(tasks) => { setQuotationRevision(value => value + 1); resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] }); }} />}
+      </div>}
       <section aria-labelledby="project-notifications-title" className={styles.activity}><h2 id="project-notifications-title" className={styles.sectionLabel}>Actividad del proyecto</h2><NotificationList notifications={data.notifications} variant="activity" /></section>
       <section aria-labelledby="project-tasks-title" className={styles.tasks}><h2 id="project-tasks-title" className={styles.sectionLabel}>Tareas del proyecto</h2><TaskList tasks={data.tasks} compact /></section>
       </div>

@@ -72,7 +72,7 @@ describe("project workspace presentation", () => {
     renderOperational(<Home />);
     expect(screen.getByRole("heading", { name: "SnG Control", level: 1 })).toBeInTheDocument();
     const links = within(screen.getByRole("navigation", { name: "Accesos rápidos" })).getAllByRole("link");
-    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/projects", "/clients", "/tasks", "/notifications"]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/clients", "/projects", "/tasks", "/notifications"]);
     expect(screen.getByText("Identidad técnica de la sesión").closest("details")).not.toHaveAttribute("open");
   });
 });

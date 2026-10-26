@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -8,7 +9,7 @@ import { testApiClient, token, user } from "./fixtures";
 const { router, location } = vi.hoisted(() => ({ router: { replace: vi.fn() }, location: { pathname: "/" } }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => location.pathname }));
 const context = {
-  status: "authenticated" as const, user, error: null,
+  status: "authenticated" as const, ...roleContext("CommercialAdvisor"), user, error: null,
   signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: testApiClient,
 };
 
@@ -16,7 +17,7 @@ describe("operational shell", () => {
   it.each(["/management", "/management/tasks"])("shows management navigation with one active link at %s and clears it on account change", (pathname) => {
     location.pathname = pathname;
     try {
-      const view = render(<AuthContext.Provider value={{ ...context, user: { ...user, isManagement: true } }}><AppShell>Contenido</AppShell></AuthContext.Provider>);
+      const view = render(<AuthContext.Provider value={{ ...context, ...roleContext("Management"), user: { ...user, isManagement: true, roles: ["Management"] } }}><AppShell>Contenido</AppShell></AuthContext.Provider>);
       const navigation = screen.getByRole("navigation", { name: "Principal" });
       expect(within(navigation).getByRole("link", { name: "Resumen" })).toHaveAttribute("href", "/management");
       expect(within(navigation).getByRole("link", { name: "Operación" })).toHaveAttribute("href", "/management/tasks");

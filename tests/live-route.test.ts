@@ -10,7 +10,7 @@ import { token } from "./fixtures";
 const upstream = vi.fn<typeof fetch>();
 const context = () => ({ params: Promise.resolve({ path: ["live", "session"] }) });
 const request = () => new Request("https://frontend.example.test/api/intelligence/live/session", {
-  method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ sdp: liveSdp }),
+  method: "POST", headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "Management", "Content-Type": "application/json" }, body: JSON.stringify({ sdp: liveSdp }),
 });
 function traceEntries() {
   return vi.mocked(console.info).mock.calls.map(([event, metadata]) => ({ event, ...JSON.parse(metadata as string) })) as Array<Record<string, unknown>>;

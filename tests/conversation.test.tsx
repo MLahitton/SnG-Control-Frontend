@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,9 +14,9 @@ import { mockLiveBrowser, LivePeer } from "./liveBrowser";
 import { deferred } from "./operationalFixtures";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
-const client = () => createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
+const client = () => createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: vi.fn() });
 function identity() {
-  return { status: "authenticated" as const, user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: client() };
+  return { status: "authenticated" as const, ...roleContext("Management"), user: manager, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: client() };
 }
 function network() {
   let creates = 0;

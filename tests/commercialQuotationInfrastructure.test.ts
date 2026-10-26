@@ -9,12 +9,12 @@ import { token } from "./fixtures";
 
 const fetchMock = vi.fn<typeof fetch>();
 const invalidate = vi.fn();
-const api = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: invalidate });
+const api = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "CommercialHead" as const}), invalidateSession: invalidate });
 const file = new File([new Uint8Array([80, 75, 0, 255])], "review.xlsx");
 const signal = new AbortController().signal;
 beforeEach(() => { vi.stubEnv("SNG_API_BASE_URL", "https://backend.example.test"); vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); invalidate.mockReset(); });
 const path = (endpoint: string) => ["projects", "project-1", ...endpoint.split("/")];
-function request(method: string, body?: BodyInit) { return new Request("https://frontend.example.test/api/backend/projects/project-1", { method, body, headers: { Authorization: `Bearer ${token}` } }); }
+function request(method: string, body?: BodyInit) { return new Request("https://frontend.example.test/api/backend/projects/project-1", { method, body, headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "CommercialHead" } }); }
 
 describe("commercial quotation API and BFF", () => {
   it("preview/confirm send only the same File, with no invented Content-Type", async () => {

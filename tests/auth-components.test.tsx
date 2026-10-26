@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -13,7 +14,7 @@ vi.mock("@/features/auth/components/GoogleSignInButton", () => ({
   GoogleSignInButton: () => <button>Acceso Google</button>,
 }));
 
-const context = { status: "unauthenticated" as const, user: null, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient: testApiClient };
+const context = { status: "unauthenticated" as const, user: null, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), ...roleContext(), apiClient: testApiClient };
 
 describe("AuthGate", () => {
   it("shows loading without revealing protected content", () => {
@@ -28,7 +29,7 @@ describe("AuthGate", () => {
     expect(screen.queryByText("Contenido privado")).not.toBeInTheDocument();
   });
   it("renders authenticated children", () => {
-    render(<AuthContext.Provider value={{ ...context, status: "authenticated", user }}><AuthGate>Contenido privado</AuthGate></AuthContext.Provider>);
+    render(<AuthContext.Provider value={{ ...context, status: "authenticated", ...roleContext("CommercialAdvisor"), user }}><AuthGate>Contenido privado</AuthGate></AuthContext.Provider>);
     expect(screen.getByText("Contenido privado")).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
   });
@@ -70,7 +71,7 @@ describe("LoginPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("No pudimos validar");
   });
   it("redirects authenticated users home", () => {
-    render(<AuthContext.Provider value={{ ...context, status: "authenticated", user }}><LoginPage /></AuthContext.Provider>);
+    render(<AuthContext.Provider value={{ ...context, status: "authenticated", ...roleContext("CommercialAdvisor"), user }}><LoginPage /></AuthContext.Provider>);
     expect(replace).toHaveBeenCalledWith("/");
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });

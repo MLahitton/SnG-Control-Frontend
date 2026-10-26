@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -45,7 +46,7 @@ async function prompt() { await userEvent.click(panel().getByRole("button", { na
 describe("commercial review visibility", () => {
   it.each([
     { tasks: [], current: commercialUser },
-    { tasks: [{ ...reviewTask, status: "Pending" as const, startedAt: null, deadlineAt: null, wasOverdue: null, leakTimeStatus: "NotStarted" as const }], current: commercialUser },
+    { tasks: [{ ...reviewTask, status: "Pending" as const, startedAt: null, deadlineAt: null, wasOverdue: null, LeadTimeStatus: "NotStarted" as const }], current: commercialUser },
     { tasks: [reviewTask], current: user },
     { tasks: [reviewTask], current: { ...user, isManagement: true } },
     { tasks: [commercialConfirmation.reviewTask], current: user },
@@ -195,8 +196,8 @@ describe("commercial download and identity cleanup", () => {
   });
   it.each(["preview", "download", "confirm"])("aborts %s on identity change; no file/preview/prompt survives", async (action) => {
     const state = backend();
-    const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
-    function view(current: CurrentUser) { return <AuthContext.Provider value={{ status: "authenticated", user: current, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient }}><ProjectDetailPage id="project-1" /></AuthContext.Provider>; }
+    const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "CommercialHead" as const}), invalidateSession: vi.fn() });
+    function view(current: CurrentUser) { return <AuthContext.Provider value={{ status: "authenticated", ...roleContext("CommercialHead"), user: current, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient }}><ProjectDetailPage id="project-1" /></AuthContext.Provider>; }
     const rendered = render(view(commercialUser));
     if (action === "confirm") { await preview(); await prompt(); }
     const pending = deferred<unknown>(); let signal: AbortSignal | undefined;

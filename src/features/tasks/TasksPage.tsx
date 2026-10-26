@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
 import { projectsService } from "@/features/projects/service";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
@@ -12,7 +13,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 
 export function TasksPage() {
   const api = useApiClient();
-  const [area, setArea] = useState<TaskArea>("Commercial");
+  const { activeRole } = useAuth();
+  const [area, setArea] = useState<TaskArea>(activeRole === "Budgets" ? "Budgets" : "Commercial");
   const [status, setStatus] = useState<TaskStatus>("Pending");
   const loadProjects = useCallback(async (signal: AbortSignal) => {
     const projects = await projectsService.list(api, signal);

@@ -10,11 +10,11 @@ beforeEach(() => {
 
 describe("authService", () => {
   it.each([true, false])("preserves the required management flag %s", async (isManagement) => {
-    fetchMock.mockResolvedValue(Response.json({ ...user, isManagement }));
-    expect(await getCurrentUser(token)).toEqual({ ...user, isManagement });
+    fetchMock.mockResolvedValue(Response.json({ ...user, isManagement, roles: isManagement ? ["Management"] : user.roles }));
+    expect(await getCurrentUser(token)).toEqual({ ...user, isManagement, roles: isManagement ? ["Management"] : user.roles });
   });
   it.each([undefined, null, "true", 1])("rejects missing or non-boolean isManagement %j", async (isManagement) => {
-    fetchMock.mockResolvedValue(Response.json({ ...user, isManagement }));
+    fetchMock.mockResolvedValue(Response.json({ ...user, isManagement, roles: isManagement ? ["Management"] : user.roles }));
     await expect(getCurrentUser(token)).rejects.toMatchObject({ kind: "backend" });
   });
   it("sends the Bearer only in the header to the same-origin endpoint", async () => {
@@ -42,7 +42,7 @@ describe("authService", () => {
     await expect(getCurrentUser(token)).rejects.toMatchObject({ kind: "backend" });
   });
 
-  it("controls network errors without leaking their messages", async () => {
+  it("controls network errors without Leading their messages", async () => {
     fetchMock.mockRejectedValue(new Error("private network details"));
     await expect(getCurrentUser(token)).rejects.toMatchObject({
       kind: "backend",

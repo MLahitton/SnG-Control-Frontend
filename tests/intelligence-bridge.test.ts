@@ -8,7 +8,7 @@ import { GET as controlGET } from "@/app/api/backend/[...path]/route";
 const fetchMock = vi.fn<typeof fetch>();
 const context = (path: string) => ({ params: Promise.resolve({ path: path.split("/") }) });
 function request(method = "GET", body?: BodyInit, type?: string, query = "") {
-  return new Request("https://frontend.example.test/api/intelligence/session" + query, { method, body, headers: { Authorization: `Bearer ${token}`, Cookie: "private", "X-Internal": "private", ...(type ? { "Content-Type": type } : {}) } });
+  return new Request("https://frontend.example.test/api/intelligence/session" + query, { method, body, headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "Management", Cookie: "private", "X-Internal": "private", ...(type ? { "Content-Type": type } : {}) } });
 }
 beforeEach(() => {
   vi.stubEnv("SNG_INTELLIGENCE_BASE_URL", "http://127.0.0.1:8001");
@@ -22,7 +22,7 @@ describe("Intelligence BFF", () => {
     vi.stubEnv("SNG_INTELLIGENCE_BASE_URL", "https://intelligence.example.test");
     fetchMock.mockResolvedValueOnce(Response.json({ totalProjects: 12 }));
     await controlGET(new Request("https://frontend.example.test/api/backend/management/overview", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "Management" },
     }), context("management/overview"));
     await POST(request("POST", '{"message":"consulta"}', "application/json"), context("chat"));
     expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
@@ -93,7 +93,7 @@ describe("Intelligence BFF", () => {
     expect(response.status).toBe(status);
     expect(await response.json()).toEqual({ status, requestId });
   });
-  it.each([token, "http://127.0.0.1:8001", "C:\\private\\file", "sk-testprivateapikey123"])("rejects leaked credentials/internal strings in valid response fields", async (secret) => {
+  it.each([token, "http://127.0.0.1:8001", "C:\\private\\file", "sk-testprivateapikey123"])("rejects Leaded credentials/internal strings in valid response fields", async (secret) => {
     fetchMock.mockResolvedValue(Response.json({ ...intelligenceResponse, answer: secret }));
     const response = await POST(request("POST", "{}", "application/json"), context("chat"));
     expect(response.status).toBe(502);

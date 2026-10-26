@@ -44,7 +44,7 @@ describe("numeric local latency", () => {
 async function start() {
   const fetchMock = vi.fn(async (path: string) => Response.json(path.endsWith("/session") ? liveCreated : { closed: true }));
   vi.stubGlobal("fetch", fetchMock);
-  const api = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
+  const api = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession: vi.fn() });
   const hook = renderHook(() => useLiveVoice(api));
   await act(async () => { await hook.result.current.start(); });
   const pc = LivePeer.instances[0];

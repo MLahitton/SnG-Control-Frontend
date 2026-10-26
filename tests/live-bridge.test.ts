@@ -5,7 +5,7 @@ import { forwardIntelligence } from "@/features/intelligence/server/bridge";
 import { liveCreated, liveSdp, liveSessionId } from "./liveFixtures";
 import { token } from "./fixtures";
 const fetchMock = vi.fn<typeof fetch>();
-const request = (body: unknown, method = "POST", type = "application/json") => new Request("https://frontend.example.test/api/intelligence/live/session", { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": type, Cookie: "private" }, ...(method !== "GET" ? { body: JSON.stringify(body) } : {}) });
+const request = (body: unknown, method = "POST", type = "application/json") => new Request("https://frontend.example.test/api/intelligence/live/session", { method, headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "Management", "Content-Type": type, Cookie: "private" }, ...(method !== "GET" ? { body: JSON.stringify(body) } : {}) });
 beforeEach(() => { vi.stubEnv("SNG_INTELLIGENCE_BASE_URL", "https://intelligence.example.test"); vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); });
 describe("Live BFF", () => {
   it.each([
@@ -28,7 +28,7 @@ describe("Live BFF", () => {
       sessionId: "sess_test_123",
       sdp: "v=0\r\no=- 123 456 IN IP4 0.0.0.0\r\ns=-\r\nt=0 0\r\na=fingerprint:sha-256 AA:BB:CC\r\n",
     };
-    fetchMock.mockResolvedValue(Response.json(body, { status: 201, headers: { "Content-Type": contentType, "OpenAI-Request-ID": "provider-private", Authorization: `Bearer ${token}`, Location: "https://provider.example.test/session" } }));
+    fetchMock.mockResolvedValue(Response.json(body, { status: 201, headers: { "Content-Type": contentType, "OpenAI-Request-ID": "provider-private", Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "Management", Location: "https://provider.example.test/session" } }));
     const response = await forwardIntelligence(request({ sdp: liveSdp }), ["live", "session"]);
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual(body);
@@ -48,7 +48,7 @@ describe("Live BFF", () => {
   });
   it.each([
     { ...liveCreated, extra: "rejected" },
-    { ...liveCreated, Authorization: `Bearer ${token}` },
+    { ...liveCreated, Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "Management" },
     { ...liveCreated, OPENAI_API_KEY: "sk-syntheticPrivateKey123" },
     { ...liveCreated, provider: { url: "https://provider.example.test" } },
     { sdp: liveSdp }, { sessionId: liveSessionId },

@@ -3,7 +3,7 @@ export const projectId = "11111111-1111-4111-8111-111111111111";
 export const taskId = "22222222-2222-4222-8222-222222222222";
 export const requestId = "33333333-3333-4333-8333-333333333333";
 export const intelligenceProject: ProjectItem = { kind: "project", projectId, projectName: "Casa Ximena", sgCode: "SG001", clientName: "Cliente de prueba", city: "Bogotá" };
-export const intelligenceTask: TaskItem = { kind: "task", projectId, taskId, projectName: "Casa Ximena", sgCode: "SG001", area: "Presupuestos", task: "Preparar cotización", status: "Pendiente", leakTimeStatus: "Sin iniciar", deadlineAt: null };
+export const intelligenceTask: TaskItem = { kind: "task", projectId, taskId, projectName: "Casa Ximena", sgCode: "SG001", area: "Presupuestos", task: "Preparar cotización", status: "Pendiente", LeadTimeStatus: "Sin iniciar", deadlineAt: null };
 const common = { answer: "Respuesta para la pantalla.", spokenAnswer: "Respuesta breve para escuchar.", references: [{ type: "project" as const, projectId, label: "Casa Ximena", sgCode: "SG001" }, { type: "task" as const, projectId, taskId, label: "Preparar cotización" }] };
 export const intelligenceResponses: IntelligenceResponse[] = [
   { ...common, responseType: "direct", presentation: { kind: "direct", metric: { key: "projects", label: "Proyectos", value: 12 } } },

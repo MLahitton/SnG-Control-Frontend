@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { conversationCreated } from "./intelligenceFixtures";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,7 +17,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => { mockVoiceBrowser(); });
 function context(identity = manager) {
   const invalidateSession = vi.fn();
-  return { status: "authenticated" as const, user: identity, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession, apiClient: createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession }) };
+  return { status: "authenticated" as const, ...roleContext("Management"), user: identity, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession, apiClient: createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Management" as const}), invalidateSession }) };
 }
 function backend(handler?: (path: string, options: RequestInit) => unknown) {
   const mock = vi.fn(async (path: string, options: RequestInit) => {

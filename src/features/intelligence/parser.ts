@@ -34,7 +34,7 @@ function task(value: unknown): TaskItem {
   if (v.kind !== "task") return fail();
   const deadlineAt = nullable(v.deadlineAt);
   if (deadlineAt !== null && (!/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(deadlineAt) || !Number.isFinite(Date.parse(deadlineAt)))) return fail();
-  return { kind: "task", projectId: id(v.projectId), projectName: string(v.projectName), sgCode: nullable(v.sgCode), taskId: id(v.taskId), area: nullable(v.area), task: nullable(v.task), status: nullable(v.status), leakTimeStatus: nullable(v.leakTimeStatus), deadlineAt };
+  return { kind: "task", projectId: id(v.projectId), projectName: string(v.projectName), sgCode: nullable(v.sgCode), taskId: id(v.taskId), area: nullable(v.area), task: nullable(v.task), status: nullable(v.status), LeadTimeStatus: nullable(v.LeadTimeStatus), deadlineAt };
 }
 function documentSource(value: unknown): DocumentSource {
   const v = object(value), uploadedAt = string(v.uploadedAt);

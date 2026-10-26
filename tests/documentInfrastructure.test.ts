@@ -11,10 +11,10 @@ import { token } from "./fixtures";
 
 const fetchMock = vi.fn<typeof fetch>();
 const invalidateSession = vi.fn();
-const api = () => createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession });
+const api = () => createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "CommercialAdvisor" as const}), invalidateSession });
 const context = (path: string) => ({ params: Promise.resolve({ path: path.split("/") }) });
 function request(method: string, body?: BodyInit) {
-  const init: RequestInit & { duplex?: "half" } = { method, body, headers: { Authorization: `Bearer ${token}` } };
+  const init: RequestInit & { duplex?: "half" } = { method, body, headers: { Authorization: `Bearer ${token}`, "X-SnG-Active-Role": "CommercialAdvisor" } };
   if (body instanceof ReadableStream) init.duplex = "half";
   return new Request("https://frontend.example.test/api/backend/projects/p/documents/d", init);
 }

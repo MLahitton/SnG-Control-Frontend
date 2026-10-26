@@ -5,8 +5,8 @@ Frontend de Steel & Glass. Incluye acceso con Google, el flujo operativo Cliente
 ## Estado funcional
 
 - Inicio de sesión con el botón oficial de Google Identity Services.
-- Durante desarrollo se permite cualquier cuenta Google válida que el backend acepte. La configuración de audiencia y usuarios de prueba del proyecto Google también debe permitir esa cuenta. Los permisos operativos siguen siendo autoridad del backend.
-- Google entrega un ID Token. El backend .NET valida ese token y devuelve Subject, Email, Name e `isManagement` (boolean requerido). Solo `isManagement === true` habilita la experiencia de Gerencia; no se infiere por email, nombre o Subject.
+- Google valida identidad; Backend determina las membresías explícitas y autoriza cada operación por área activa. Una cuenta sin roles ve un mensaje seguro y no entra a la experiencia operacional.
+- Google entrega un ID Token. Backend devuelve subject, email, name, roles (strings cerrados) e isManagement derivado por compatibilidad. La experiencia utiliza roles y un único ActiveRole validado, nunca email/nombre ni el flag como fuente de áreas.
 - El shell incluye navegación responsive a Inicio, Clientes, Proyectos, Tareas y Notificaciones, nombre/email y cierre de sesión.
 - Inicio ofrece accesos rápidos a proyectos, clientes, tareas y notificaciones. La identidad confirmada conserva Copiar Subject dentro de “Identidad técnica de la sesión”. El login permanece fuera del shell.
 - El token se guarda en `sessionStorage` en la pestaña actual, después de una validación exitosa. No se guardan los datos de identidad como autoridad separada.
@@ -54,9 +54,9 @@ Los nombres duplicados de clientes y proyectos están permitidos. El creador aut
 
 Comercial carga documentos mediante selección múltiple o arrastrar/soltar y confirma la carga. Se permiten nombres duplicados y cualquier extensión/MIME: los archivos no se previsualizan. Límites: **100 MB por archivo, 300 MB por operación y 15 documentos vigentes**, con validación final del backend. Antes del envío se pueden quitar documentos cuando el backend lo permite; reemplazar conserva el anterior en el historial.
 
-El envío a Presupuestos exige al menos un documento vigente, capacidad autorizada por backend y confirmación. Crea un snapshot inicial descargable y la tarea pendiente, sin iniciar el plazo. Después, los usuarios con capacidad de modificación pueden agregar/reemplazar documentos; Presupuestos consulta y descarga vigentes, históricos, ZIP actual y envío inicial. La actualización genera `ProjectDocumentsUpdated` y no reinicia tarea ni Leak Time. Los proyectos anteriores sin snapshot muestran una indicación de historial inicial no disponible.
+El envío a Presupuestos exige al menos un documento vigente, capacidad autorizada por backend y confirmación. Crea un snapshot inicial descargable y la tarea pendiente, sin iniciar el plazo. Después, los usuarios con capacidad de modificación pueden agregar/reemplazar documentos; Presupuestos consulta y descarga vigentes, históricos, ZIP actual y envío inicial. La actualización genera `ProjectDocumentsUpdated` y no reinicia tarea ni Lead Time. Los proyectos anteriores sin snapshot muestran una indicación de historial inicial no disponible.
 
-Asignar/corregir SG corresponde al usuario de Presupuestos asignado a PrepareQuotation; Comercial consulta el SG y el avance sin controles de edición. La primera asignación de SG inicia el Leak Time; una corrección posterior conserva inicio y vencimiento. SG acepta `SG` seguido de dígitos ASCII, normaliza espacios exteriores/mayúsculas y conserva ceros iniciales. Los plazos y estados se muestran exclusivamente desde backend, con fechas y horas en **America/Bogota**.
+Asignar/corregir SG corresponde al usuario con Budgets activo asignado a PrepareQuotation; Comercial consulta el SG y el avance sin controles de edición. La primera asignación de SG inicia el Lead Time; una corrección posterior conserva inicio y vencimiento. SG acepta `SG` seguido de dígitos ASCII, normaliza espacios exteriores/mayúsculas y conserva ceros iniciales. Los plazos y estados se muestran exclusivamente desde backend, con fechas y horas en **America/Bogota**.
 
 Las acciones documentales dependen de `canModify`, `canRemove` y `canSendToBudgets` recibidos del backend. Al cambiar de cuenta se vuelven a cargar los datos y capacidades del proyecto abierto, sin Ctrl+F5. Las descargas usan escritura directa al archivo cuando el navegador la permite; en otros navegadores usan una descarga estándar que requiere memoria para el archivo completo.
 
@@ -78,21 +78,29 @@ Puedes corregir exactamente once campos: número, ubicación, sistema, cristal, 
 
 El preview es stateless: archivo y correcciones permanecen solo en memoria React. Cambiar archivo, proyecto, Subject o SG limpia el borrador; recargar también lo pierde. Durante las solicitudes se bloquean dobles envíos y cambios incompatibles. No se guardan XLSX ni previews en almacenamiento del navegador.
 
-Al abrir o recargar, se consulta `GET projects/{id}/budget-quotation/status`: NotConfirmed mantiene el flujo de carga; Confirmed muestra versión, fecha y cantidades persistidas sin volver a ofrecer el editor; SentToCommercial conserva ese resumen histórico incluso con PrepareQuotation completada. No se usa almacenamiento del navegador para recuperar el estado.
+Al abrir o recargar, se consulta `GET projects/{id}/budget-quotation/status`: NotConfirmed mantiene el flujo de carga; Confirmed muestra versión, fecha, cantidades y la vista completa confirmada sin volver a ofrecer el editor; SentToCommercial conserva ese snapshot histórico incluso con PrepareQuotation completada. No se usa almacenamiento del navegador para recuperar el estado.
 
 **Enviar a Comercial** aparece únicamente cuando backend devuelve `canSendToCommercial=true`. Primero pide confirmación humana; Cancelar no envía nada. Confirmar ejecuta el POST existente sin body. Las tareas de la respuesta se muestran de inmediato y se refrescan estado, tareas y actividad: PrepareQuotation Completed y ReviewQuotation InProgress con fechas y notificación del backend. No hay envío automático ni cálculos locales de deadlines.
 
 Si cambió el SG después de confirmar, se muestran ambos SG y el bloqueo sin corregir archivos ni catálogo. Los estados incompatibles y conflictos ofrecen mensajes seguros y actualización. El estado “Enviada a Comercial” sobrevive F5 y no vuelve a ofrecer envío.
 
+## Cotizaciones confirmadas en el expediente
+
+La información confirmada permanece dentro del proyecto después de F5, handoffs, cambio de área o nueva sesión. Las vistas de Presupuestos y Comercial consultan Backend y muestran los snapshots persistidos, separadas de los previews temporales y de las acciones actuales.
+
+Presupuestos conserva metadata documental, SG histórico, todos los ítems, valores técnicos confirmados, ajustes frente a la extracción e imágenes bajo demanda. Comercial conserva valores técnicos, precios unitarios, totales por ítem, total del proyecto y diferencias frente a Presupuestos. No se recalcula economía ni se reprocesan archivos para mostrar estos datos.
+
+El asesor original y Gerencia consultan ambas vistas. Presupuestos consulta su snapshot con tarea asignada. El Jefe Comercial consulta ambas con ReviewQuotation asignada y puede revisar el contenido de Presupuestos antes de descargar el archivo operativo. Las acciones siguen limitadas al área activa y al workflow; las vistas son de solo lectura. Las descargas existentes se conservan. Si no hay cotización confirmada, no se muestra una sección vacía.
+
 ## Revisión Comercial de cotización (4E)
 
-El expediente muestra **Revisión Comercial** al usuario cuyo Subject coincide con el asignado a ReviewQuotation. Con tarea InProgress puede descargar la cotización operativa de Presupuestos, editarla externamente en Excel y seleccionar un único `.xlsx` revisado. La autorización real corresponde al backend; email, nombre, creador del proyecto e indicador de Gerencia no conceden esta acción.
+El expediente muestra **Revisión Comercial** al usuario con CommercialHead activo cuyo Subject coincide con el asignado a ReviewQuotation. Con tarea InProgress puede descargar la cotización operativa de Presupuestos, editarla externamente en Excel y seleccionar un único `.xlsx` revisado. La autorización real corresponde al backend; email, nombre, creador del proyecto e indicador de Gerencia no conceden esta acción.
 
 **Generar preview** muestra el total del proyecto, precios unitarios/totales, ítems en el orden recibido y diferencias técnicas con atribución **Antes (Presupuestos)** / **Ahora (Comercial)**. Es solo lectura: no hay edición web ni cálculos económicos locales. Para cambiar valores se edita Excel y se genera otro preview. Reemplazar el archivo, incluso con el mismo nombre, descarta el preview y la confirmación pendiente.
 
 **Confirmar cotización comercial** requiere una confirmación humana; Cancelar no envía nada. Se remite exactamente el mismo archivo del preview para que backend vuelva a interpretarlo. El éxito muestra ReviewQuotation Completed y PresentQuotationToClient InProgress asignada por backend al asesor creador original, y actualiza tareas/actividad. No se calculan fechas ni se implementa todavía la presentación al cliente.
 
-Tras confirmar, el Jefe Comercial consulta el resumen y puede **Descargar cotización final**, sin otro upload/preview/confirmación. F5 recupera el estado completado desde las tareas oficiales. El contrato actual no ofrece una consulta del resumen económico confirmado: tras recargar no se inventan importe ni cantidad de diferencias; permanecen el estado, las tareas y la descarga final. Los archivos se conservan únicamente en memoria durante la operación y se descartan al cambiar de cuenta/proyecto.
+Tras confirmar, el Jefe Comercial consulta el resumen y puede **Descargar cotización final**, sin otro upload/preview/confirmación. F5 recupera el estado completado desde las tareas oficiales. Después de F5 se vuelve a consultar el snapshot comercial completo, incluidos valores técnicos, precios, total del proyecto y diferencias; también permanece la cotización histórica de Presupuestos. Los archivos se conservan únicamente en memoria durante la operación y se descartan al cambiar de cuenta/proyecto.
 
 Los errores de estructura muestran filas faltantes/inesperadas por sección; no se intenta reconciliar el Excel. Conflictos de SG, economía, archivo, permisos o confirmación previa tienen mensajes seguros. AlreadyConfirmed refresca las tareas y bloquea otra confirmación. Las descargas mantienen los bytes del servidor y su filename en la descarga convencional; con selector nativo se respeta el nombre elegido por el usuario.
 
@@ -108,13 +116,13 @@ Operación consume `GET /api/management/tasks`. Muestra tareas actuales e histó
 
 Los enlaces abren el detalle existente para consultar datos, tareas, actividad, documentos, históricos y snapshot inicial. Las descargas siguen sujetas al backend. Gerencia no recibe permisos de escritura por el flag: SG depende del assignee y del estado; documentos y envío a Presupuestos dependen de capabilities. Si una identidad gerencial también tiene esos permisos reales, los conserva. Cambiar de cuenta cancela consultas y limpia datos gerenciales anteriores.
 
-Deuda conocida: el backend aún permite crear clientes/proyectos a cualquier Google autenticado. La UI oculta creación para cuentas con `isManagement: true`, incluso en `/projects/new`. Es **una restricción de UX, no una barrera de seguridad**. El contrato actual no informa una capability general de creación para distinguir Gerencia pura de una identidad mixta; por ello esta ocultación también aplica a identidades mixtas, sin alterar sus permisos específicos en proyectos. Resolverlo requiere una autorización/capability general de Comercial en backend.
+Crear clientes/proyectos requiere CommercialAdvisor activo tanto en UI como en Backend. Tener varios roles no mezcla controles: cada experiencia exige su área, las capabilities oficiales y, cuando corresponde, ownership o tarea asignada.
 
 Pendiente de smoke real: login/restauración con Gerencia, navegación y endpoints, consulta/descarga autorizada, ausencia de escrituras para Gerencia pura y cambio de cuenta sin hard refresh. Verificar también 375, 768, 1024 px y desktop amplio. Los tests usan red simulada; no sustituyen esa integración.
 
 ## SnG Intelligence — Intelligence 1C + Realtime Voice 2C
 
-Solo las cuentas con `user.isManagement === true` ven el botón flotante **Intelligence**, disponible dentro del shell. No se agrega un enlace al Sidebar. Al abrir se verifica el acceso con Intelligence; su autorización real sigue dependiendo del backend. El panel presenta chat, micrófono y referencias a proyectos, con el nombre como dato principal y SG como metadata.
+Solo las cuentas con Management disponible y activo ven el botón flotante **Intelligence** dentro del shell. Al salir de Gerencia se desmonta el panel y se liberan voz, requests y conversación best-effort. Intelligence verifica acceso con Backend y usa un rol Management fijo en sus lecturas.
 
 Configura de forma independiente en el entorno del worktree `SNG_INTELLIGENCE_BASE_URL`, solo servidor. Ejemplo de desarrollo: `http://127.0.0.1:8001`. No tiene prefijo NEXT_PUBLIC. El navegador llama únicamente a `/api/intelligence/...` de Next; no recibe URL del servicio ni claves de proveedores. No copies el `.env` de otro worktree; configura el Client ID público y las URLs que correspondan al entorno de prueba.
 
@@ -219,3 +227,36 @@ preguntar por un PDF real, requisitos de vidrio, metadata del envío inicial, co
 solo si Backend expone relación, preguntar por protección UV y seguir por Live con «ese documento».
 Comprobar fuentes, contexto y navegación sin requests de archivos hacia OpenAI desde el browser.
 Los tests offline no sustituyen esta comprobación real.
+
+## Selección de área
+
+Con un rol se selecciona automáticamente; con varios se muestra el selector inicial.
+El selector **Trabajando como** permite cambiar entre Asesor Comercial, Presupuestos,
+Jefe Comercial y Gerencia sin cambiar cuenta ni token. Solo aparecen áreas disponibles.
+Sin roles se muestra «Tu cuenta no tiene un área asignada en SnG Control.»
+
+Asesor, Presupuestos y Jefe ven Inicio, Clientes, Proyectos, Tareas y Notificaciones.
+Gerencia muestra Resumen, Operación, Clientes y Proyectos, conservando Intelligence,
+siempre de solo lectura. Inicio reutiliza los accesos de la misma matriz.
+
+El área activa define lectura y acciones por separado; ver un módulo no concede escritura.
+Backend es la autoridad del ámbito: Frontend muestra los proyectos y clientes que devuelve.
+
+| Área activa | Clientes | Proyectos | Escritura |
+| --- | --- | --- | --- |
+| CommercialAdvisor | Registro compartido | Propios | Crear cliente/proyecto, documentos propios y envío inicial |
+| Budgets | Relacionados con sus proyectos | PrepareQuotation asignada, incluso Completed | Workflow de Presupuestos |
+| CommercialHead | Relacionados con sus proyectos | ReviewQuotation asignada, incluso Completed | Revisión Comercial |
+| Management | Todos | Todos | Ninguna |
+
+Clientes permite abrir un detalle de solo lectura con sus proyectos accesibles. Solo Asesor
+ve controles de creación. La asignación de tareas conserva el acceso histórico y no cambia
+al seleccionar otra área. Jefe no tiene edición de documentos generales ni acciones Budget.
+Un listado vacío en Presupuestos/Jefatura se presenta como ausencia de proyectos disponibles.
+Tareas inicia en Budgets para Presupuestos y Commercial para Asesor/Jefe.
+
+La preferencia de área se guarda en sessionStorage y se revalida contra /auth/me tras
+cada reload. No concede permisos: Backend valida X-SnG-Active-Role en cada request.
+Cambiar área cancela consultas, limpia estados, remonta la experiencia y abre su inicio;
+logout o cambio de Subject descartan la preferencia anterior. El responsable comercial
+del proyecto y las asignaciones permanecen intactos; el header muestra el área de sesión.

@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthProvider, SESSION_TOKEN_KEY } from "@/features/auth/context/AuthProvider";
+import { AuthProvider, SESSION_TOKEN_KEY, ACTIVE_ROLE_KEY } from "@/features/auth/context/AuthProvider";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { UserIdentityCard } from "@/features/auth/components/UserIdentityCard";
 import { token, user } from "./fixtures";
@@ -40,13 +40,14 @@ describe("AuthProvider", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("persists only the token after successful login and never renders it", async () => {
+  it("persists the token and non-authoritative area preference without rendering the token", async () => {
     mount();
     await userEvent.click(screen.getByText("Entrar"));
     expect(await screen.findByText(user.subject)).toBeInTheDocument();
     expect(screen.getByTestId("status").textContent).toBe("authenticated");
     expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe(token);
-    expect(sessionStorage.length).toBe(1);
+    expect(sessionStorage.length).toBe(2);
+    expect(JSON.parse(sessionStorage.getItem(ACTIVE_ROLE_KEY)!)).toEqual({ subject: user.subject, role: "CommercialAdvisor" });
     expect(document.body).not.toHaveTextContent(token);
   });
 

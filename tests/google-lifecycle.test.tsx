@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { StrictMode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -16,7 +17,7 @@ describe("installed Google integration lifecycle with mocked GSI boundary", () =
     vi.stubGlobal("google", { accounts: { id: { initialize, renderButton: vi.fn(), cancel: vi.fn() } } });
     const context = {
       user: null, error: null, signIn: vi.fn().mockResolvedValue(undefined),
-      logout: vi.fn(), invalidateSession: vi.fn(), apiClient: testApiClient,
+      logout: vi.fn(), invalidateSession: vi.fn(), ...roleContext(), apiClient: testApiClient,
     };
     const view = (status: AuthStatus) => <StrictMode><AuthContext.Provider value={{ ...context, status }}><LoginPage /></AuthContext.Provider></StrictMode>;
     const { rerender } = render(view("unauthenticated"));

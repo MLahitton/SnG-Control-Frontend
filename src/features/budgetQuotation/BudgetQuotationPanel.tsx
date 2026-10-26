@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
 import type { ProjectTask } from "@/features/tasks/types";
 import { ApiError } from "@/lib/api/apiError";
@@ -12,7 +12,8 @@ import { quotationError } from "./validation";
 import { valueFields } from "./parser";
 import styles from "./BudgetQuotation.module.css";
 
-export function BudgetQuotationPanel({ projectId, canEdit, disabled, reviewStatus, onBusyChange, onTasksUpdated, onRefreshRelated }: {
+export function BudgetQuotationPanel({ projectId, canEdit, disabled, reviewStatus, onBusyChange, onTasksUpdated, onRefreshRelated, readView }: {
+  readView?: ReactNode;
   projectId: string; canEdit: boolean; disabled: boolean; reviewStatus?: ProjectTask["status"];
   onBusyChange: (busy: boolean) => void; onTasksUpdated: (tasks: ProjectTask[]) => void;
   onRefreshRelated: (signal: AbortSignal) => Promise<void>;
@@ -81,6 +82,7 @@ export function BudgetQuotationPanel({ projectId, canEdit, disabled, reviewStatu
         <div><dt>Versión</dt><dd>{current.versionNumber}</dd></div><div><dt>Fecha de confirmación</dt><dd>{formatDate(current.confirmedAt)}</dd></div>
         <div><dt>Cantidad de ítems</dt><dd>{current.itemCount}</dd></div><div><dt>Cantidad total</dt><dd>{current.totalQuantity}</dd></div>
       </dl>
+      {readView}
       {current.status === "SentToCommercial" ? <p>La preparación de Presupuestos finalizó. {reviewStatus === "Completed" ? "La revisión Comercial ya finalizó." : reviewStatus === "InProgress" ? "La cotización se encuentra ahora en revisión Comercial." : "La cotización fue entregada a Comercial."}</p> : <>
         <p>La cotización quedó confirmada. El proyecto continúa en Presupuestos hasta enviarlo a Comercial.</p>
         {current.sendBlockReason === "SgChangedAfterConfirmation" && <div role="alert" className="error-message">

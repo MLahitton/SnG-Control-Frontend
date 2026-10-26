@@ -166,7 +166,7 @@ GoogleLogin → credential → AuthProvider.signIn
   → authService.getCurrentUser
   → GET Next.js /api/auth/me
   → GET {SNG_API_BASE_URL}/api/auth/me
-  → .NET valida Google → { subject, email, name, isManagement }
+  → .NET valida Google → { subject, email, name, roles, isManagement }
 ```
 
 `authService` centraliza el fetch de mismo origen. Envía `Authorization: Bearer <ID_TOKEN>`, desactiva caché y no envía cookies. Valida el contrato de identidad y convierte errores de red, JSON y status en errores controlados; no muestra el cuerpo de error del backend.
@@ -175,7 +175,7 @@ El Route Handler:
 - Exige una cabecera Bearer no vacía y con formato de token HTTP; no valida ni decodifica el JWT.
 - Reenvía la misma cabecera Authorization exclusivamente al endpoint fijo.
 - Usa `cache: "no-store"`, un timeout de 10 segundos y `redirect: "error"` para no seguir redirecciones con credenciales.
-- En 200, exige subject no vacío, email y name de tipo string o null e `isManagement` boolean requerido; devuelve únicamente esos cuatro campos. Tanto BFF como authService rechazan flags ausentes, null o de otro tipo. AuthProvider conserva el flag de la identidad validada sin persistir identidad aparte del token.
+- En 200 exige subject no vacío, email/name string o null, roles como array de nombres SystemRole únicos y cerrados e isManagement boolean consistente con roles.Contains(Management). BFF y authService proyectan estos cinco campos; contratos desconocidos no conceden permisos.
 - En 401 devuelve 401 y un mensaje seguro.
 - Conserva status 400–599 con JSON controlado. Respuestas inesperadas, JSON inválido, error de red, timeout o TLS producen 502.
 - Nunca devuelve URL interna, cabeceras del backend, tokens, claims extra ni detalles técnicos. Las respuestas llevan `Cache-Control: no-store` y `Vary: Authorization`.
@@ -247,7 +247,7 @@ Crear cliente envía solo `{ name }`; crear proyecto envía `{ clientId, name, c
 
 El detalle consulta proyecto, cliente, tareas y notificaciones; documentos tiene una consulta y estados independientes. Solo ofrece enviar a Presupuestos tras cargar correctamente documentos y recibir `canSendToBudgets=true`, con confirmación explícita. Al recibir éxito incorpora la tarea y refresca documentos/tareas/notificaciones. El envío crea Pending/NotStarted, con inicio y vencimiento nulos: no inicia el plazo de cinco días. Un 409 `DocumentsRequired` muestra la indicación de cargar al menos un documento y refresca documentos/tareas, sin simular éxito.
 
-La gestión visual de SG exige `user.subject === prepareQuotation.assignedToGoogleSubject`, sin roles locales ni comparaciones por email/name. Para ese usuario, la primera asignación se ofrece con PrepareQuotation Pending y SG nulo; la corrección, con SG existente y PrepareQuotation InProgress. Los demás usuarios consultan SG, tareas, plazos e historial sin controles de edición; si está Pending sin SG, ven «Pendiente de asignación de SG por Presupuestos». Esta condición solo controla presentación: la policy `BudgetsAssignee` del backend sigue autorizando el PUT y los rechazos 403 conservan el manejo existente.
+La gestión visual de SG exige Budgets activo y user.subject igual a prepareQuotation.assignedToGoogleSubject. La primera asignación requiere Pending y SG nulo; corregir requiere InProgress y SG existente. Backend valida membresía, área activa, tarea asignada y workflow. Ningún rol obtiene esos controles por compartir Subject con el creador.
 
 Se aplica trim + uppercase y `/^SG[0-9]+$/`, sin conversión numérica ni pérdida de ceros iniciales. La respuesta `{ project, prepareQuotationTask }` actualiza ambas entidades y se refrescan notificaciones. Inicio, vencimiento, estado y evidencia de atraso proceden del backend; corregir SG no calcula fechas ni crea tareas.
 
@@ -269,7 +269,7 @@ El éxito usa `prepareQuotationTask` devuelto por backend, sin calcular fechas. 
 
 ### Presupuestos 4D — estado persistente y handoff
 
-`BudgetQuotationPanel` consulta GET status al abrir/reabrir el proyecto. El parser cerrado valida las diez propiedades: projectId, status, versionNumber nullable, confirmedAt nullable, itemCount, totalQuantity, documentSgCode nullable, currentProjectSgCode nullable, canSendToCommercial y sendBlockReason. Estados string exactos: NotConfirmed, Confirmed, SentToCommercial. Razones string: None, SgChangedAfterConfirmation, InvalidState. No se aceptan enums numéricos, extensiones, tipos corruptos ni respuestas de otro proyecto.
+`BudgetQuotationPanel` consulta GET status al abrir/reabrir el proyecto. El parser cerrado valida las once propiedades: projectId, status, versionNumber nullable, confirmedAt nullable, itemCount, totalQuantity, documentSgCode nullable, currentProjectSgCode nullable, canSendToCommercial y sendBlockReason. Estados string exactos: NotConfirmed, Confirmed, SentToCommercial. Razones string: None, SgChangedAfterConfirmation, InvalidState. No se aceptan enums numéricos, extensiones, tipos corruptos ni respuestas de otro proyecto.
 
 NotConfirmed permite montar `BudgetQuotationEditor` con las condiciones de 4C. Confirmed recupera metadata persistida y oculta upload/preview/editor. El botón de envío depende exclusivamente de `canSendToCommercial`; no se reconstruye la regla desde SG o tareas. SgChangedAfterConfirmation muestra ambos SG sin reparación automática; InvalidState no adivina la causa. SentToCommercial conserva el resumen aun con PrepareQuotation Completed; si ReviewQuotation ya está Completed no se afirma que continúe en revisión.
 
@@ -279,23 +279,52 @@ El estado recuperado sobrevive F5 porque procede de PostgreSQL a través del rea
 
 Los códigos UnreadableWorkbook, UnsupportedWorkbookFormat, InvalidDocumentSgCode y TechnicalLimitExceeded conservan el sanitizer existente y tienen mensajes españoles. El backend actual devuelve ciertos 400/409 sin code; `budgetQuotationProblem` traduce exclusivamente títulos exactos conocidos en estos dos endpoints a InvalidConfirmation, AlreadyConfirmed, SgCodeMismatch o InvalidWorkflowState antes del sanitizer. No preserva texto libre ni extensiones desconocidas. 401 invalida sesión; 403 conserva sesión; 404, 413, red y 5xx muestran mensajes seguros. La sanitización del frontend no altera las reglas del backend.
 
-`useResource` mantiene estado local de consulta, cancela lecturas al desmontar/cambiar filtros y descarta respuestas tardías. Presenta carga/error/vacío y permite recarga explícita tras fallos. No es una caché global. La lista de tareas exige área y estado en cada solicitud; comienza mostrando Comercial/Pendiente como filtros visibles, sin inferir el área del usuario. Resuelve nombres con un único GET `projects` por montaje, sin consultas por tarea ni nuevas lecturas de proyectos al cambiar filtros.
+`useResource` mantiene estado local de consulta, cancela lecturas al desmontar/cambiar filtros y descarta respuestas tardías. Presenta carga/error/vacío y permite recarga explícita tras fallos. No es una caché global. La lista de tareas exige área y estado en cada solicitud; comienza en Presupuestos/Pendiente con Budgets activo y Comercial/Pendiente con Advisor o Head activos. El filtro no cambia el rol activo. Resuelve nombres con un único GET `projects` por montaje, sin consultas por tarea ni nuevas lecturas de proyectos al cambiar filtros.
 
-`TaskList` y `TaskTimingStatus` presentan los tipos/estados y `leakTimeStatus` del backend en español. `formatDate` usa `Intl.DateTimeFormat` con **America/Bogota**, incluyendo hora para vencimientos. No compara deadlines con el reloj ni reconstruye días hábiles. Cuando PrepareQuotation está NotStarted sin deadline, indica que el plazo comienza al asignar SG.
+`TaskList` y `TaskTimingStatus` presentan los tipos/estados y `LeadTimeStatus` del backend en español. `formatDate` usa `Intl.DateTimeFormat` con **America/Bogota**, incluyendo hora para vencimientos. No compara deadlines con el reloj ni reconstruye días hábiles. Cuando PrepareQuotation está NotStarted sin deadline, indica que el plazo comienza al asignar SG.
 
 `NotificationList` conserva Informational, Active y Resolved. Resalta Overdue Active y mantiene Overdue Resolved como historial. Muestra título, mensaje, tipo de tarea, fechas y estado; las personales enlazan al proyecto. No muestra recipientGoogleSubject ni incorpora leído/no leído, contadores o acciones de mutación.
 
+### Vistas persistentes de cotizaciones
+
+`features/quotationViews` contiene contratos/parsers cerrados, quotationViewService, BudgetQuotationReadView y CommercialQuotationReadView. El API client y el BFF conservan Authorization, X-SnG-Active-Role, origen fijo y no-store. Se añaden exclusivamente GET:
+
+| Ruta Backend | Uso |
+| --- | --- |
+| `/api/projects/{id}/budget-quotation/view` | Snapshot técnico confirmado y metadata histórica |
+| `/api/projects/{id}/commercial-quotation/view` | Snapshot comercial con precios, total y diferencias |
+| `/api/projects/{id}/budget-quotation/items/{itemId}/image` | Raster histórico por proyecto/ítem autorizado |
+
+Budget read model: projectId, quotationVersionId, versionNumber, confirmedAt, document e items con id, section/sourceRow, confirmed, extracted nullable, imageStatus nullable, hasImage y technicalDifferences. Commercial read model: projectId, commercialQuotationId, confirmedAt, projectTotal e items con valores técnicos, precios, diferencias, imageStatus y hasImage (imagen histórica reutilizada por commercialCatalogItemId). Se valida identidad del proyecto, enums, campos, fechas, unicidad estructural y números; no se compara ni calcula economía/diferencias en Frontend. Las diferencias vienen de CommercialTechnicalDifferences en Backend.
+
+ProjectDetail monta el snapshot de Presupuestos antes de la acción Comercial. Para Budgets, BudgetQuotationPanel conserva status/handoff e incluye BudgetQuotationReadView después de confirmar; el editor sigue limitado a NotConfirmed. Después de confirmar Comercial, CommercialQuotationReadView coexiste con la vista histórica de Presupuestos y el panel completado conserva su descarga sin editor. Advisor propietario y Management pueden consultar ambas; Budgets solo la de Presupuestos. Head requiere su ReviewQuotation asignada. El asesor conserva acceso a la descarga final; no se amplían las descargas a Gerencia.
+
+Cada confirmación vuelve a consultar los read models. El remount por proyecto/Subject/área y los AbortSignals descartan datos tardíos. F5 o nueva sesión recuperan todo desde Backend. No se almacenan snapshots en sessionStorage ni HTML/JSON de previews. Un 404 oculta la vista, 403 conserva la sesión y muestra error, y otros fallos permiten reintentar únicamente GET.
+
+Las imágenes se obtienen al pulsar Ver imagen mediante api.download autenticado. Solo PNG/JPEG/GIF/BMP/TIFF; el BFF rechaza SVG, HTML y JSON en esa ruta, exige IDs GUID y transmite bytes sin transformar. El blob URL es local, se revoca al desmontar, y no pasa por Next Image ni expone una clave de storage. TIFF depende del soporte del navegador. Nunca se descargan XLSX para pintar las vistas.
+
+Los ítems usan cards con campos en grid de tres columnas; a menos de 768 px pasan a dos y a menos de 480 px a una, con texto largo ajustable e imagen limitada al ancho. Mantienen headings, labels y controles de teclado. La inspección visual real a 375/768/1024 px y desktop está pendiente: Computer Use detuvo la inspección al no poder determinar con seguridad la URL actual de Opera en Windows.
+
+Smoke manual con una cuenta multirol y un proyecto sintético:
+
+1. Advisor crea proyecto, carga documento y envía a Presupuestos.
+2. Cambiar a Budgets sin logout; asignar SG, subir XLSX, preview y confirmar. F5 debe conservar todos los ítems/metadata, sin editor; abrir una imagen y revisar ajustes extraído/confirmado.
+3. Enviar a Comercial y cambiar a CommercialHead. El mismo proyecto debe mostrar Presupuestos read-only, sin SG/editor/envío de Budgets, seguido de la revisión Comercial.
+4. Descargar archivo operativo, subir el comercial, preview y confirmar. F5 debe mostrar ambos snapshots, precios, total y diferencias, sin preview/editor comercial.
+5. Cambiar a Advisor y abrir el mismo proyecto: ambas vistas y PresentQuotationToClient actual; descarga final disponible. Cambiar a Management: ambas vistas sin escrituras. Volver a Budgets: solo snapshot de Presupuestos.
+6. Repetir navegación/restauración y revisar 375/768/1024 px/desktop, textos largos, imágenes, foco y ausencia de overflow. No cambiar Secrets ni filas de PostgreSQL manualmente, ni volver a subir archivos para recuperar vistas.
+
 ### Comercial 4E — revisión de cotización
 
-`features/commercialQuotation` contiene tipos, parser cerrado, service, mensajes seguros, `CommercialQuotationPanel`, preview de solo lectura y estilos responsive. Se monta en el expediente después de Presupuestos y antes de actividad/tareas, únicamente para el Subject asignado a ReviewQuotation InProgress/Completed. La tarea InProgress permite actuar; Completed muestra estado y descarga final. No se infieren roles por email, nombre, creador o isManagement.
+`features/commercialQuotation` contiene tipos, parser cerrado, service, mensajes seguros, `CommercialQuotationPanel`, preview de solo lectura y estilos responsive. Se monta en el expediente después de Presupuestos y antes de actividad/tareas, únicamente con CommercialHead activo y el Subject asignado a ReviewQuotation InProgress/Completed. La tarea InProgress permite actuar; Completed muestra estado y descarga final. No se infieren roles por email, nombre, creador o isManagement.
 
-Auditoría backend: preview/confirm y archivo operativo requieren CommercialHead; el archivo final permite Jefe Comercial o creador original, sin ampliar el panel al asesor. El multipart acepta únicamente `file`; backend valida SG, estructura exacta Section + SourceRow, workbook y economía. La confirmación reinterpreta el XLSX, conserva sus bytes como archivo final y completa ReviewQuotation/inicia PresentQuotationToClient para el creador original. No hubo cambios backend para 4E.
+Auditoría backend: preview/confirm y archivo operativo requieren CommercialHead; el archivo final permite Head activo asignado o Advisor activo propietario, sin ampliar el panel al asesor. El multipart acepta únicamente `file`; backend valida SG, estructura exacta Section + SourceRow, workbook y economía. La confirmación reinterpreta el XLSX, conserva sus bytes como archivo final y completa ReviewQuotation/inicia PresentQuotationToClient para el creador original. No hubo cambios backend para 4E.
 
 El parser valida projectId, claves exactas, enums, nulabilidad, números finitos, importes no negativos, medidas positivas y cantidad entera. El preview conserva orden, sección, sourceRow, commercialCatalogItemId, los once valores técnicos, unitPrice, totalPrice y technicalDifferences. Las diferencias solo admiten los once TechnicalField oficiales y strings previousValue/currentValue; su conteo se verifica contra el resumen recibido. No hay comparación técnica local ni cálculo económico. El formato COP conserva los dígitos significativos del número JSON recibido, sin redondearlo a dos decimales. Los contratos JSON actuales usan números JavaScript, no strings de decimal arbitrario.
 
 Archivo y preview forman un snapshot `{file, data}` en React. Confirmar requiere el mismo objeto File y un paso humano inline; el multipart contiene solo `file`, sin precios, IDs ni correcciones declaradas por frontend. Los locks bloquean doble preview/confirm y operaciones incompatibles; cambiar archivo invalida preview/errores/prompt. El remount proyecto + Subject aborta solicitudes, descarta resultados tardíos y elimina el estado efímero, sin almacenamiento persistente de XLSX ni contenido comercial.
 
-La respuesta cerrada de confirmación aporta projectId, commercialQuotationId, projectTotal, commercialFileAvailable, reviewTask, presentQuotationToClientTask, hasTechnicalDifferences y technicalDifferencesCount. Actualiza inmediatamente las tareas oficiales y después relee tareas/notificaciones. Si la actualización falla, conserva el éxito del comando y permite reintentar solo lecturas. F5 reconstruye Completed desde tareas, sin reabrir editor. No existe endpoint para recuperar importe/conteo de diferencias finales: después de F5 se muestra el estado y la descarga, sin fabricar ese resumen ni conservarlo en storage.
+La respuesta cerrada de confirmación aporta projectId, commercialQuotationId, projectTotal, commercialFileAvailable, reviewTask, presentQuotationToClientTask, hasTechnicalDifferences y technicalDifferencesCount. Actualiza inmediatamente las tareas oficiales y después relee tareas/notificaciones. Si la actualización falla, conserva el éxito del comando y permite reintentar solo lecturas. F5 reconstruye Completed desde tareas, sin reabrir editor. La vista persistente consulta GET commercial-quotation/view para recuperar valores finales y diferencias después de F5; no los conserva en storage ni reconstruye desde un preview.
 
 El BFF limita estos subpaths a los cuatro métodos/rutas de la tabla. Conserva origen fijo server-only, Authorization permitido, redirect:error, no-store, boundary y stream multipart intactos. Las descargas usan `api.downloadStream` y `saveDownload`: escritura por stream donde existe selector nativo; fallback Blob del mecanismo existente, con Content-Disposition seguro. No se regenera, previsualiza ni interpreta XLSX. El selector nativo respeta la elección de nombre del usuario; el fallback usa el nombre backend.
 
@@ -305,7 +334,7 @@ Se mapean ProjectNotFound, Forbidden, InvalidWorkflowState, AlreadyConfirmed, Pr
 
 ### Gerencia — Frontend 3A
 
-`features/management` contiene contratos, service, protección visual y las dos páginas. `ManagementOverview` reproduce totalProjects, tasks, leakTime, areas y attention (total y hasta diez items). `ManagementTask` conserva datos de proyecto/cliente/SG/ciudad/línea, área, type string, status, assignedAt requerido, startedAt/completedAt/deadlineAt nullable, wasOverdue boolean nullable y leakTimeStatus. Reutiliza TaskArea, TaskStatus, LeakTimeStatus, labels/badges y formatDate en America/Bogota; tipos futuros de tarea muestran “Otra tarea”. No calcula plazos ni prioridad.
+`features/management` contiene contratos, service, protección visual y las dos páginas. `ManagementOverview` reproduce totalProjects, tasks, LeadTime, areas y attention (total y hasta diez items). `ManagementTask` conserva datos de proyecto/cliente/SG/ciudad/línea, área, type string, status, assignedAt requerido, startedAt/completedAt/deadlineAt nullable, wasOverdue boolean nullable y LeadTimeStatus. Reutiliza TaskArea, TaskStatus, LeadTimeStatus, labels/badges y formatDate en America/Bogota; tipos futuros de tarea muestran “Otra tarea”. No calcula plazos ni prioridad.
 
 | Ruta frontend | Endpoint backend mediante ApiClient/BFF | Presentación |
 | --- | --- | --- |
@@ -314,19 +343,19 @@ Se mapean ProjectNotFound, Forbidden, InvalidWorkflowState, AlreadyConfirmed, Pr
 
 La suma de tareas activas es pending + inProgress y se explica en pantalla. Attention conserva el orden recibido, muestra la cantidad visible frente al total cuando está truncada y enlaza a operación/proyectos. Los estados vacíos no inventan áreas ni tareas. La tabla de operación filtra localmente por área, estado y los ocho estados temporales; busca sin distinguir mayúsculas en proyecto, cliente, SG y ciudad. No agrega query params, requests ni debounce por filtros y permite restablecerlos.
 
-`ManagementAccess` exige sesión autenticada y `user.isManagement === true` antes de montar contenido o consultar la API. Cambiar Subject remonta los recursos con key; retirar el flag desmonta contenido incluso conservando Subject. `useResource` cancela solicitudes y descarta respuestas tardías. No hay caché global de datos gerenciales. Un 401 usa invalidación global; un 403 muestra “No tienes acceso a la vista de Gerencia” sin logout; red/5xx usan ErrorNotice con recarga explícita.
+`ManagementAccess` exige sesión autenticada, membresía Management y activeRole Management antes de montar o consultar. Subject/área son parte de la key; cambiar área desmonta recursos. useResource aborta y descarta respuestas tardías. 401 invalida sesión; 403 muestra acceso denegado sin logout; no hay caché global gerencial.
 
-La sección GERENCIA del Sidebar contiene Resumen y Operación con estado activo exacto; la home incorpora un acceso sin redirigir. Los cinco enlaces operativos, menú móvil, foco y skip-link se mantienen. KPIs y filtros se reorganizan mediante grid; atención pasa de una a dos columnas. Las tablas conservan scroll horizontal explícito y enfocable en pantallas pequeñas.
+features/shell/navigation.ts centraliza navigationByRole y capabilitiesByRole con claves AvailableRole. Sidebar e Inicio usan la misma configuración y comprueban membresía. Los roles operativos tienen Inicio/Clientes/Proyectos/Tareas/Notificaciones; Management tiene Resumen/Operación/Clientes/Proyectos y conserva Intelligence. Se marca únicamente el enlace más específico. Menú móvil, foco y skip-link se mantienen. KPIs y filtros se reorganizan mediante grid; atención pasa de una a dos columnas. Las tablas conservan scroll horizontal explícito y enfocable en pantallas pequeñas.
 
-El detalle de proyecto sigue usando assignee/estado para SG y capabilities del backend para carga/reemplazo/retiro/envío. `isManagement` no concede ni retira esos permisos. Consultas y descargas mantienen autorización backend y errores 403 existentes. Una identidad mixta conserva permisos específicos reales.
+ProjectDetail exige área activa más assignee/estado para SG y cotizaciones; documentos combinan capabilities oficiales con Advisor activo propietario. Head/Management/Budgets no reciben escrituras documentales aunque compartan Subject con el creador. Enviar a Presupuestos es exclusivo del Advisor activo propietario. Ningún cambio de área modifica CreatedBy o asignaciones.
 
-La creación de clientes/proyectos se oculta para `isManagement: true`, incluyendo acceso directo a `/projects/new`, y no se ofrece mediante shortcuts. **Es UX, no seguridad**: el backend todavía acepta creación general por cualquier Google autenticado. El contrato no expone una capability general que distinga Gerencia pura de Gerencia con permiso comercial de creación; esta ocultación también alcanza a identidades mixtas hasta que exista ese contrato. No se intenta inferirlo desde Subject, email, nombre ni tareas. Clientes/proyectos vuelven a consultar al cambiar Subject; la forma de creación de cliente se remonta también si cambia el flag.
+Crear clientes/proyectos exige CommercialAdvisor activo, incluyendo /projects/new. Backend aplica la política CommercialAdvisor como barrera real; UI solo presenta la experiencia autorizada. Clientes/proyectos remontan al cambiar Subject/área y vuelven a consultar.
 
 Intelligence tiene su bloque separado descrito a continuación. Presupuestos incluye confirmación inicial, recuperación persistente y envío a Comercial. La revisión Comercial 4E completa el handoff al asesor; presentación al cliente, aprobación y pago siguen pendientes.
 
 ### Intelligence 1C: arquitectura, contratos y voz
 
-La feature `src/features/intelligence/` concentra `types.ts`, `parser.ts`, `paths.ts`, `errors.ts`, `service.ts`, hooks de captura/reproducción, renderer y panel. `AppShell` monta `IntelligenceLauncher` únicamente para una sesión validada con `isManagement === true`; la instancia tiene key por Subject. No se crean roles ni otra sesión. La retirada del flag, logout o cambio de Subject desmonta toda la experiencia y descarta respuestas tardías.
+La feature src/features/intelligence mantiene sus contratos, lifecycle y renderer. AppShell monta IntelligenceLauncher solo con Management disponible y activo. Cambiar área o Subject, logout o retirar membresía desmonta panel, conversación y voz. Cleanup usa forCurrentSession con token/rol originales para cerrar best-effort, sin contaminar el área nueva.
 
 El ApiClient reconoce ocho combinaciones ruta/método del namespace `intelligence/`, sin query; las dirige a `/api/intelligence/...`. Conserva generación de sesión y protección frente a 401 tardíos. `postAudio` añade POST binario solo para speech, acepta MP3 y reutiliza el mismo Bearer. AuthProvider delega esos métodos en su instancia estable. No hay fetch en componentes ni lectura de tokens en la feature. `forCurrentSession()` captura la identidad de transporte en memoria al iniciar Live: permite cerrar con el Bearer original incluso durante logout/cambio de cuenta, sin usar el token de la siguiente cuenta ni invalidarla por un 401 tardío. La instancia se limita al ciclo de vida Live.
 
@@ -350,7 +379,7 @@ Las respuestas JSON se leen con límite de 512 KiB y pasan por una allowlist de 
 Contrato observado mediante lectura de `app/contracts/presentation.py`, `app/agent/contracts.py`, `app/agent/presentation.py`, `app/voice/contracts.py` y rutas de SnG Intelligence durante esta implementación:
 - Base: responseType, answer, spokenAnswer, references, presentation. presentation.kind debe coincidir con responseType.
 - direct: metric nullable; management_brief: metrics/items; project_status: project/tasks; list: items; comparison: areas; clarification: candidates; unavailable: reason=data_not_available.
-- ProjectItem: kind/projectId/projectName/sgCode/clientName/city. TaskItem: kind/projectId/projectName/sgCode/taskId/area/task/status/leakTimeStatus/deadlineAt.
+- ProjectItem: kind/projectId/projectName/sgCode/clientName/city. TaskItem: kind/projectId/projectName/sgCode/taskId/area/task/status/LeadTimeStatus/deadlineAt.
 - Las etiquetas de área, tarea, estado y plazo en presentation **ya están localizadas por Intelligence**; se muestran literalmente como texto validado, sin tratarlas como enums de Control.
 - References project/task contienen IDs UUID y label; solo se generan rutas locales `/projects/{projectId}`. No se aceptan href del modelo. Project name/label es principal y SG secundario. Clarification envía el nombre oficial del proyecto en una nueva consulta autocontenida, sin depender de memoria backend.
 - El renderer central usa siete variantes, texto React sin HTML/Markdown ejecutable, cifras solo recibidas y formatDate de Colombia. Unavailable no se trata como fallo.
@@ -382,7 +411,7 @@ Los estados son idle, connecting, listening, user_speaking, assistant_thinking, 
 
 Las transcripciones conservan espacios/repeticiones y timestamps start_ms/end_ms, ordenadas por tiempo, con agrupación visual consecutiva por hablante; no afirman límites exactos de turno. Se retienen hasta 160 fragmentos, solo en memoria. Event IDs se deduplican (4096 por sesión); al alcanzar límites de sesión se informa y cierra. No hay persistencia ni logs de SDP/transcripts. Conversation 3A comparte turnos semánticos empresariales entre Live y chat mediante el servidor; los captions no alimentan memoria. Fallback básico permanece stateless. No se implementa ElevenLabs.
 
-La sesión tiene un límite absoluto local de 600 segundos; expirar finaliza WebRTC y solicita cierre al servidor. Mute cambia track.enabled sin cerrar. Finalizar detiene inmediatamente micrófono/medición/audio y aborta consultas; intenta session.close y POST live/close con la identidad original. Espera hasta 1.5 s por session.closed y hasta 3 s por revocación backend; indica cierre remoto no confirmado si corresponde. Al cerrar visualmente el panel o desmontar por logout, retirada de isManagement o cambio de Subject libera transportes inmediatamente tras solicitar cierre, descarta respuestas tardías y elimina estado local. Un permiso tardío detiene sus tracks; una creación tardía intenta revocar el sessionId sin adjuntar SDP. Si se perdió la respuesta de creación no se conoce el ID: cierre local/cancelación no garantizan revocación remota; aplica la caducidad del backend/proveedor. No hay reconexión automática. Reload pierde el hilo.
+La sesión tiene un límite absoluto local de 600 segundos; expirar finaliza WebRTC y solicita cierre al servidor. Mute cambia track.enabled sin cerrar. Finalizar detiene inmediatamente micrófono/medición/audio y aborta consultas; intenta session.close y POST live/close con la identidad original. Espera hasta 1.5 s por session.closed y hasta 3 s por revocación backend; indica cierre remoto no confirmado si corresponde. Al cerrar visualmente el panel o desmontar por logout, salida del área Management o cambio de Subject libera transportes inmediatamente tras solicitar cierre, descarta respuestas tardías y elimina estado local. Un permiso tardío detiene sus tracks; una creación tardía intenta revocar el sessionId sin adjuntar SDP. Si se perdió la respuesta de creación no se conoce el ID: cierre local/cancelación no garantizan revocación remota; aplica la caducidad del backend/proveedor. No hay reconexión automática. Reload pierde el hilo.
 
 Fallos visibles distinguen permisos, micrófono no disponible, contexto inseguro, navegador incompatible, Live no disponible, sesión vencida, delegación, red, límites y acceso denegado. 401 conserva invalidación global y 403 no cierra la sesión Google. Siempre puede elegirse voz básica explícitamente cuando Live no está activo; no hay downgrade silencioso.
 
@@ -401,7 +430,7 @@ El panel `DocumentsPanel` está en `/projects/[id]`, sin nuevas páginas. `docum
 | GET | `projects/{id}/documents/current.zip` | ZIP vigente del backend |
 | GET | `projects/{id}/documents/initial-handoff.zip` | Snapshot inicial del backend |
 
-`ProjectDocuments` contiene `documents`, `initialHandoff | null`, `canModify`, `canRemove` y `canSendToBudgets`. No se deducen permisos documentales del creador, email, área o Subject. Un 403 documental solo afecta este panel. El backend autoriza cada operación y la UI vuelve a consultar capabilities tras conflictos.
+ProjectDocuments contiene documents, initialHandoff, canModify, canRemove y canSendToBudgets. Backend es autoridad y revalida cada operación. ProjectDetail restringe además presentación por área activa y ownership; no concede permisos si una capability es false. Un 403 documental solo afecta su panel y se reconsulta tras conflictos.
 
 `ProjectDocument.contentType` admite `string | null` y no se usa para renderizar archivos. Cancelar selección o reemplazo limpia tanto el estado React como los valores de ambos inputs file, permitiendo volver a elegir inmediatamente el mismo archivo.
 
@@ -413,7 +442,7 @@ Reemplazar exige seleccionar explícitamente un archivo y confirmar que el anter
 
 El snapshot inicial muestra fecha, actor y cantidad de `documentIds`; se descarga desde backend sin reconstruirlo. PrepareQuotation sin snapshot es un caso legacy: se informa y no se ofrece ZIP inicial. Las bajas lógicas que no devuelve la API no se inventan.
 
-Upload/remove/replace refrescan documentos. Después del handoff (incluido legacy con tarea), upload/replace refrescan también notificaciones, conservando la tarea sin modificarla ni recalcular Leak Time. `ProjectDocumentsUpdated` es un NotificationKind normal y presenta título/mensaje del backend, sin interpretarse como alerta de atraso. Las selecciones permanecen en errores y se limpian en éxito; no hay retries automáticos. Se muestran mensajes locales para FileTooLarge, BatchTooLarge, DocumentLimitExceeded, InvalidDocumentBatch, InvalidReplacement, DocumentRemovalLocked y DocumentUnavailable.
+Upload/remove/replace refrescan documentos. Después del handoff (incluido legacy con tarea), upload/replace refrescan también notificaciones, conservando la tarea sin modificarla ni recalcular Lead Time. `ProjectDocumentsUpdated` es un NotificationKind normal y presenta título/mensaje del backend, sin interpretarse como alerta de atraso. Las selecciones permanecen en errores y se limpian en éxito; no hay retries automáticos. Se muestran mensajes locales para FileTooLarge, BatchTooLarge, DocumentLimitExceeded, InvalidDocumentBatch, InvalidReplacement, DocumentRemovalLocked y DocumentUnavailable.
 
 El contenido operativo del detalle tiene key por id de proyecto y `user.subject`. Un cambio de identidad desmonta consultas, selección y acciones anteriores, cancela solicitudes pendientes y vuelve a consultar proyecto/cliente/tareas/notificaciones/documentos incluso si la instancia ApiClient es estable. Las respuestas tardías no restauran capabilities de la cuenta anterior. No se introduce caché global.
 
@@ -440,7 +469,7 @@ No se desactiva validación TLS global ni por request. No se usan agentes que ac
 
 `AuthGate` muestra loading, redirige no autenticados a `/login` y renderiza children únicamente con sesión validada.
 
-`AppShell` agrupa Sidebar, TopBar y el contenido principal. Sidebar enlaza Inicio, Clientes, Proyectos, Tareas y Notificaciones; Proyectos permanece activo en creación y detalle. Gerencia añade Resumen y Operación cuando el backend valida isManagement; Intelligence usa ese mismo flag para su botón flotante fuera del Sidebar. TopBar muestra nombre/email y logout. En móvil/tablet, el botón de menú controla la navegación con aria-expanded/aria-controls; en desktop permanece visible. Hay enlace para saltar al contenido y el foco vuelve al contenido al navegar. No existen enlaces a módulos pendientes.
+AppShell agrupa Sidebar, TopBar y contenido. Advisor ve Inicio/Clientes/Proyectos/Tareas/Notificaciones; Budgets y Head priorizan Inicio/Tareas/Notificaciones; Management muestra Resumen/Operación y el launcher Intelligence. TopBar muestra identidad, área activa y logout, con selector si hay varias membresías. El menú móvil conserva accesibilidad y foco. No hay módulos futuros ficticios.
 
 La home presenta accesos reales a proyectos, clientes, tareas y notificaciones, sin consultas adicionales ni métricas. Nombre/email permanecen visibles; Google Subject y Copiar Subject se agrupan en el disclosure secundario “Identidad técnica de la sesión”. Los valores nulos se presentan como “No disponible”. Copiar Subject invoca `navigator.clipboard.writeText(user.subject)`. La API requiere contexto seguro (HTTPS o localhost) y permisos del navegador; el fallo indica cómo copiar manualmente.
 
@@ -448,13 +477,13 @@ La home presenta accesos reales a proyectos, clientes, tareas y notificaciones, 
 
 `globals.css` centraliza tokens en `:root`: background/surface/surface-subtle, ink/ink-soft, border/border-strong, brand/brand-hover/brand-soft, accent/accent-soft y pares semánticos success/warning/danger/neutral. Los componentes compartidos usan `@layer components` para botones, formularios, tablas, panels, toolbar y feedback. La stack Inter/system-ui/Segoe UI no descarga fuentes; el cuerpo operativo es de 14 px, con encabezados compactos y metadatos secundarios. Panels de 12 px de radio y padding aproximado de 19 px priorizan líneas y superficies sobre sombras.
 
-`src/components/ui/` contiene únicamente PageHeader, StatusBadge (neutral/info/success/warning/danger), EmptyState e Icon (SVG internos decorativos). Los badges de tareas, Leak Time y notificaciones comparten la semántica; las etiquetas siguen siendo las del estado backend. ErrorNotice conserva sanitización y mensajes; códigos diagnósticos tienen menor jerarquía visual.
+`src/components/ui/` contiene únicamente PageHeader, StatusBadge (neutral/info/success/warning/danger), EmptyState e Icon (SVG internos decorativos). Los badges de tareas, Lead Time y notificaciones comparten la semántica; las etiquetas siguen siendo las del estado backend. ErrorNotice conserva sanitización y mensajes; códigos diagnósticos tienen menor jerarquía visual.
 
 El shell usa `Shell.module.css`: Sidebar azul pálido fija de 224 px desde 1024 px, wordmark tipográfico S&G / CONTROL, navegación activa con acento lateral y usuario al pie. Los tokens `--nav-*` están limitados al shell. TopBar tiene altura mínima de 56 px, identidad y logout a la derecha; producto y menú se muestran únicamente bajo desktop. Main ocupa el ancho disponible hasta 1600 px, con padding de 16/24/28–32 px. El menú conserva sus controles y foco. Home, clientes, lista/creación de proyectos, tareas y notificaciones mantienen sus componentes actuales.
 
 El detalle es una superficie continua de expediente, no una secuencia de panels. ProjectHeader integra nombre, cliente/ciudad/línea, SG técnico y responsable/creación. ProjectStatusStrip es una franja con divisores; conserva la selección InProgress, luego Pending o una tarea existente, usando exclusivamente campos backend. `ProjectDetail.module.css` separa documentación/acciones y actividad/tareas mediante líneas: una columna hasta 1199 px y dos desde 1200 px, con lateral de 320–340 px. Sin acción, las tareas ocupan la columna lateral desde arriba.
 
-DocumentsPanel se integra sin shell `.panel`: dropzone baja, filas documentales con acciones discretas, histórico sin caja gris y snapshot como auditoría con divisor. Su CSS Module conserva wrap para nombres largos. No muestra IDs, MIME ni UploadBatchId. TaskList `compact` muestra estado, Leak Time y fechas directamente, con divisores entre tareas; su modo normal no cambia. NotificationList `variant="activity"` usa lista semántica con puntos, línea y fechas, sin contenedor rectangular por evento; conserva títulos, mensajes, estados y metadatos. El modo por defecto de `/notifications` permanece igual. Los ajustes de color de tareas se limitan al expediente: En curso neutral, En tiempo verde sobrio, avisos ámbar y atrasos rojo.
+DocumentsPanel se integra sin shell `.panel`: dropzone baja, filas documentales con acciones discretas, histórico sin caja gris y snapshot como auditoría con divisor. Su CSS Module conserva wrap para nombres largos. No muestra IDs, MIME ni UploadBatchId. TaskList `compact` muestra estado, Lead Time y fechas directamente, con divisores entre tareas; su modo normal no cambia. NotificationList `variant="activity"` usa lista semántica con puntos, línea y fechas, sin contenedor rectangular por evento; conserva títulos, mensajes, estados y metadatos. El modo por defecto de `/notifications` permanece igual. Los ajustes de color de tareas se limitan al expediente: En curso neutral, En tiempo verde sobrio, avisos ámbar y atrasos rojo.
 
 Se conservan landmarks, labels, aria-current/expanded/controls, skip-link y foco tras navegar. Los controles usan focus-visible; disabled real y cursor-not-allowed; loading/status, éxito y errores son mensajes accesibles. Los iconos son aria-hidden. Las tablas tienen scroll deliberado, archivos largos usan wrap y las acciones se distribuyen en varias líneas; reduced-motion elimina transiciones. La verificación manual debe cubrir 375, 768, 1024 px y desktop amplio; los tests estructurales no sustituyen esa inspección visual.
 
@@ -505,7 +534,7 @@ No hay Playwright ni snapshots de credenciales. Los tests no comparan clases Tai
 13. Con capacidad de modificación, agrega/reemplaza documentos después del envío. Comprueba historial, notificación ProjectDocumentsUpdated y fechas de tarea sin reinicio. Con Presupuestos, comprueba solo consulta/descargas individual, ZIP actual e inicial.
 14. Cambia de cuenta y vuelve a la misma URL sin Ctrl+F5; verifica que se actualizan datos/capabilities. Prueba descargas con File System Access y fallback según soporte del browser, además de un proyecto legacy sin snapshot.
 
-Smoke pendiente de Frontend 3A: con una cuenta configurada como Gerencia en backend, comprobar `isManagement: true` en `/api/auth/me`, restauración, sección GERENCIA, `/management` y `/management/tasks`; probar filtros y enlaces a proyecto. Verificar consulta de actividad/documentos/históricos/snapshot y descargas autorizadas, sin controles SG/escritura/envío cuando no existen capabilities/assignee. Cambiar a una cuenta no Gerencia sin hard refresh: desaparecen enlaces/datos y el acceso directo queda denegado. Verificar 403 sin logout y layouts/foco a 375, 768, 1024 px y desktop amplio. No se realizó smoke con credenciales reales ni inspección visual de estos tamaños en el entorno automatizado; requiere navegador y backend disponibles.
+Smoke de Gerencia: con una cuenta configurada como Gerencia en backend, comprobar Management en roles de `/api/auth/me`, seleccionar Gerencia como área activa y verificar restauración, navegación, `/management` y `/management/tasks`; probar filtros y enlaces a proyecto. Verificar consulta de actividad/documentos/históricos/snapshot y descargas autorizadas, sin controles SG/escritura/envío bajo el área activa Gerencia, aunque la cuenta posea otros roles. Cambiar a una cuenta no Gerencia sin hard refresh: desaparecen enlaces/datos y el acceso directo queda denegado. Verificar 403 sin logout y layouts/foco a 375, 768, 1024 px y desktop amplio. No se realizó smoke con credenciales reales ni inspección visual de estos tamaños en el entorno automatizado; requiere navegador y backend disponibles.
 
 Sin las dos variables y un backend activo, un 200 de la página solo verifica que Next sirve la UI. Los tests del puente con fetch mock no prueban la integración .NET ni Google real. No confundas esos resultados.
 
@@ -630,3 +659,51 @@ Backend es autoridad; el modelo no suministra IDs/métricas para rendering. Conv
 mantiene sus reglas de memoria efímera y ownership; no se añaden almacenamientos locales.
 El smoke pagado/manual está pendiente; los fixtures offline no demuestran precisión real
 ni latencia de OpenAI. Usar el plan de preguntas de README y validar cards en móvil.
+
+## Identity & Areas V1: sesión y transporte
+
+AuthProvider expone availableRoles, activeRole y setActiveRole. Solo roles implementados
+pueden seleccionarse; los cinco roles futuros quedan reservados en SystemRole. La clave
+`sng.active_role` guarda `{ subject, role }` como preferencia, nunca autoridad: al restaurar
+se valida primero el token con Backend, luego la coincidencia de Subject y pertenencia.
+Logout borra token/preferencia; otro Subject no hereda el área anterior.
+
+API client envía `X-SnG-Active-Role` en JSON, multipart y descargas. Backend BFF valida
+el enum cerrado y reenvía únicamente headers aprobados al origen fijo. Auth/me sigue
+sin área para descubrir roles. Intelligence BFF exige Management; su cliente Backend
+fija ese valor sin permitir que el modelo lo elija. isManagement permanece solo como
+compatibilidad del contrato; no decide la navegación ni amplía permisos.
+
+El cambio de área aborta el controller de requests de sesión, incrementa su generación,
+remonta el árbol de experiencia y navega a / o /management. Respuestas 401 antiguas no
+invalidan la sesión nueva. Los cierres de Live/conversación usan su snapshot original;
+una respuesta tardía de creación conserva el ID necesario para revocarla best-effort.
+Las operaciones en vuelo pueden haber sido aceptadas por Backend: cancelar la UI no
+revierte un handoff confirmado. La consulta nueva siempre recupera estado oficial.
+
+### Smoke de una sola cuenta (sin cambios entre etapas)
+
+Configurar previamente un mismo Subject, exclusivamente en User Secrets de Backend,
+en CommercialAdvisorSubjects:0, BudgetsAssigneeSubject, CommercialHeadSubject y
+ManagementSubject. Reiniciar los servicios y comprobar los cuatro roles en auth/me.
+
+1. Login → selector → Asesor: crear cliente/proyecto sintéticos, cargar documentación y enviar a Presupuestos.
+2. Cambiar a Presupuestos sin logout: Tareas inicia en Budgets; abrir proyecto, asignar SG, preview XLSX, confirmar y confirmar humanamente Enviar a Comercial. Verificar estado persistente tras reload.
+3. Cambiar a Jefe: abrir ReviewQuotation asignada, descargar Excel operativo, revisar archivo, preview y confirmar Comercial. Verificar Completed y PresentQuotationToClient InProgress; no aparece editor de Presupuestos.
+4. Volver a Asesor: consultar su nueva tarea y responsable original. No hay aprobación/pago ni reasignación automática.
+5. Cambiar a Gerencia: Resumen/Operación/Intelligence, documentos de solo lectura. Iniciar/cerrar voz y salir a otra área: liberar micrófono/RTC/audio/conversación.
+6. Repetir selector/nav a 375, 768, 1024 px y desktop amplio; comprobar foco, ausencia de overflow y reload de preferencia. Logout limpia área. Manipular el header hacia un rol no poseído debe dar 403.
+
+No modificar secrets, cuenta Google, ownership ni filas de tareas durante el recorrido.
+El smoke real y la inspección visual requieren navegador y servicios conectados; los
+tests offline no acreditan esa integración.
+
+### Clientes y proyectos compartidos por área
+
+Backend aplica el ámbito antes de devolver datos: Advisor ve proyectos propios y el registro compartido de clientes; Budgets ve proyectos con PrepareQuotation asignada al Subject y sus clientes; Head usa ReviewQuotation; Management es transversal. Completed conserva lectura histórica. Listados, IDs directos y GET internos del expediente están protegidos; la UI no sustituye esa autorización con filtros locales.
+
+ClientsPage/ProjectsPage usan capabilitiesFor para renderizar creación únicamente en Advisor y remontan por Subject/área. ClientDetailPage y la ruta /clients/[id] consultan GET clients/{id} y GET projects del BFF existente, muestran metadata y enlazan solo los proyectos del cliente dentro del listado ya autorizado. No agregan mutaciones ni endpoints Backend. Una denegación del cliente impide la consulta posterior de proyectos. Estado vacío y errores usan componentes existentes; no se persiste contenido entre áreas.
+
+Smoke manual con cuenta multirol: en Presupuestos comprobar los cinco enlaces, abrir cliente relacionado y proyecto asignado, snapshot Budget y acciones según estado, sin Crear cliente/proyecto ni envío inicial. Tras handoff/reload el proyecto sigue visible. En Jefe comprobar el mismo recorrido con ReviewQuotation asignada, snapshots y revisión según estado, sin SG/editor Budget ni edición documental; Completed conserva lectura. En Gerencia comprobar Resumen/Operación/Clientes/Proyectos/Intelligence y ausencia de escrituras. Intentar IDs ajenos desde Budgets/Head y comprobar 403/404 sin datos. Repetir en 375/768/1024 px y desktop, incluido menú móvil, foco, textos largos y scroll horizontal de tablas. La validación visual real sigue pendiente por la limitación de Computer Use descrita arriba.
+
+SharedReadAccess.test.tsx cubre navegación e Inicio, capacidades, estados vacíos y detalle de cliente para las cuatro áreas. IdentityAreas y ManagementIntelligence cubren cambios de área/membresía y limpieza de datos. La matriz funcional completa está en README.md.

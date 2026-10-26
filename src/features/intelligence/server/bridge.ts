@@ -1,3 +1,4 @@
+import { ACTIVE_ROLE_HEADER } from "@/features/auth/types/auth";
 import "server-only";
 import { intelligenceMethod } from "../paths";
 import { parseResponse, parseSession, parseTranscript, parseVoice } from "../parser";
@@ -62,7 +63,7 @@ const audioExtensionUris = new Set([
 ]);
 function sessionSecurityRule(value: string, authorization: string, isSdp = false) {
   // SDP carries network addresses and ICE passwords (which may start with '/').
-  // Those are transport data, not filesystem paths or leaked backend hosts.
+  // Those are transport data, not filesystem paths or Leaded backend hosts.
   // Still reject the caller's credential, bearer/API keys and embedded service URLs.
   if (value.includes(authorization.replace(/^Bearer /i, ""))) return "CallerToken";
   if (/\bBearer\s+\S+/i.test(value)) return "BearerCredential";
@@ -94,6 +95,7 @@ export async function forwardIntelligence(request: Request, segments: string[]):
   if (!authorization || !/^Bearer [A-Za-z0-9._~+/-]+=*$/i.test(authorization)) return reject(401, "RequestRejected");
   let base: URL;
   try { base = baseUrl(); } catch { return reject(503, "ConfigurationError"); }
+  if (request.headers.get(ACTIVE_ROLE_HEADER) !== "Management") return reject(403, "RequestRejected");
   const headers = new Headers({ Authorization: authorization, Accept: path === "voice/speech" ? "audio/mpeg" : "application/json" });
   if (method === "POST") {
     const type = request.headers.get("Content-Type") ?? "";

@@ -7,10 +7,10 @@ import { token } from "./fixtures";
 
 const fetchMock = vi.fn<typeof fetch>();
 const invalidateSession = vi.fn();
-let snapshot = { token: token as string | null, generation: 1 };
+let snapshot = { token: token as string | null, generation: 1 , activeRole: "CommercialAdvisor" as const};
 const makeClient = () => createApiClient({ getSession: () => snapshot, invalidateSession });
 beforeEach(() => {
-  snapshot = { token, generation: 1 };
+  snapshot = { token, generation: 1 , activeRole: "CommercialAdvisor" as const};
   fetchMock.mockReset();
   fetchMock.mockImplementation(async () => Response.json({ id: "test-id" }));
   vi.stubGlobal("fetch", fetchMock);
@@ -97,7 +97,7 @@ describe("typed API client", () => {
     let resolve!: (response: Response) => void;
     fetchMock.mockReturnValue(new Promise((done) => { resolve = done; }));
     const result = makeClient().get("projects");
-    snapshot = { token: "new-test-token", generation: 2 };
+    snapshot = { token: "new-test-token", generation: 2 , activeRole: "CommercialAdvisor" as const};
     resolve(new Response(null, { status: 401 }));
     await expect(result).rejects.toMatchObject({ status: 401 });
     expect(invalidateSession).not.toHaveBeenCalled();
@@ -107,13 +107,13 @@ describe("typed API client", () => {
     fetchMock.mockImplementation(async () => new Response(null, { status: 401 }));
     const client = makeClient();
     await client.get("projects").catch(() => {});
-    snapshot = { token, generation: 2 };
+    snapshot = { token, generation: 2 , activeRole: "CommercialAdvisor" as const};
     await client.get("projects").catch(() => {});
     expect(invalidateSession).toHaveBeenCalledTimes(2);
   });
 
   it("does not invent authentication or fetch when the token is absent", async () => {
-    snapshot = { token: null, generation: 1 };
+    snapshot = { token: null, generation: 1 , activeRole: "CommercialAdvisor" as const};
     await expect(makeClient().get("projects")).rejects.toMatchObject({ status: 401 });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(invalidateSession).toHaveBeenCalledExactlyOnceWith(1);

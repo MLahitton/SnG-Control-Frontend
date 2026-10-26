@@ -1,3 +1,4 @@
+import { roleContext } from "./roleFixtures";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -11,7 +12,7 @@ import { projectDocuments } from "./documentFixtures";
 import { quotationConfirmed, quotationPreview, notConfirmedStatus, confirmedStatus } from "./budgetQuotationFixtures";
 import { token, user } from "./fixtures";
 
-const assignedUser = { ...user, subject: inProgressTask.assignedToGoogleSubject! };
+const assignedUser = { ...user, roles: ["Budgets" as const], subject: inProgressTask.assignedToGoogleSubject! };
 const file = () => new File(["opaque workbook test bytes"], "cotizacion.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 function backend(tasks: ProjectTask[] = [inProgressTask], sgCode: string | null = "SG001") {
   let status = notConfirmedStatus;
@@ -155,9 +156,9 @@ describe("quotation confirmation", () => {
   });
 });
 describe("quotation lifecycle", () => {
-  const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 }), invalidateSession: vi.fn() });
+  const apiClient = createApiClient({ getSession: () => ({ token, generation: 1 , activeRole: "Budgets" as const}), invalidateSession: vi.fn() });
   function Harness({ current = assignedUser, id = "project-1" }: { current?: CurrentUser; id?: string }) {
-    return <AuthContext.Provider value={{ status: "authenticated", user: current, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient }}><ProjectDetailPage id={id} /></AuthContext.Provider>;
+    return <AuthContext.Provider value={{ status: "authenticated", ...roleContext("Budgets"), user: current, error: null, signIn: vi.fn(), logout: vi.fn(), invalidateSession: vi.fn(), apiClient }}><ProjectDetailPage id={id} /></AuthContext.Provider>;
   }
   it("identity change clears private preview/draft without storage writes", async () => {
     backend(); const storage = vi.spyOn(Storage.prototype, "setItem"); const view = render(<Harness />); await openPreview();
