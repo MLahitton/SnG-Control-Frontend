@@ -127,7 +127,7 @@ describe("management overview", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/management/overview");
   });
   it("renders zero counts and empty areas/attention without invented rows", async () => {
-    mockBackend(() => ({ ...overview, totalProjects: 0, tasks: { pending: 0, inProgress: 0, completed: 0 }, LeadTime: Object.fromEntries(Object.keys(overview.LeadTime).map((key) => [key, 0])), areas: [], attention: { total: 0, items: [] } }));
+    mockBackend(() => ({ ...overview, totalProjects: 0, tasks: { pending: 0, inProgress: 0, completed: 0 }, leadTime: Object.fromEntries(Object.keys(overview.leadTime).map((key) => [key, 0])), areas: [], attention: { total: 0, items: [] } }));
     renderOperational(<OverviewPage />, manager);
     expect(await screen.findByText("Todavía no hay proyectos.")).toBeInTheDocument();
     expect(screen.getByText("Todavía no hay tareas registradas.")).toBeInTheDocument();
@@ -183,7 +183,7 @@ describe("management operation", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/management/tasks");
   });
   it.each(Object.entries(timingLabels))("filters the backend situation %s without computing dates", async (value, label) => {
-    mockBackend(() => [{ ...managementTask, LeadTimeStatus: value }, { ...managementTask, taskId: "other", projectName: "Otra obra", LeadTimeStatus: value === "NotStarted" ? "Overdue" : "NotStarted" }]);
+    mockBackend(() => [{ ...managementTask, leadTimeStatus: value }, { ...managementTask, taskId: "other", projectName: "Otra obra", leadTimeStatus: value === "NotStarted" ? "Overdue" : "NotStarted" }]);
     renderOperational(<TasksPage />, manager);
     await screen.findByRole("table");
     await userEvent.selectOptions(screen.getByLabelText("Situación"), value);

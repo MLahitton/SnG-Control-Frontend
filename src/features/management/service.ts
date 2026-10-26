@@ -1,7 +1,7 @@
 import type { ApiClient } from "@/lib/api/types";
-import type { ManagementOverview, ManagementTask } from "./types";
+import { parseManagementOverview, parseManagementTasks } from "./parser";
 
 export const managementService = {
-  overview: (api: ApiClient, signal?: AbortSignal) => api.get<ManagementOverview>("management/overview", { signal }),
-  tasks: (api: ApiClient, signal?: AbortSignal) => api.get<ManagementTask[]>("management/tasks", { signal }),
+  overview: async (api: ApiClient, signal?: AbortSignal) => parseManagementOverview(await api.get<unknown>("management/overview", { signal })),
+  tasks: async (api: ApiClient, signal?: AbortSignal) => parseManagementTasks(await api.get<unknown>("management/tasks", { signal })),
 };

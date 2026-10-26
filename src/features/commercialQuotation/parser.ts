@@ -55,13 +55,13 @@ export function parsePreview(value: unknown, projectId: string): CommercialQuota
   return { projectId, projectTotal: number(v.projectTotal), items, ...summary };
 }
 function task(value: unknown, projectId: string, type: "ReviewQuotation" | "PresentQuotationToClient"): ProjectTask {
-  const v = object(value, ["id", "projectId", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "assignedToGoogleSubject", "deadlineAt", "wasOverdue", "LeadTimeStatus"]);
+  const v = object(value, ["id", "projectId", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "assignedToGoogleSubject", "deadlineAt", "wasOverdue", "leadTimeStatus"]);
   if (text(v.projectId, true) !== projectId) invalid();
   return { id: text(v.id, true), projectId, area: choice(v.area, ["Commercial"]), type: choice(v.type, [type]),
     status: choice(v.status, [type === "ReviewQuotation" ? "Completed" : "InProgress"]), assignedAt: date(v.assignedAt),
     startedAt: nullable(v.startedAt, date), completedAt: nullable(v.completedAt, date), deadlineAt: nullable(v.deadlineAt, date),
     assignedToGoogleSubject: nullable(v.assignedToGoogleSubject, (v) => text(v, true)), wasOverdue: nullable(v.wasOverdue, bool),
-    LeadTimeStatus: choice(v.LeadTimeStatus, ["NotStarted", "OnTrack", "DueSoon", "DueToday", "Overdue", "CompletedOnTime", "CompletedLate", "UntrackedLegacy"]) };
+    leadTimeStatus: choice(v.leadTimeStatus, ["NotStarted", "OnTrack", "DueSoon", "DueToday", "Overdue", "CompletedOnTime", "CompletedLate", "UntrackedLegacy"]) };
 }
 export function parseConfirmation(value: unknown, projectId: string): CommercialQuotationConfirmationResponse {
   const v = object(value, ["projectId", "commercialQuotationId", "projectTotal", "commercialFileAvailable", "reviewTask", "presentQuotationToClientTask", "hasTechnicalDifferences", "technicalDifferencesCount"]);

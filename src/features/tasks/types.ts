@@ -14,7 +14,7 @@ export interface ProjectTask {
   assignedToGoogleSubject: string | null;
   deadlineAt: string | null;
   wasOverdue: boolean | null;
-  LeadTimeStatus: LeadTimeStatus;
+  leadTimeStatus: LeadTimeStatus;
 }
 export const taskAreaLabels: Record<TaskArea, string> = { Commercial: "Comercial", Budgets: "Presupuestos" };
 export const taskStatusLabels: Record<TaskStatus, string> = { Pending: "Pendiente", InProgress: "En curso", Completed: "Completada" };

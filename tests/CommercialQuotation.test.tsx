@@ -46,7 +46,7 @@ async function prompt() { await userEvent.click(panel().getByRole("button", { na
 describe("commercial review visibility", () => {
   it.each([
     { tasks: [], current: commercialUser },
-    { tasks: [{ ...reviewTask, status: "Pending" as const, startedAt: null, deadlineAt: null, wasOverdue: null, LeadTimeStatus: "NotStarted" as const }], current: commercialUser },
+    { tasks: [{ ...reviewTask, status: "Pending" as const, startedAt: null, deadlineAt: null, wasOverdue: null, leadTimeStatus: "NotStarted" as const }], current: commercialUser },
     { tasks: [reviewTask], current: user },
     { tasks: [reviewTask], current: { ...user, isManagement: true } },
     { tasks: [commercialConfirmation.reviewTask], current: user },

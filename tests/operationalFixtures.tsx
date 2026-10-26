@@ -19,10 +19,10 @@ export const project: Project = {
 export const task: ProjectTask = {
   id: "task-1", projectId: project.id, area: "Budgets", type: "PrepareQuotation", status: "Pending",
   assignedAt: "2026-10-15T15:00:00Z", startedAt: null, completedAt: null,
-  assignedToGoogleSubject: "private-assignee-subject", deadlineAt: null, wasOverdue: null, LeadTimeStatus: "NotStarted",
+  assignedToGoogleSubject: "private-assignee-subject", deadlineAt: null, wasOverdue: null, leadTimeStatus: "NotStarted",
 };
 export const inProgressTask: ProjectTask = {
-  ...task, status: "InProgress", startedAt: "2026-10-15T16:00:00Z", deadlineAt: "2026-10-22T22:00:00Z", LeadTimeStatus: "OnTrack",
+  ...task, status: "InProgress", startedAt: "2026-10-15T16:00:00Z", deadlineAt: "2026-10-22T22:00:00Z", leadTimeStatus: "OnTrack",
 };
 export const notification: ProjectNotification = {
   id: "notification-1", projectId: project.id, projectTaskId: task.id, recipientGoogleSubject: "private-recipient-subject",

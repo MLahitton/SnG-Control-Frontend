@@ -16,7 +16,7 @@ export const commercialPreview: CommercialQuotationPreviewResponse = {
 };
 export const commercialConfirmation: CommercialQuotationConfirmationResponse = {
   projectId: project.id, commercialQuotationId: "commercial-1", projectTotal: 987654.3217, commercialFileAvailable: true,
-  reviewTask: { ...reviewTask, status: "Completed", completedAt: "2026-10-20T15:00:00Z", LeadTimeStatus: "CompletedOnTime" },
+  reviewTask: { ...reviewTask, status: "Completed", completedAt: "2026-10-20T15:00:00Z", leadTimeStatus: "CompletedOnTime" },
   presentQuotationToClientTask: { ...reviewTask, id: "present-1", type: "PresentQuotationToClient", assignedToGoogleSubject: user.subject,
     assignedAt: "2026-10-20T15:00:00Z", startedAt: "2026-10-20T15:00:00Z", deadlineAt: "2026-10-26T22:00:00Z" },
   technicalDifferencesCount: 1, hasTechnicalDifferences: true,

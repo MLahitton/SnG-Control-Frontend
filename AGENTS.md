@@ -197,7 +197,7 @@ Task types currently supported:
 - PrepareQuotation
 - ReviewQuotation
 - PresentQuotationToClient
-Task UI should use backend-provided area, status, assignedToGoogleSubject, AssignedAt, StartedAt, DeadlineAt, CompletedAt, WasOverdue and LeadTimeStatus when available.
+Task UI should use backend-provided area, status, assignedToGoogleSubject, AssignedAt, StartedAt, DeadlineAt, CompletedAt, WasOverdue and leadTimeStatus when available.
 Do NOT recalculate Lead Time in React.
 15. Lead Time presentation
 Lead Time is backend-owned.

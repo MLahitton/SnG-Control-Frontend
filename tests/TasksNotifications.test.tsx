@@ -34,8 +34,8 @@ describe("Tasks", () => {
   it.each<[LeadTimeStatus, string]>([
     ["NotStarted", "Sin iniciar"], ["OnTrack", "En tiempo"], ["DueSoon", "Vence pronto"], ["DueToday", "Vence hoy"],
     ["Overdue", "Atrasada"], ["CompletedOnTime", "Completada a tiempo"], ["CompletedLate", "Completada con retraso"], ["UntrackedLegacy", "Sin seguimiento histórico"],
-  ])("presents %s exactly from backend", (LeadTimeStatus, label) => {
-    render(<TaskTimingStatus task={{ ...task, LeadTimeStatus, deadlineAt: "2020-01-01T22:00:00Z" }} />);
+  ])("presents %s exactly from backend", (leadTimeStatus, label) => {
+    render(<TaskTimingStatus task={{ ...task, leadTimeStatus, deadlineAt: "2020-01-01T22:00:00Z" }} />);
     expect(screen.getByText(label)).toBeInTheDocument();
   });
   it("shows no invented deadline or overdue evidence for newly assigned preparation", () => {

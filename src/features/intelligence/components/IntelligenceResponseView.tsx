@@ -22,7 +22,7 @@ function Entity({ item, onNavigate }: { item: EntityItem; onNavigate: () => void
     {item.kind === "project" ? <p className="metadata">{[item.clientName, item.city].filter(Boolean).join(" · ")}</p> : <>
       {(item.status || item.area) && <p>{[item.status, item.area].filter(Boolean).join(" · ")}</p>}
       {item.task && <p>{item.task}</p>}
-      {(item.LeadTimeStatus || item.deadlineAt) && <p className="metadata">{[item.LeadTimeStatus, item.deadlineAt ? formatDate(item.deadlineAt) : null].filter(Boolean).join(" · ")}</p>}
+      {(item.leadTimeStatus || item.deadlineAt) && <p className="metadata">{[item.leadTimeStatus, item.deadlineAt ? formatDate(item.deadlineAt) : null].filter(Boolean).join(" · ")}</p>}
     </>}
   </div>;
 }

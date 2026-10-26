@@ -281,7 +281,7 @@ Los códigos UnreadableWorkbook, UnsupportedWorkbookFormat, InvalidDocumentSgCod
 
 `useResource` mantiene estado local de consulta, cancela lecturas al desmontar/cambiar filtros y descarta respuestas tardías. Presenta carga/error/vacío y permite recarga explícita tras fallos. No es una caché global. La bandeja exige área y estado en cada solicitud. features/tasks/inbox.ts centraliza área fija/default/label/vacío por rol: Budgets → Budgets/Pending; Head y Advisor → Commercial/InProgress. Backend determina el tipo y assignee: PrepareQuotation, ReviewQuotation y PresentQuotationToClient respectivamente. TasksPage elimina el selector Área y mantiene Estado. El contenido se remonta por Subject/ActiveRole, restablece el default y cancela las peticiones anteriores. Management no monta consultas operacionales y ofrece un enlace a /management/tasks; el Backend devuelve 403 si se invoca /project-tasks bajo Management o con área incompatible. Resuelve nombres con un único GET `projects` por montaje, sin consultas por tarea ni nuevas lecturas de proyectos al cambiar filtros.
 
-`TaskList` y `TaskTimingStatus` presentan los tipos/estados y `LeadTimeStatus` del backend en español. `formatDate` usa `Intl.DateTimeFormat` con **America/Bogota**, incluyendo hora para vencimientos. No compara deadlines con el reloj ni reconstruye días hábiles. Cuando PrepareQuotation está NotStarted sin deadline, indica que el plazo comienza al asignar SG.
+`TaskList` y `TaskTimingStatus` presentan los tipos/estados y `leadTimeStatus` del backend en español. `formatDate` usa `Intl.DateTimeFormat` con **America/Bogota**, incluyendo hora para vencimientos. No compara deadlines con el reloj ni reconstruye días hábiles. Cuando PrepareQuotation está NotStarted sin deadline, indica que el plazo comienza al asignar SG.
 
 `NotificationList` conserva Informational, Active y Resolved. Resalta Overdue Active y mantiene Overdue Resolved como historial. Muestra título, mensaje, tipo de tarea, fechas y estado; las personales enlazan al proyecto. No muestra recipientGoogleSubject ni incorpora leído/no leído, contadores o acciones de mutación.
 
@@ -334,7 +334,9 @@ Se mapean ProjectNotFound, Forbidden, InvalidWorkflowState, AlreadyConfirmed, Pr
 
 ### Gerencia — Frontend 3A
 
-`features/management` contiene contratos, service, protección visual y las dos páginas. `ManagementOverview` reproduce totalProjects, tasks, LeadTime, areas y attention (total y hasta diez items). `ManagementTask` conserva datos de proyecto/cliente/SG/ciudad/línea, área, type string, status, assignedAt requerido, startedAt/completedAt/deadlineAt nullable, wasOverdue boolean nullable y LeadTimeStatus. Reutiliza TaskArea, TaskStatus, LeadTimeStatus, labels/badges y formatDate en America/Bogota; tipos futuros de tarea muestran “Otra tarea”. No calcula plazos ni prioridad.
+`features/management` contiene contratos, service, protección visual y las dos páginas. `ManagementOverview` reproduce totalProjects, tasks, leadTime, areas y attention (total y hasta diez items). `ManagementTask` conserva datos de proyecto/cliente/SG/ciudad/línea, área, type string, status, assignedAt requerido, startedAt/completedAt/deadlineAt nullable, wasOverdue boolean nullable y leadTimeStatus. Reutiliza TaskArea, TaskStatus, LeadTimeStatus, labels/badges y formatDate en America/Bogota; tipos futuros de tarea muestran “Otra tarea”. No calcula plazos ni prioridad.
+
+Management valida en runtime el contrato cerrado de overview/tasks: `leadTime` y `leadTimeStatus` en camelCase. Un payload incompatible produce un error controlado; no se aceptan aliases ni se recalculan estados o plazos.
 
 | Ruta frontend | Endpoint backend mediante ApiClient/BFF | Presentación |
 | --- | --- | --- |
@@ -379,7 +381,7 @@ Las respuestas JSON se leen con límite de 512 KiB y pasan por una allowlist de 
 Contrato observado mediante lectura de `app/contracts/presentation.py`, `app/agent/contracts.py`, `app/agent/presentation.py`, `app/voice/contracts.py` y rutas de SnG Intelligence durante esta implementación:
 - Base: responseType, answer, spokenAnswer, references, presentation. presentation.kind debe coincidir con responseType.
 - direct: metric nullable; management_brief: metrics/items; project_status: project/tasks; list: items; comparison: areas; clarification: candidates; unavailable: reason=data_not_available.
-- ProjectItem: kind/projectId/projectName/sgCode/clientName/city. TaskItem: kind/projectId/projectName/sgCode/taskId/area/task/status/LeadTimeStatus/deadlineAt.
+- ProjectItem: kind/projectId/projectName/sgCode/clientName/city. TaskItem: kind/projectId/projectName/sgCode/taskId/area/task/status/leadTimeStatus/deadlineAt.
 - Las etiquetas de área, tarea, estado y plazo en presentation **ya están localizadas por Intelligence**; se muestran literalmente como texto validado, sin tratarlas como enums de Control.
 - References project/task contienen IDs UUID y label; solo se generan rutas locales `/projects/{projectId}`. No se aceptan href del modelo. Project name/label es principal y SG secundario. Clarification envía el nombre oficial del proyecto en una nueva consulta autocontenida, sin depender de memoria backend.
 - El renderer central usa siete variantes, texto React sin HTML/Markdown ejecutable, cifras solo recibidas y formatDate de Colombia. Unavailable no se trata como fallo.
