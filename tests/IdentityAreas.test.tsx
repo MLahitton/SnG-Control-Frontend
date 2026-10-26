@@ -43,7 +43,8 @@ describe("Identity and active areas", () => {
   it("automatically selects the sole role and defaults task queries to Budgets", async () => {
     const { fetchMock } = mount({ ...user, roles: ["Budgets"] }, <TasksPage />);
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes("area=Budgets"))).toBe(true));
-    expect(screen.getByLabelText("Área")).toHaveValue("Budgets");
+    expect(screen.queryByLabelText("Área")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Estado")).toHaveValue("Pending");
     expect(screen.queryByRole("link", { name: "Crear proyecto" })).not.toBeInTheDocument();
   });
   it("selects only owned implemented roles, resets local state, cancels requests and keeps the Google token", async () => {

@@ -45,7 +45,7 @@ Frontend 3A conserva el flujo de 2B.5 y ofrece estas rutas protegidas:
 | `/projects` | Listado de proyectos con cliente, ciudad, línea, SG y fecha |
 | `/projects/new` | Crear proyecto con un cliente existente y línea Classic, Essential, Bioconfort o Signature |
 | `/projects/[id]` | Datos, documentos, envío a Presupuestos, SG, cotización técnica, revisión Comercial, tareas y notificaciones |
-| `/tasks` | Tareas filtradas explícitamente por área y estado |
+| `/tasks` | Bandeja personal del área activa, filtrable por estado |
 | `/notifications` | Notificaciones personales y alertas activas/resueltas |
 | `/management` | Resumen ejecutivo, solo Gerencia |
 | `/management/tasks` | Operación transversal actual e histórica, solo Gerencia |
@@ -253,7 +253,20 @@ Clientes permite abrir un detalle de solo lectura con sus proyectos accesibles. 
 ve controles de creación. La asignación de tareas conserva el acceso histórico y no cambia
 al seleccionar otra área. Jefe no tiene edición de documentos generales ni acciones Budget.
 Un listado vacío en Presupuestos/Jefatura se presenta como ausencia de proyectos disponibles.
-Tareas inicia en Budgets para Presupuestos y Commercial para Asesor/Jefe.
+Tareas muestra únicamente trabajo asignado al Subject actual dentro del rol activo:
+
+| Rol | Área fija | Tipo autorizado por Backend | Estado inicial |
+| --- | --- | --- | --- |
+| Presupuestos | Budgets | PrepareQuotation | Pendiente |
+| Jefe Comercial | Commercial | ReviewQuotation | En curso |
+| Asesor Comercial | Commercial | PresentQuotationToClient | En curso |
+
+Solo se puede filtrar Estado (Pendiente/En curso/Completada). El cambio de área se hace en
+«Trabajando como» y reinicia filtros, datos y consultas. Los vacíos se explican por rol.
+Gerencia utiliza Operación; /tasks no consulta la bandeja personal bajo Management.
+Proyectos sigue siendo el contexto legible y «Tareas del proyecto» conserva el historial
+completo autorizado, incluidas tareas de otras áreas. Acceso histórico al expediente no
+convierte esas tareas en trabajo propio.
 
 La preferencia de área se guarda en sessionStorage y se revalida contra /auth/me tras
 cada reload. No concede permisos: Backend valida X-SnG-Active-Role en cada request.
