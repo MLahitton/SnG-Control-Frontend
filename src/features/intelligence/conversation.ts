@@ -16,7 +16,7 @@ export function parseConversationRequest(path: string, value: unknown) {
   throw new IntelligenceContractError();
 }
 function timestamp(value: unknown): string {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|\+00:00)$/.test(value) || !Number.isFinite(Date.parse(value))) throw new IntelligenceContractError();
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|[+-]\d\d:\d\d)$/.test(value) || !Number.isFinite(Date.parse(value))) throw new IntelligenceContractError();
   return value;
 }
 export function parseConversation(value: unknown): { conversationId: string; createdAt: string; lastActivityAt: string } {

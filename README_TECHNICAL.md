@@ -603,7 +603,9 @@ los relojes browser/servidor no se restan entre sí.
 
 ## Persistent Conversations V1 — resume y recuperación limitada
 
-`conversation.ts` valida create/resume `{conversationId, createdAt, lastActivityAt}`;
+`conversation.ts` valida create/resume `{conversationId, createdAt, lastActivityAt}`.
+Los timestamps requieren timezone explícita (`Z` u offset RFC3339 como `-05:00`) y
+`Date.parse` válido; conserva el valor y precisión recibidos, sin normalizar a UTC;
 close conserva `{closed:true}`. No hay expiresAt para conversaciones. IDs opacos base64url
 (43 caracteres), generados por servidor y asociados al subject oficial; no son autenticación.
 `useConversation` llama resume al montar y descarta resultados tardíos. Unmount/logout no

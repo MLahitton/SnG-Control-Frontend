@@ -2,6 +2,8 @@
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { forwardIntelligence } from "@/features/intelligence/server/bridge";
+import { parseConversation } from "@/features/intelligence/conversation";
+import { IntelligenceContractError } from "@/features/intelligence/parser";
 import { conversationCreated } from "./intelligenceFixtures";
 import { token } from "./fixtures";
 import { liveSdp, liveCreated } from "./liveFixtures";
@@ -55,4 +57,39 @@ it.each([404, 409, 429, 500, 502, 503, 504])("forwards only the recoverable code
 it("strips arbitrary 404 diagnostics instead of triggering recovery", async () => {
   fetchMock.mockResolvedValue(Response.json({ error: "other_missing_resource", message: token }, { status: 404 }));
   expect(await (await forwardIntelligence(request(), ["conversation", "resume"])).json()).toEqual({ status: 404 });
+});
+
+for (const field of ["createdAt", "lastActivityAt"] as const) {
+  it.each([
+    "2026-10-27T18:47:00Z",
+    "2026-10-27T18:47:00+00:00",
+    "2026-10-27T13:47:00-05:00",
+    "2026-10-28T03:47:00+09:00",
+    "2026-10-27T13:47:00.123456-05:00",
+  ])(`preserves ${field} with explicit timezone: %s`, (timestamp) => {
+    const payload = { ...conversationCreated, [field]: timestamp };
+    expect(parseConversation(payload)).toEqual(payload);
+  });
+  it.each([
+    "2026-10-27T13:47:00",
+    "invalid",
+    "2026-10-27T13:47:00-05:00 extra",
+    "extra 2026-10-27T13:47:00-05:00",
+    "2026-10-27T13:47:00+25:00",
+    "2026-10-27T13:47:00+09:60",
+  ])(`rejects invalid or timezone-free ${field}: %s`, (timestamp) => {
+    expect(() => parseConversation({ ...conversationCreated, [field]: timestamp })).toThrow(IntelligenceContractError);
+  });
+}
+it("preserves a 200 resume response with PostgreSQL Colombia offsets and microseconds", async () => {
+  const payload = {
+    ...conversationCreated,
+    createdAt: "2026-10-27T13:47:00.123456-05:00",
+    lastActivityAt: "2026-10-27T14:02:03.654321-05:00",
+  };
+  fetchMock.mockResolvedValueOnce(Response.json(payload, { status: 200 }));
+  const result = await forwardIntelligence(request(), ["conversation", "resume"]);
+  expect(result.status).toBe(200);
+  expect(await result.json()).toEqual(payload);
+  expect(result.headers.get("Cache-Control")).toBe("no-store");
 });
