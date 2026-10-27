@@ -717,3 +717,9 @@ Smoke manual con cuenta multirol: en Presupuestos comprobar los cinco enlaces, a
 SharedReadAccess.test.tsx cubre navegación e Inicio, capacidades, estados vacíos y detalle de cliente para las cuatro áreas. IdentityAreas y ManagementIntelligence cubren cambios de área/membresía y limpieza de datos. La matriz funcional completa está en README.md.
 
 Smoke de bandeja personal: Presupuestos abre Tareas en Pendiente y consulta solo PrepareQuotation asignadas; después del handoff puede elegir Completada y seguir leyendo el proyecto, pero no recibe ReviewQuotation. Jefe abre En curso con ReviewQuotation; después de 4E, Asesor abre En curso con PresentQuotationToClient. Cambiar de rol con una consulta pendiente debe descartar la respuesta anterior y reiniciar Estado. El historial del expediente sigue completo y Gerencia sigue usando Operación. TaskInbox.test.tsx cubre este comportamiento con red simulada; no sustituye el smoke con sesión real.
+
+
+Money Contract V1: preview, confirmación y vista comercial requieren `currencyCode: "COP"`
+del Backend. Los parsers cerrados conservan el campo y rechazan moneda ausente/desconocida;
+Budget no lo incorpora. Ajuste contractual necesario para aceptar el nuevo payload sin 502,
+sin cambios de UI, cálculos ni formato. Desplegar junto con Backend Money Contract V1.

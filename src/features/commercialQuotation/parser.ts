@@ -35,7 +35,7 @@ function differencesSummary(v: Record<string, unknown>) {
   return { technicalDifferencesCount, hasTechnicalDifferences };
 }
 export function parsePreview(value: unknown, projectId: string): CommercialQuotationPreviewResponse {
-  const v = object(value, ["projectId", "projectTotal", "items", "technicalDifferencesCount", "hasTechnicalDifferences"]);
+  const v = object(value, ["currencyCode", "projectId", "projectTotal", "items", "technicalDifferencesCount", "hasTechnicalDifferences"]);
   if (text(v.projectId, true) !== projectId) invalid();
   const items = list(v.items, (entry) => {
     const i = object(entry, ["section", "sourceRow", "commercialCatalogItemId", "values", "unitPrice", "totalPrice", "technicalDifferences"]);
@@ -52,7 +52,7 @@ export function parsePreview(value: unknown, projectId: string): CommercialQuota
   if (!items.length || new Set(items.map((i) => `${i.section}:${i.sourceRow}`)).size !== items.length
     || new Set(items.map((i) => i.commercialCatalogItemId)).size !== items.length
     || items.reduce((count, i) => count + i.technicalDifferences.length, 0) !== summary.technicalDifferencesCount) invalid();
-  return { projectId, projectTotal: number(v.projectTotal), items, ...summary };
+  return { currencyCode: choice(v.currencyCode, ["COP"]), projectId, projectTotal: number(v.projectTotal), items, ...summary };
 }
 function task(value: unknown, projectId: string, type: "ReviewQuotation" | "PresentQuotationToClient"): ProjectTask {
   const v = object(value, ["id", "projectId", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "assignedToGoogleSubject", "deadlineAt", "wasOverdue", "leadTimeStatus"]);
@@ -64,9 +64,9 @@ function task(value: unknown, projectId: string, type: "ReviewQuotation" | "Pres
     leadTimeStatus: choice(v.leadTimeStatus, ["NotStarted", "OnTrack", "DueSoon", "DueToday", "Overdue", "CompletedOnTime", "CompletedLate", "UntrackedLegacy"]) };
 }
 export function parseConfirmation(value: unknown, projectId: string): CommercialQuotationConfirmationResponse {
-  const v = object(value, ["projectId", "commercialQuotationId", "projectTotal", "commercialFileAvailable", "reviewTask", "presentQuotationToClientTask", "hasTechnicalDifferences", "technicalDifferencesCount"]);
+  const v = object(value, ["currencyCode", "projectId", "commercialQuotationId", "projectTotal", "commercialFileAvailable", "reviewTask", "presentQuotationToClientTask", "hasTechnicalDifferences", "technicalDifferencesCount"]);
   if (text(v.projectId, true) !== projectId) invalid();
-  return { projectId, commercialQuotationId: text(v.commercialQuotationId, true), projectTotal: number(v.projectTotal),
+  return { currencyCode: choice(v.currencyCode, ["COP"]), projectId, commercialQuotationId: text(v.commercialQuotationId, true), projectTotal: number(v.projectTotal),
     commercialFileAvailable: bool(v.commercialFileAvailable), reviewTask: task(v.reviewTask, projectId, "ReviewQuotation"),
     presentQuotationToClientTask: task(v.presentQuotationToClientTask, projectId, "PresentQuotationToClient"), ...differencesSummary(v) };
 }

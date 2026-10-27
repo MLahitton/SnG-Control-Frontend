@@ -313,3 +313,9 @@ Verificar también mute/reactivación y playback bloqueado. Registrar solo resul
 navegador y metadata segura, sin grabaciones ni transcripts. Si el fallo aparece solo con altavoces,
 documentar la diferencia de hardware/browser antes de considerar otra mitigación. Los tests no
 simulan eco real; la aprobación acústica requiere este smoke.
+
+
+Money Contract V1: preview, confirmación y vista comercial requieren `currencyCode: "COP"`
+del Backend. Los parsers cerrados conservan el campo y rechazan moneda ausente/desconocida;
+Budget no lo incorpora. Ajuste contractual necesario para aceptar el nuevo payload sin 502,
+sin cambios de UI, cálculos ni formato. Desplegar junto con Backend Money Contract V1.

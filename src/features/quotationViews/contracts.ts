@@ -12,6 +12,7 @@ export interface BudgetReadView {
   document: QuotationDocument; items: BudgetReadItem[];
 }
 export interface CommercialReadView {
+  currencyCode: "COP";
   projectId: string; commercialQuotationId: string; confirmedAt: string; projectTotal: number; items: (CommercialQuotationItem & Pick<BudgetReadItem, "imageStatus" | "hasImage">)[];
 }
 function invalid(): never { throw new ApiError(502); }
@@ -56,7 +57,7 @@ export function parseBudgetView(value: unknown, projectId: string): BudgetReadVi
   return { projectId, quotationVersionId: id(v.quotationVersionId), versionNumber: number(v.versionNumber, true), confirmedAt: date(v.confirmedAt), document: parseQuotationDocument(v.document), items };
 }
 export function parseCommercialView(value: unknown, projectId: string): CommercialReadView {
-  const v = object(value, ["projectId", "commercialQuotationId", "confirmedAt", "projectTotal", "items"]);
+  const v = object(value, ["currencyCode", "projectId", "commercialQuotationId", "confirmedAt", "projectTotal", "items"]);
   if (v.projectId !== projectId) invalid();
   const items = list(v.items, entry => {
     const i = object(entry, ["section", "sourceRow", "commercialCatalogItemId", "values", "unitPrice", "totalPrice", "technicalDifferences", "imageStatus", "hasImage"]);
@@ -66,5 +67,5 @@ export function parseCommercialView(value: unknown, projectId: string): Commerci
     return { ...key(i), commercialCatalogItemId: id(i.commercialCatalogItemId), values: parseItemValues(i.values), unitPrice: number(i.unitPrice), totalPrice: number(i.totalPrice), technicalDifferences: differences(i.technicalDifferences), imageStatus, hasImage: i.hasImage };
   });
   unique(items, items.map(i => i.commercialCatalogItemId));
-  return { projectId, commercialQuotationId: id(v.commercialQuotationId), confirmedAt: date(v.confirmedAt), projectTotal: number(v.projectTotal), items };
+  return { currencyCode: v.currencyCode === "COP" ? v.currencyCode : invalid(), projectId, commercialQuotationId: id(v.commercialQuotationId), confirmedAt: date(v.confirmedAt), projectTotal: number(v.projectTotal), items };
 }

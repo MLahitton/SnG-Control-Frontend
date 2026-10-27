@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parsePreview, parseConfirmation } from "@/features/commercialQuotation/parser";
 import { formatCop, commercialQuotationError } from "@/features/commercialQuotation/validation";
+import { parseCommercialView } from "@/features/quotationViews/contracts";
+import { commercialRead } from "./quotationReadFixtures";
 import { ApiError } from "@/lib/api/apiError";
 import { commercialPreview, commercialConfirmation } from "./commercialQuotationFixtures";
 
@@ -47,4 +49,17 @@ describe("commercial quotation closed contracts", () => {
     expect(commercialQuotationError(error)).not.toBe(error.message);
     expect(commercialQuotationError(error)).not.toContain("private");
   });
+});
+
+
+it.each([undefined, "USD", "cop", null])("requires official COP in every commercial contract (%s)", currencyCode => {
+  expect(() => parsePreview({ ...commercialPreview, currencyCode }, "project-1")).toThrow(ApiError);
+  expect(() => parseConfirmation({ ...commercialConfirmation, currencyCode }, "project-1")).toThrow(ApiError);
+  expect(() => parseCommercialView({ ...commercialRead, currencyCode }, commercialRead.projectId)).toThrow(ApiError);
+});
+it("accepts commercial read currency and rejects an absent currency field", () => {
+  expect(parseCommercialView(commercialRead, commercialRead.projectId)).toEqual(commercialRead);
+  const missing = { ...commercialPreview } as Partial<typeof commercialPreview>;
+  delete missing.currencyCode;
+  expect(() => parsePreview(missing, "project-1")).toThrow(ApiError);
 });

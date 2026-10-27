@@ -13,11 +13,11 @@ export interface CommercialQuotationItem extends CommercialItemKey {
   technicalDifferences: TechnicalDifference[];
 }
 export interface CommercialQuotationPreviewResponse {
-  projectId: string; projectTotal: number; items: CommercialQuotationItem[];
+  currencyCode: "COP"; projectId: string; projectTotal: number; items: CommercialQuotationItem[];
   technicalDifferencesCount: number; hasTechnicalDifferences: boolean;
 }
 export interface CommercialQuotationConfirmationResponse {
-  projectId: string; commercialQuotationId: string; projectTotal: number; commercialFileAvailable: boolean;
+  currencyCode: "COP"; projectId: string; commercialQuotationId: string; projectTotal: number; commercialFileAvailable: boolean;
   reviewTask: ProjectTask; presentQuotationToClientTask: ProjectTask;
   hasTechnicalDifferences: boolean; technicalDifferencesCount: number;
 }
