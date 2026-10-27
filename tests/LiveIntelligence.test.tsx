@@ -22,7 +22,7 @@ function context() {
 function network() {
   const fetchMock = vi.fn<(path: string, options: RequestInit) => Promise<Response>>(async (path) => {
     if (path === "/api/auth/me") return Response.json(manager);
-    if (path === "/api/intelligence/conversation") return Response.json(conversationCreated, { status: 201 });
+    if (path === "/api/intelligence/conversation/resume") return Response.json(conversationCreated, { status: 201 });
     if (path === "/api/intelligence/conversation/close") return Response.json({ closed: true });
     if (path === "/api/intelligence/session") return Response.json({ authenticated: true, isManagement: true });
     if (path.endsWith("/live/session")) return Response.json(liveCreated);

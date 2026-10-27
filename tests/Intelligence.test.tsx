@@ -21,7 +21,7 @@ function context(identity = manager) {
 }
 function backend(handler?: (path: string, options: RequestInit) => unknown) {
   const mock = vi.fn(async (path: string, options: RequestInit) => {
-    if (path === "/api/intelligence/conversation") return Response.json(conversationCreated, { status: 201 });
+    if (path === "/api/intelligence/conversation/resume") return Response.json(conversationCreated, { status: 201 });
     if (path === "/api/intelligence/conversation/close") return Response.json({ closed: true });
     if (path === "/api/intelligence/session") return Response.json({ authenticated: true, isManagement: true });
     const result = await (handler ? handler(path, options) : intelligenceResponse);
@@ -97,7 +97,7 @@ describe("Intelligence shell", () => {
   });
   it("handles session verification failure with retry before enabling the composer", async () => {
     let ready = false;
-    vi.stubGlobal("fetch", vi.fn(async (path: string) => ready ? Response.json(path.endsWith("/conversation") ? conversationCreated : { authenticated: true, isManagement: true }) : Response.json({}, { status: 503 })));
+    vi.stubGlobal("fetch", vi.fn(async (path: string) => ready ? Response.json(path.endsWith("/conversation/resume") ? conversationCreated : { authenticated: true, isManagement: true }) : Response.json({}, { status: 503 })));
     render(<AuthContext.Provider value={context()}><IntelligenceLauncher /></AuthContext.Provider>);
     await userEvent.click(screen.getByRole("button", { name: "Abrir SnG Intelligence" }));
     await screen.findByRole("alert");

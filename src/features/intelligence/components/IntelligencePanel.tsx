@@ -5,7 +5,7 @@ import { useApiClient } from "@/features/auth/hooks/useApiClient";
 import { useResource } from "@/lib/api/useResource";
 import { ApiError } from "@/lib/api/apiError";
 import { intelligenceService } from "../service";
-import { IntelligenceError, intelligenceErrorMessage } from "../errors";
+import { IntelligenceError, intelligenceErrorMessage, isConversationUnavailable } from "../errors";
 import { MAX_MESSAGE_CHARACTERS, MAX_RECORDING_SECONDS, type Message } from "../types";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useSpeech } from "../hooks/useSpeech";
@@ -75,7 +75,16 @@ export function IntelligencePanel({ onClose, visible = true }: { onClose: () => 
       setMessages((items) => [...items.slice(-39), { id: userId, role: "user", content: value.trim(), state: "sending" }]);
     }
     try {
-      const result = text ? await intelligenceService.chat(api, value.trim(), controller.signal, conversation.id) : await intelligenceService.voice(api, value, controller.signal);
+      const result = text ? await (async () => {
+        try { return await intelligenceService.chat(api, value.trim(), controller.signal, conversation.id); }
+        catch (error) {
+          if (!isConversationUnavailable(error) || controller.signal.aborted) throw error;
+          const id = await conversation.recover(controller.signal);
+          controller.signal.throwIfAborted();
+          setMessages((items) => items.filter((item) => item.id === userId));
+          return intelligenceService.chat(api, value.trim(), controller.signal, id);
+        }
+      })() : await intelligenceService.voice(api, value, controller.signal);
       if (controller.signal.aborted) return;
       const responseId = ++sequence.current;
       setMessages((items) => [
@@ -153,7 +162,7 @@ export function IntelligencePanel({ onClose, visible = true }: { onClose: () => 
       <form onSubmit={(event) => { event.preventDefault(); if (!blocked) void send(input); }}>
         <label className="field-label" htmlFor="intelligence-input">Tu consulta</label>
         <textarea id="intelligence-input" className="form-control" rows={2} maxLength={MAX_MESSAGE_CHARACTERS} value={input} disabled={blocked} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!blocked) void send(input); } }} />
-        <div className={styles.composerActions}>{basicVoice && <label className={styles.autoSpeak}><input type="checkbox" disabled={!!busy || recorder.state !== "idle"} checked={autoSpeak} onChange={(event) => setAutoSpeak(event.target.checked)} />Escuchar al consultar por voz</label>}{!live.active && <button type="button" className="button-secondary" aria-label={basicVoice ? "Iniciar consulta por voz" : "Iniciar conversación por voz"} disabled={blocked} onClick={() => { speech.stop(); if (basicVoice) void recorder.start(); else void live.start(conversation.id); }}><Icon name="microphone" /></button>}<button className="button-primary" disabled={blocked || !input.trim()}>Enviar</button></div>
+        <div className={styles.composerActions}>{basicVoice && <label className={styles.autoSpeak}><input type="checkbox" disabled={!!busy || recorder.state !== "idle"} checked={autoSpeak} onChange={(event) => setAutoSpeak(event.target.checked)} />Escuchar al consultar por voz</label>}{!live.active && <button type="button" className="button-secondary" aria-label={basicVoice ? "Iniciar consulta por voz" : "Iniciar conversación por voz"} disabled={blocked} onClick={() => { speech.stop(); if (basicVoice) void recorder.start(); else void live.start(conversation.id, conversation.recover); }}><Icon name="microphone" /></button>}<button className="button-primary" disabled={blocked || !input.trim()}>Enviar</button></div>
       </form>
     </footer>
   </dialog>;

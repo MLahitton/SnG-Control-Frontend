@@ -122,19 +122,19 @@ Pendiente de smoke real: login/restauración con Gerencia, navegación y endpoin
 
 ## SnG Intelligence — Intelligence 1C + Realtime Voice 2C
 
-Solo las cuentas con Management disponible y activo ven el botón flotante **Intelligence** dentro del shell. Al salir de Gerencia se desmonta el panel y se liberan voz, requests y conversación best-effort. Intelligence verifica acceso con Backend y usa un rol Management fijo en sus lecturas.
+Solo las cuentas con Management disponible y activo ven el botón flotante **Intelligence** dentro del shell. Al salir de Gerencia se desmonta el panel y se liberan voz y requests; el hilo durable permanece en Intelligence. Intelligence verifica acceso con Backend y usa un rol Management fijo en sus lecturas.
 
 Configura de forma independiente en el entorno del worktree `SNG_INTELLIGENCE_BASE_URL`, solo servidor. Ejemplo de desarrollo: `http://127.0.0.1:8001`. No tiene prefijo NEXT_PUBLIC. El navegador llama únicamente a `/api/intelligence/...` de Next; no recibe URL del servicio ni claves de proveedores. No copies el `.env` de otro worktree; configura el Client ID público y las URLs que correspondan al entorno de prueba.
 
-Chat envía un mensaje y el conversationId generado por Intelligence. El historial compartido es efímero y vive en el servidor. Enter envía y Shift+Enter agrega una línea. Las respuestas admiten direct, management_brief, project_status, list, comparison, clarification y unavailable. Cifras, estados, áreas y fechas proceden de Intelligence. Seleccionar un candidato genera una pregunta autocontenida con el nombre oficial del proyecto; aprovecha el contexto efímero sin convertirlo en evidencia operacional. Las referencias de proyectos/tareas abren el proyecto asociado.
+Chat envía un mensaje y el conversationId generado por Intelligence. El historial semántico compartido es durable en PostgreSQL propio de Intelligence. Enter envía y Shift+Enter agrega una línea. Las respuestas admiten direct, management_brief, project_status, list, comparison, clarification y unavailable. Cifras, estados, áreas y fechas proceden de Intelligence. Seleccionar un candidato genera una pregunta autocontenida con el nombre oficial del proyecto; aprovecha el contexto reciente sin convertirlo en evidencia operacional. Las referencias de proyectos/tareas abren el proyecto asociado.
 
 El micrófono principal inicia **Voice Live**: un clic solicita permiso, conecta WebRTC y permite conversar continuamente, sin grabar un Blob ni pulsar Enviar. GPT-Live mantiene contexto durante esa conexión y gestiona la conversación/interrupciones; el panel muestra transcripciones y estados accesibles. Incluye silenciar/activar micrófono, finalizar conversación y activar audio mediante un gesto si el navegador bloquea autoplay. Requiere HTTPS o localhost y soporte de WebRTC.
 
 “Usar modo de voz básico” conserva el fallback explícito MediaRecorder: hasta 60 segundos y 10 MiB, WebM/Opus, WebM o MP4/M4A. Detener envía a `/voice` y muestra la transcripción/respuesta; la reproducción opcional usa `/voice/speech`. No se cambia de modo automáticamente. “Escuchar respuesta” conserva pausa/reanudación para texto y voz básica; se deshabilita mientras Live está activo para evitar dos audios simultáneos.
 
-El historial visual vive en memoria (hasta 40 mensajes de texto/básicos y 160 fragmentos Live); no se persiste. El audio Live viaja directamente por WebRTC a GPT-Live y sus consultas empresariales se ejecutan exclusivamente en el sideband privado de SnG Intelligence. La sesión sobrevive navegación interna mientras el panel/shell continúan montados. Cerrar el panel libera solicitudes, micrófono, audio y captions, pero conserva mensajes/contexto. Recargar pierde continuidad; logout o cambio de identidad también cierra la conversación best-effort. En móvil, seguir una referencia cierra el panel. El panel conserva diálogo nativo, scroll, safe areas y adaptación al teclado.
+El historial visual vive en memoria (hasta 40 mensajes de texto/básicos y 160 fragmentos Live); no se persiste. El audio Live viaja directamente por WebRTC a GPT-Live y sus consultas empresariales se ejecutan exclusivamente en el sideband privado de SnG Intelligence. La sesión sobrevive navegación interna mientras el panel/shell continúan montados. Cerrar el panel libera solicitudes, micrófono, audio y captions, pero conserva mensajes/contexto. Recargar retoma el hilo por subject mediante resume; logout o cambio de identidad limpia el estado local y cierra Live, sin archivar el hilo durable. En móvil, seguir una referencia cierra el panel. El panel conserva diálogo nativo, scroll, safe areas y adaptación al teclado.
 
-Voz Live y chat textual **comparten contexto efímero** con el mismo conversationId. “La de Ximena” o “el segundo” se resuelven con contexto de Intelligence, sin reescritura del frontend. Reiniciar Live conserva el contexto empresarial reciente; las tools vuelven a consultar datos actuales. No se persisten sessionId, SDP, transcripciones ni audio. Backend conserva autoridad de acceso y datos.
+Voz Live y chat textual **comparten contexto conversacional durable** con el mismo conversationId. “La de Ximena” o “el segundo” se resuelven con contexto de Intelligence, sin reescritura del frontend. Reiniciar Live conserva el contexto empresarial reciente; las tools vuelven a consultar datos actuales. No se persisten sessionId, SDP, transcripciones ni audio. Backend conserva autoridad de acceso y datos.
 
 Los errores 401 invalidan la sesión existente; 403 mantiene la sesión; 422, 429 y 503 ofrecen mensajes seguros. Solo se presenta un requestId validado como referencia diagnóstica. Una respuesta unavailable es información normal.
 
@@ -159,27 +159,35 @@ Para comparar fases server-side consultar `PERFORMANCE_2D.md` de SnG Intelligenc
 los relojes browser/servidor no se restan entre sí.
 
 
-## Conversation 3A
+## Persistent Conversations V1
 
-Al abrir Intelligence por primera vez se crea una conversación de Gerencia. ID y mensajes
-permanecen solo en memoria React dentro de AppShell: cerrar/reabrir el panel o navegar dentro
-no inicia otra conversación. No se usa localStorage, sessionStorage, cookies ni IndexedDB
-para contexto. La sesión Google existente conserva su mecanismo independiente.
+Al abrir Intelligence se verifica Gerencia y se llama `POST conversation/resume`: el servidor
+retoma el único hilo abierto del subject o crea uno si no existe. ID y mensajes visibles son
+cache React; no se usa localStorage, sessionStorage, cookies ni IndexedDB para conversaciones.
+F5, reabrir navegador y reiniciar Intelligence conservan el hilo en PostgreSQL propio del servidor.
+El historial visual sigue siendo local: V1 no añade una pantalla/listado de historial ni reconstruye
+las tarjetas antiguas. La siguiente consulta sí usa el contexto semántico reciente del mismo hilo.
 
-Texto y Live envían el mismo conversationId; Live inicializa historial textual en el servidor.
-Al finalizar voz puedes continuar escribiendo. Durante Live el texto queda temporalmente
-bloqueado. **Nueva conversación** cierra Live y contexto anterior, limpia mensajes/referencias/
-audio y crea un ID nuevo. Logout/cambio de subject aborta requests y limpia el estado sin
-heredarlo a otra identidad. Cierre remoto es best-effort; servidor aplica expiración.
+Texto y Live envían el mismo conversationId. Live sigue siendo temporal (máximo 600 s):
+expirar/desconectar voz permite reconectarla y continuar el hilo. **Nueva conversación** detiene
+Live, limpia mensajes/referencias/audio y pide crear un hilo vacío, archivando el anterior.
+Cerrar el panel, logout o cambio de identidad libera estado local/media, sin cerrar el hilo durable.
 
-Servidor: TTL absoluto por defecto 30 minutos (máximo 60), 16 turnos y 16000 caracteres de
-contexto; sin persistencia. Al expirar, reiniciar Intelligence o recargar completamente el
-browser se pierde continuidad. Los datos históricos sirven para identificar referentes;
-Backend vuelve a consultarse para hechos actuales. No se guardan audio/SDP/credenciales.
-Las conversaciones casuales Live sin delegación y captions parciales no forman memoria
-compartida. Voz básica permanece independiente y lo indica en el panel.
+Solo `404 conversation_unavailable` dispara resume y un reintento de la misma operación.
+En Live se cierran peer/tracks provisionales antes de recuperar el ID y crear una nueva conexión.
+No hay loops ni retry automático para otros 404, 409, 429 o 5xx. Si el segundo intento falla,
+se informa el error. Los IDs de la versión antigua en RAM se recuperan por este mismo mecanismo.
 
-Implementación y tests offline completos; smoke real texto → Live → texto aprobado por el usuario.
+Intelligence guarda todos los turnos validados, sin TTL de conversación. El modelo recibe una
+ventana reciente acotada a 16 turnos/16000 caracteres; no se elimina historial por ese límite.
+Backend vuelve a consultarse para hechos actuales; el historial identifica referentes, no aporta
+evidencia vigente. No se persisten tokens, audio, SDP, reasoning ni protocolos del proveedor.
+Voz básica sigue independiente; captions parciales y charla Live sin delegación no forman historial.
+
+Tests offline cubren resume tras remount, texto/Live con el mismo ID, nuevo hilo, cambio de
+identidad, errores y recuperación única. El smoke manual de esta fase requiere la DB de
+Intelligence configurada/migrada: dos turnos, restart/F5, mismo ID y tercer turno referencial.
+La aprobación previa del smoke cross-modal 3A no sustituye esa validación de persistencia.
 
 
 ## Management Intelligence 4A
@@ -192,7 +200,7 @@ horizontal obligatorio. El brief puede mostrar cobertura parcial (datos recupera
 sin confundir una muestra con toda la operación.
 
 Intelligence construye los datos desde Backend; el Frontend no calcula plazos, estados,
-riesgos ni prioridades. Texto/Live conservan la misma conversación efímera y referencias
+riesgos ni prioridades. Texto/Live conservan la misma conversación durable y referencias
 ordenadas. Captions Live siguen sin convertirse en tarjetas verificadas. La arquitectura
 WebRTC, sideband, credenciales, BFF y rutas no cambian.
 

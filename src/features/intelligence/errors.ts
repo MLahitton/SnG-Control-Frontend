@@ -7,7 +7,7 @@ export function safeRequestId(value: unknown): string | undefined {
 export class IntelligenceError extends ApiError {
   readonly requestId?: string;
   constructor(status: number, payload?: unknown) {
-    super(status);
+    super(status, status === 404 && payload && typeof payload === "object" && "code" in payload && payload.code === "conversation_unavailable" ? { code: "conversation_unavailable" } : undefined);
     this.requestId = safeRequestId(payload && typeof payload === "object" && "requestId" in payload ? payload.requestId : undefined);
   }
 }
@@ -22,4 +22,8 @@ export function intelligenceErrorMessage(error: unknown): string {
     if (error.status === 422 || error.status === 413) return "La consulta o el audio no son válidos. Prueba con un mensaje o una grabación más breve.";
   }
   return "Intelligence no está disponible temporalmente. Intenta de nuevo.";
+}
+
+export function isConversationUnavailable(error: unknown): boolean {
+  return error instanceof IntelligenceError && error.status === 404 && error.code === "conversation_unavailable";
 }

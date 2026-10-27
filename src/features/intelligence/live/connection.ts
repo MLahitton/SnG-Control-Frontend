@@ -1,4 +1,5 @@
 import type { ApiClient } from "@/lib/api/types";
+import { isConversationUnavailable } from "../errors";
 import { ApiError } from "@/lib/api/apiError";
 import { MAX_LIVE_EVENTS } from "./contracts";
 import { parseLiveEvent } from "./events";
@@ -12,9 +13,9 @@ export const liveErrors: Record<LiveFailure, string> = {
   permission: "Permiso de micrófono denegado. Revisa el permiso del navegador.",
   microphone: "No se pudo usar el micrófono. Comprueba que esté conectado y disponible.",
   unavailable: "La conversación en vivo no está disponible. Puedes intentar de nuevo o usar voz básica.",
-  expired: "La sesión de voz venció. Inicia una conversación nueva.",
+  expired: "La sesión de voz terminó. Puedes volver a conectar la voz y continuar esta conversación.",
   delegation: "No se pudo consultar la información empresarial. La conversación se ha detenido.",
-  network: "Se perdió la conexión de voz. Inicia una conversación nueva.",
+  network: "Se perdió la conexión de voz. Puedes volver a conectarla y continuar esta conversación.",
   limit: "Se alcanzó el límite de la sesión de voz. Intenta más tarde.",
   unsupported: "Este navegador no admite conversación en vivo. Puedes usar voz básica.",
   secure_context: "El micrófono requiere HTTPS o localhost y un navegador compatible.",
@@ -86,7 +87,7 @@ export class LiveConnection {
   private activity(state: LiveState) {
     if (this.ready && !this.closing && !this.closed && this.view.state !== state) this.publish({ state });
   }
-  async start(conversationId?: string) {
+  async start(conversationId?: string): Promise<"conversation_unavailable" | void> {
     this.publish({ ...initialLiveView(), state: "connecting" });
     if (!navigator.mediaDevices?.getUserMedia || window.isSecureContext === false) { this.fail("secure_context"); return; }
     if (typeof RTCPeerConnection === "undefined" || typeof MediaStream === "undefined") { this.fail("unsupported"); return; }
@@ -146,6 +147,10 @@ export class LiveConnection {
       this.markReady();
     } catch (error) {
       if (this.closing || this.closed) return;
+      if (isConversationUnavailable(error)) {
+        await this.close(undefined, true);
+        return "conversation_unavailable";
+      }
       const name = error && typeof error === "object" && "name" in error ? error.name : "";
       this.fail(name === "NotAllowedError" ? "permission" : typeof name === "string" && ["NotFoundError", "NotReadableError", "OverconstrainedError"].includes(name) ? "microphone" : httpFailure(error, "unavailable"));
     }

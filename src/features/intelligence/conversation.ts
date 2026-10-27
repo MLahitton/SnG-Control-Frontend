@@ -11,14 +11,18 @@ function record(value: unknown): Record<string, unknown> {
 }
 export function parseConversationRequest(path: string, value: unknown) {
   const v = record(value);
-  if (path === "conversation" && Object.keys(v).length === 0) return {};
+  if ((path === "conversation" || path === "conversation/resume") && Object.keys(v).length === 0) return {};
   if (path === "conversation/close" && Object.keys(v).length === 1) return { conversationId: conversationId(v.conversationId) };
   throw new IntelligenceContractError();
 }
-export function parseConversation(value: unknown): { conversationId: string; expiresAt: string } {
+function timestamp(value: unknown): string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|\+00:00)$/.test(value) || !Number.isFinite(Date.parse(value))) throw new IntelligenceContractError();
+  return value;
+}
+export function parseConversation(value: unknown): { conversationId: string; createdAt: string; lastActivityAt: string } {
   const v = record(value);
-  if (Object.keys(v).length !== 2 || typeof v.expiresAt !== "string" || !/^\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|\+00:00)$/.test(v.expiresAt) || !Number.isFinite(Date.parse(v.expiresAt))) throw new IntelligenceContractError();
-  return { conversationId: conversationId(v.conversationId), expiresAt: v.expiresAt };
+  if (Object.keys(v).length !== 3) throw new IntelligenceContractError();
+  return { conversationId: conversationId(v.conversationId), createdAt: timestamp(v.createdAt), lastActivityAt: timestamp(v.lastActivityAt) };
 }
 export function parseConversationClose(value: unknown): { closed: true } {
   const v = record(value);
@@ -26,6 +30,7 @@ export function parseConversationClose(value: unknown): { closed: true } {
   return { closed: true };
 }
 export const conversationService = {
+  resume: async (api: ApiClient, signal?: AbortSignal) => parseConversation(await api.post<unknown>("intelligence/conversation/resume", {}, { signal })),
   create: async (api: ApiClient, signal?: AbortSignal) => parseConversation(await api.post<unknown>("intelligence/conversation", {}, { signal })),
   close: async (api: ApiClient, id: string) => parseConversationClose(await api.post<unknown>("intelligence/conversation/close", { conversationId: conversationId(id) }, { signal: AbortSignal.timeout(3000) })),
 };

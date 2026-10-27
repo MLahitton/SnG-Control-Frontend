@@ -16,4 +16,4 @@ export const intelligenceResponses: IntelligenceResponse[] = [
 ];
 export const intelligenceResponse = intelligenceResponses[0];
 
-export const conversationCreated = { conversationId: "c".repeat(43), expiresAt: "2026-10-19T23:59:59Z" };
+export const conversationCreated = { conversationId: "c".repeat(43), createdAt: "2026-10-19T23:59:59Z", lastActivityAt: "2026-10-19T23:59:59Z" };

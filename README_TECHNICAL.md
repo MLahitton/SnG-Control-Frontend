@@ -357,7 +357,7 @@ Intelligence tiene su bloque separado descrito a continuación. Presupuestos inc
 
 ### Intelligence 1C: arquitectura, contratos y voz
 
-La feature src/features/intelligence mantiene sus contratos, lifecycle y renderer. AppShell monta IntelligenceLauncher solo con Management disponible y activo. Cambiar área o Subject, logout o retirar membresía desmonta panel, conversación y voz. Cleanup usa forCurrentSession con token/rol originales para cerrar best-effort, sin contaminar el área nueva.
+La feature src/features/intelligence mantiene sus contratos, lifecycle y renderer. AppShell monta IntelligenceLauncher solo con Management disponible y activo. Cambiar área o Subject, logout o retirar membresía desmonta panel y voz, sin archivar la conversación durable. Cleanup de Live usa forCurrentSession con token/rol originales para cerrar best-effort, sin contaminar el área nueva.
 
 El ApiClient reconoce ocho combinaciones ruta/método del namespace `intelligence/`, sin query; las dirige a `/api/intelligence/...`. Conserva generación de sesión y protección frente a 401 tardíos. `postAudio` añade POST binario solo para speech, acepta MP3 y reutiliza el mismo Bearer. AuthProvider delega esos métodos en su instancia estable. No hay fetch en componentes ni lectura de tokens en la feature. `forCurrentSession()` captura la identidad de transporte en memoria al iniciar Live: permite cerrar con el Bearer original incluso durante logout/cambio de cuenta, sin usar el token de la siguiente cuenta ni invalidarla por un 401 tardío. La instancia se limita al ciclo de vida Live.
 
@@ -391,7 +391,7 @@ Contrato observado mediante lectura de `app/contracts/presentation.py`, `app/age
 
 `useSpeech` controla request, Audio y object URL. TTS usa exclusivamente spokenAnswer. Autoplay configurable solo para voz; texto requiere botón. Rechazo de autoplay ofrece reanudar; se detiene el audio anterior al enviar otra consulta o reproducir otra respuesta. Todas las operaciones y recursos se cancelan al cerrar, cambiar identidad o salir.
 
-La conversación textual/básica local contiene hasta 40 mensajes y no se manda como historial. Se mantiene al navegar mientras AppShell/panel permanecen montados; móvil cierra al seguir referencias. Cerrar conserva conversación/mensajes en el panel montado y libera media/requests; Nueva conversación la reemplaza. El diálogo nativo gestiona foco modal/Escape; al cerrar vuelve al botón. Panel de hasta 480 px en desktop, pantalla móvil con 100dvh/safe areas y visualViewport para teclado; comparación usa scroll horizontal deliberado. Live agrega WebRTC sin dependencias nuevas; no se agrega persistencia, relay WebSocket, RAG ni LangGraph.
+La conversación textual/básica local contiene hasta 40 mensajes y no se manda como historial. Se mantiene al navegar mientras AppShell/panel permanecen montados; móvil cierra al seguir referencias. Cerrar conserva conversación/mensajes en el panel montado y libera media/requests; Nueva conversación la reemplaza. El diálogo nativo gestiona foco modal/Escape; al cerrar vuelve al botón. Panel de hasta 480 px en desktop, pantalla móvil con 100dvh/safe areas y visualViewport para teclado; comparación usa scroll horizontal deliberado. Live agrega WebRTC sin dependencias nuevas; no se agrega persistencia en browser, relay WebSocket, RAG ni LangGraph.
 
 ### Realtime Voice 2B — GPT-Live
 
@@ -601,40 +601,44 @@ Para comparar fases server-side consultar `PERFORMANCE_2D.md` de SnG Intelligenc
 los relojes browser/servidor no se restan entre sí.
 
 
-## Conversation 3A — contexto unificado efímero
+## Persistent Conversations V1 — resume y recuperación limitada
 
-`conversation.ts` valida create `{conversationId, expiresAt}` y close `{closed:true}`;
-`useConversation` conserva el ID solo en memoria, ligado a la identidad original. El ID
-es opaco, generado por Intelligence (43 caracteres base64url), nunca elegido por browser.
-El hook descarta respuestas tardías y cierra creaciones huérfanas best-effort. Panel se monta
-al primer open y permanece en AppShell oculto al cerrar. El key por subject desmonta toda
-la UI/contexto ante cambio de identidad. No se guarda contexto en almacenamiento del browser.
+`conversation.ts` valida create/resume `{conversationId, createdAt, lastActivityAt}`;
+close conserva `{closed:true}`. No hay expiresAt para conversaciones. IDs opacos base64url
+(43 caracteres), generados por servidor y asociados al subject oficial; no son autenticación.
+`useConversation` llama resume al montar y descarta resultados tardíos. Unmount/logout no
+cierra el hilo durable. El key por identidad desmonta UI/requests/media sin heredar estado.
+Nueva conversación llama create explícito; Intelligence archiva el hilo abierto en esa transacción.
 
-BFF agrega exclusivamente POST `conversation` (body `{}`) y `conversation/close`
-(body `{conversationId}`). Rechaza campos adicionales, conserva 201, Bearer, no-store,
-origen fijo y sanitización. Chat agrega conversationId al body; live/session acepta
-`{sdp, conversationId?}` y mantiene respuesta exacta `{sessionId,sdp}`. No se modifica
-pipeline WebRTC, delegación ni permisos del data channel; el browser nunca ejecuta tools.
+El BFF permite POST `conversation`, `conversation/resume` (body `{}`) y `conversation/close`
+(body `{conversationId}`), rechaza campos adicionales, conserva 200/201 y no-store. Solo para
+un 404 con `error=conversation_unavailable` del upstream reenvía `code=conversation_unavailable`.
+No publica mensajes arbitrarios ni detalles de infraestructura. `IntelligenceError` reconoce solo
+ese código/estado. Chat/Live no cambian sus contratos ni permisos del data channel.
 
-Intelligence usa `session.input` para texto → Live y guarda delegaciones empresariales
-completadas antes de entregar function_call_output para Live → texto. Su store separa contexto,
-credenciales y registry Live, con TTL absoluto 1800 s (máx.3600), 128 conversaciones/3 por subject,
-16 turnos y 16000 caracteres. Elimina turnos antiguos enteros. Cierre/expiry/shutdown cancela
-operaciones y revoca Live asociado. Live close por sí solo conserva la conversación.
+Texto: ante ese error exacto se descarta el selector local, resume y se repite el mensaje una
+vez; una segunda falla se muestra. No retry para otros 404/409/429/5xx. LiveConnection libera
+micrófono/tracks/canal/peer antes de informar el selector obsoleto al hook. useLiveVoice hace
+resume y crea una nueva instancia/offer una sola vez. Cancel/unmount aborta la recuperación;
+no puede abrir un peer tardío. La expiración de Live permite reconectar al mismo conversationId.
+No cambia getUserMedia, VAD, STT/TTS, grounding ni la ejecución server-side de tools.
 
-No hay evidencia empresarial cacheada: referencias ordenadas sirven para resolver «el segundo»
-y «sus documentos»; cada ejecución recupera datos actuales y referencias nuevas mediante tools.
-Sin conversationId las APIs conservan comportamiento independiente. Basic /voice sigue
-stateless y la UI lo informa; no comparte transcript del fallback ni charla casual de Live.
+PostgreSQL propio de Intelligence conserva todos los turnos semánticos validados y referencias
+mínimas. Su runtime de un worker mantiene locks/cancelación/bindings separados. Shutdown
+revoca Live/credenciales y cierra el pool, sin cerrar conversaciones. La proyección al modelo
+usa hasta 16 turnos/16000 caracteres (Live input 6000 bytes), sin truncar almacenamiento.
+Historia solo resuelve referentes: cada ejecución consulta hechos actuales nuevamente.
+Sin ID, chat y voz básica siguen independientes. No se guardan captions/SDP/audio en ese historial.
 
-Nueva conversación: detener Live, cerrar contexto, limpiar mensajes/audio y crear otro ID.
-Logout/cambio de subject: abortar, liberar recursos y close best-effort con identidad original.
-Full reload o reinicio del servidor pierde continuidad. No hay historial persistente, RAG,
-Redis, DB, localStorage/sessionStorage de conversaciones. No se cambió almacenamiento Google.
+El frontend conserva solamente cache local. Reabrir/F5 retoma por subject, sin browser storage;
+el transcript visual anterior no se descarga ni reconstruye en V1. No hay títulos, lista/búsqueda,
+rename/delete UI, resúmenes ni sincronización realtime de dispositivos. Credenciales Google y
+TLS conservan su boundary anterior; la nueva conexión PostgreSQL existe solo en Intelligence.
 
-Tests offline cubren panel/navigation, chat/Live mismo ID, reopen, cierre/reemplazo, identidad,
-logout, requests tardíos, expiry sin retry silencioso y allowlist cerrada. Smoke real cross-modal aprobado por el usuario. Los escenarios offline incluyen Casa → voz
-«La de Ximena»; voz lista → texto «el segundo»; proyecto → documentos.
+Tests offline cubren remount, continuidad ID texto/Live, nuevo hilo, identidad/logout, respuestas
+tardías, recovery exacto una vez, cierre provisional de media y expiry Live sin pérdida de hilo.
+Smoke manual pendiente de DB configurada: dos turnos, restart Uvicorn/F5, resume mismo ID y
+tercer turno referencial con lectura fresca; repetir reabrir navegador y reconectar voz.
 
 
 ## Management Intelligence 4A: Presentation
@@ -658,7 +662,7 @@ Extensión compatible de los siete responseType existentes; sin nuevos endpoints
   y que el browser no ejecuta tools. jsdom comprueba semántica, no layout de píxeles.
 
 Backend es autoridad; el modelo no suministra IDs/métricas para rendering. Conversation 3A
-mantiene sus reglas de memoria efímera y ownership; no se añaden almacenamientos locales.
+mantiene grounding y ownership, con persistencia semántica propia en Intelligence; no se añaden almacenamientos locales.
 El smoke pagado/manual está pendiente; los fixtures offline no demuestran precisión real
 ni latencia de OpenAI. Usar el plan de preguntas de README y validar cards en móvil.
 
@@ -678,7 +682,7 @@ compatibilidad del contrato; no decide la navegación ni amplía permisos.
 
 El cambio de área aborta el controller de requests de sesión, incrementa su generación,
 remonta el árbol de experiencia y navega a / o /management. Respuestas 401 antiguas no
-invalidan la sesión nueva. Los cierres de Live/conversación usan su snapshot original;
+invalidan la sesión nueva. Los cierres de Live y el cierre explícito de conversación usan su snapshot original;
 una respuesta tardía de creación conserva el ID necesario para revocarla best-effort.
 Las operaciones en vuelo pueden haber sido aceptadas por Backend: cancelar la UI no
 revierte un handoff confirmado. La consulta nueva siempre recupera estado oficial.
@@ -693,7 +697,7 @@ ManagementSubject. Reiniciar los servicios y comprobar los cuatro roles en auth/
 2. Cambiar a Presupuestos sin logout: Tareas inicia en Budgets/Pending, solo PrepareQuotation propias; abrir proyecto, asignar SG, preview XLSX, confirmar y confirmar humanamente Enviar a Comercial. Verificar estado persistente tras reload.
 3. Cambiar a Jefe: abrir ReviewQuotation asignada, descargar Excel operativo, revisar archivo, preview y confirmar Comercial. Verificar Completed y PresentQuotationToClient InProgress; no aparece editor de Presupuestos.
 4. Volver a Asesor: consultar su nueva tarea y responsable original. No hay aprobación/pago ni reasignación automática.
-5. Cambiar a Gerencia: Resumen/Operación/Intelligence, documentos de solo lectura. Iniciar/cerrar voz y salir a otra área: liberar micrófono/RTC/audio/conversación.
+5. Cambiar a Gerencia: Resumen/Operación/Intelligence, documentos de solo lectura. Iniciar/cerrar voz y salir a otra área: liberar micrófono/RTC/audio y estado local, conservando el hilo durable.
 6. Repetir selector/nav a 375, 768, 1024 px y desktop amplio; comprobar foco, ausencia de overflow y reload de preferencia. Logout limpia área. Manipular el header hacia un rol no poseído debe dar 403.
 
 No modificar secrets, cuenta Google, ownership ni filas de tareas durante el recorrido.

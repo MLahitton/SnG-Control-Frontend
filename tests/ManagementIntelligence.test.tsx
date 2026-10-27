@@ -24,7 +24,7 @@ function context() {
 function backend(handler?: (path: string, options: RequestInit) => unknown) {
   const mock = vi.fn(async (path: string, options: RequestInit) => {
     if (path === "/api/auth/me") return Response.json(manager);
-    if (path === "/api/intelligence/conversation") return Response.json(conversationCreated, { status: 201 });
+    if (path === "/api/intelligence/conversation/resume") return Response.json(conversationCreated, { status: 201 });
     if (path === "/api/intelligence/conversation/close") return Response.json({ closed: true });
     if (path === "/api/intelligence/session") return Response.json({ authenticated: true, isManagement: true });
     const result = handler ? await handler(path, options) : path === "/api/backend/management/overview" ? overview : intelligenceResponse;

@@ -87,7 +87,7 @@ it("continues document follow-ups across text/Live/text with the existing conver
   mockLiveBrowser();
   const fetchMock = vi.fn(async (path: string, init: RequestInit) => {
     expect(init.method).toBeDefined();
-    if (path.endsWith("/conversation")) return Response.json(conversationCreated, { status: 201 });
+    if (path.endsWith("/conversation/resume")) return Response.json(conversationCreated, { status: 201 });
     if (path.endsWith("/close")) return Response.json({ closed: true });
     if (path.endsWith("/live/session")) return Response.json(liveCreated);
     if (path.endsWith("/session")) return Response.json({ authenticated: true, isManagement: true });

@@ -40,3 +40,19 @@ it("rejects extra provider fields, unsafe expiry and unsupported routes/methods"
   expect((await forwardIntelligence(request({}, "GET"), ["conversation"])).status).toBe(405);
   expect((await forwardIntelligence(request(), ["conversation", "history"])).status).toBe(400);
 });
+
+it("resumes through an explicit route and rejects caller identity", async () => {
+  fetchMock.mockResolvedValue(Response.json(conversationCreated));
+  const result = await forwardIntelligence(request(), ["conversation", "resume"]);
+  expect(result.status).toBe(200); expect(await result.json()).toEqual(conversationCreated);
+  expect((await forwardIntelligence(request({ subject: "other" }), ["conversation", "resume"])).status).toBe(422);
+});
+it.each([404, 409, 429, 500, 502, 503, 504])("forwards only the recoverable code at 404, status=%s", async (status) => {
+  fetchMock.mockResolvedValue(Response.json({ error: "conversation_unavailable", detail: token, secret: token }, { status }));
+  const result = await forwardIntelligence(request(), ["conversation", "resume"]);
+  expect(await result.json()).toEqual({ status, ...(status === 404 ? { code: "conversation_unavailable" } : {}) });
+});
+it("strips arbitrary 404 diagnostics instead of triggering recovery", async () => {
+  fetchMock.mockResolvedValue(Response.json({ error: "other_missing_resource", message: token }, { status: 404 }));
+  expect(await (await forwardIntelligence(request(), ["conversation", "resume"])).json()).toEqual({ status: 404 });
+});

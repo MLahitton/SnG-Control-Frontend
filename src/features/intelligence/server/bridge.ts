@@ -13,10 +13,10 @@ function baseUrl(): URL {
   return url;
 }
 const responseHeaders = () => new Headers({ "Cache-Control": "no-store", Vary: "Authorization", "X-Content-Type-Options": "nosniff" });
-function error(status: number, requestId?: string, allow?: string) {
+function error(status: number, requestId?: string, allow?: string, code?: "conversation_unavailable") {
   const headers = responseHeaders();
   if (allow) headers.set("Allow", allow);
-  return Response.json({ status, ...(requestId ? { requestId } : {}) }, { status, headers });
+  return Response.json({ status, ...(code ? { code } : {}), ...(requestId ? { requestId } : {}) }, { status, headers });
 }
 class BodyTooLarge extends Error {}
 async function jsonLimited(response: Response | Request, limit = 512 * 1024, trace?: ReturnType<typeof liveDiagnostics>): Promise<unknown> {
@@ -108,7 +108,7 @@ export async function forwardIntelligence(request: Request, segments: string[]):
   }
   const forbidden = [base.origin, base.hostname, authorization, authorization.replace(/^Bearer /i, "")];
   const live = path.startsWith("live/");
-  const conversation = path === "conversation" || path === "conversation/close";
+  const conversation = path === "conversation" || path === "conversation/resume" || path === "conversation/close";
   let liveBody: string | undefined;
   if (live || conversation) {
     try {
@@ -135,12 +135,14 @@ export async function forwardIntelligence(request: Request, segments: string[]):
     if (!upstream.ok) {
       trace.fail("UpstreamStatusError");
       let requestId: string | undefined;
+      let code: "conversation_unavailable" | undefined;
       try {
         const payload = await jsonLimited(upstream);
+        if (upstream.status === 404 && payload && typeof payload === "object" && "error" in payload && payload.error === "conversation_unavailable") code = "conversation_unavailable";
         if (payload && typeof payload === "object" && "requestId" in payload) requestId = safeRequestId(payload.requestId);
         if (requestId && containsPrivateData(requestId, forbidden)) requestId = undefined;
       } catch { /* Only a validated correlation identifier can leave this boundary. */ }
-      return error(upstream.status >= 400 ? upstream.status : 502, requestId);
+      return error(upstream.status >= 400 ? upstream.status : 502, requestId, undefined, code);
     }
     trace.done("upstream_status_validated");
     trace.enter("upstream_content_type_validated");
@@ -174,7 +176,7 @@ export async function forwardIntelligence(request: Request, segments: string[]):
       trace.done("response_returned");
       return response;
     }
-    const result = path === "conversation" ? parseConversation(raw) : path === "conversation/close" ? parseConversationClose(raw) : live ? parseLiveResponse(path, raw) : path === "session" ? parseSession(raw) : path === "voice" ? parseVoice(raw) : path === "voice/transcribe" ? parseTranscript(raw) : parseResponse(raw);
+    const result = (path === "conversation" || path === "conversation/resume") ? parseConversation(raw) : path === "conversation/close" ? parseConversationClose(raw) : live ? parseLiveResponse(path, raw) : path === "session" ? parseSession(raw) : path === "voice" ? parseVoice(raw) : path === "voice/transcribe" ? parseTranscript(raw) : parseResponse(raw);
     if (containsPrivateData(result, forbidden)) return error(502);
     return Response.json(result, { status: live || conversation ? upstream.status : 200, headers: responseHeaders() });
   } catch (cause) {
