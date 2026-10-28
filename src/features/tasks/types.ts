@@ -1,6 +1,6 @@
-export type TaskArea = "Commercial" | "Budgets";
+export type TaskArea = "Commercial" | "Budgets" | "Accounting";
 export type TaskStatus = "Pending" | "InProgress" | "Completed";
-export type TaskType = "PrepareQuotation" | "ReviewQuotation" | "PresentQuotationToClient";
+export type TaskType = "PrepareQuotation" | "ReviewQuotation" | "PresentQuotationToClient" | "RegisterInitialDeposit";
 export type LeadTimeStatus = "NotStarted" | "OnTrack" | "DueSoon" | "DueToday" | "Overdue" | "CompletedOnTime" | "CompletedLate" | "UntrackedLegacy";
 export interface ProjectTask {
   quotationRound: number | null;
@@ -17,9 +17,10 @@ export interface ProjectTask {
   wasOverdue: boolean | null;
   leadTimeStatus: LeadTimeStatus;
 }
-export const taskAreaLabels: Record<TaskArea, string> = { Commercial: "Comercial", Budgets: "Presupuestos" };
+export const taskAreaLabels: Record<TaskArea, string> = { Commercial: "Comercial", Budgets: "Presupuestos", Accounting: "Contabilidad" };
 export const taskStatusLabels: Record<TaskStatus, string> = { Pending: "Pendiente", InProgress: "En curso", Completed: "Completada" };
 export const taskTypeLabels: Record<TaskType, string> = {
+  RegisterInitialDeposit: "Registrar anticipo inicial",
   PrepareQuotation: "Preparar cotización",
   ReviewQuotation: "Revisar cotización",
   PresentQuotationToClient: "Presentar cotización al cliente",

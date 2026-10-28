@@ -1,7 +1,7 @@
 export const systemRoles = ["CommercialAdvisor", "Budgets", "CommercialHead", "Accounting", "Engineering", "Production", "Logistics", "Installation", "Management"] as const;
 export type SystemRole = typeof systemRoles[number];
 export const availableRoleLabels = {
-  CommercialAdvisor: "Asesor Comercial", Budgets: "Presupuestos", CommercialHead: "Jefe Comercial", Management: "Gerencia",
+  CommercialAdvisor: "Asesor Comercial", Budgets: "Presupuestos", CommercialHead: "Jefe Comercial", Management: "Gerencia", Accounting: "Contabilidad",
 } as const;
 export type AvailableRole = keyof typeof availableRoleLabels;
 export function isSystemRole(value: unknown): value is SystemRole {

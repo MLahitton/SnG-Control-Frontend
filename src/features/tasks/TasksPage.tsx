@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
+import { clientsService } from "@/features/clients/service";
 import { projectsService } from "@/features/projects/service";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { useResource } from "@/lib/api/useResource";
@@ -28,9 +29,10 @@ function TaskInboxContent({ inbox }: { inbox: TaskInbox }) {
   const area = inbox.area;
   const [status, setStatus] = useState<TaskStatus>(inbox.defaultStatus);
   const loadProjects = useCallback(async (signal: AbortSignal) => {
-    const projects = await projectsService.list(api, signal);
-    return new Map(projects.map((project) => [project.id, project.name]));
-  }, [api]);
+    const [projects, clients] = await Promise.all([projectsService.list(api, signal), area === "Accounting" ? clientsService.list(api, signal) : Promise.resolve([])]);
+    return { names: new Map(projects.map(project => [project.id, project.name])), context: new Map(projects.map(project => [project.id,
+      { sgCode: project.sgCode, clientName: clients.find(client => client.id === project.clientId)?.name ?? null }])) };
+  }, [api, area]);
   const loadTasks = useCallback((signal: AbortSignal) => tasksService.list(api, area, status, signal), [api, area, status]);
   const projects = useResource(loadProjects);
   const tasks = useResource(loadTasks);
@@ -42,6 +44,6 @@ function TaskInboxContent({ inbox }: { inbox: TaskInbox }) {
     <p className="text-sm text-slate-600">Fechas y horas de Colombia (America/Bogota).</p>
     {(tasks.loading || projects.loading) && <p role="status">Cargando tareas…</p>}
     <ErrorNotice error={projects.error} retry={projects.refresh} /><ErrorNotice error={tasks.error} retry={tasks.refresh} />
-    {tasks.data && projects.data && <section aria-labelledby="task-results-title"><h2 id="task-results-title" className="sr-only">Tareas consultadas</h2>{tasks.data.length ? <TaskList tasks={tasks.data} projectNames={projects.data} /> : <EmptyState title={inbox.empty} />}</section>}
+    {tasks.data && projects.data && <section aria-labelledby="task-results-title"><h2 id="task-results-title" className="sr-only">Tareas consultadas</h2>{tasks.data.length ? <TaskList tasks={tasks.data} projectNames={projects.data.names} projectContext={area === "Accounting" ? projects.data.context : undefined} /> : <EmptyState title={inbox.empty} />}</section>}
   </div>;
 }

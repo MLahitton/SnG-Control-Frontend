@@ -260,7 +260,7 @@ Use role="alert" for actionable errors and role="status" for non-disruptive stat
 Do not rely exclusively on color for task/alert state.
 22. Navigation
 Build navigation only for backend-supported functionality.
-Do not display fake sections for Accounting, Installation, Engineering, Production, Logistics or Postventa until functionality exists.
+Do not display fake sections for Installation, Engineering, Production, Logistics or Postventa until functionality exists.
 It is acceptable to design the shell so these can be added later.
 Do not show disabled fake modules merely for appearance unless explicitly requested.
 23. Error handling
@@ -479,3 +479,12 @@ Select tasks by round, preserve historical tasks, and distinguish active prepara
 latest confirmed Commercial. Formal advisor changes require explicit input and confirmation;
 never prefill from a client decision note. Server responses own workflow, timing and permissions.
 History is bounded first 20 ascending, with coverage disclosed; reload uses official reads.
+
+
+Accounting Initial Deposit V1: Accounting is an implemented backend-owned role, not a frontend
+permission authority. Only assigned active advisor sends a current Approved round explicitly;
+only assigned active Accounting records the deposit, both with confirmation. Preserve canonical
+COP decimal strings without floating arithmetic and distinguish receivedAt from recordedAt.
+No required percentage, balance, SLA or full-payment inference. Restore official state on reload;
+409 refreshes do not retry writes. Other authorized roles see read-only state. Closed BFF routes
+and parsers remain mandatory; no downstream Engineering/Production workflow.

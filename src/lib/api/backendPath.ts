@@ -7,6 +7,7 @@ export function isBackendPath(segments: string[]): boolean {
   if (segments[0] === "projects" && segments[2] === "budget-quotation") {
     return isBudgetQuotationPath(segments) || isQuotationImagePath(segments);
   }
+  if (segments[0] === "projects" && ["initial-deposit", "send-approved-quotation-to-accounting"].includes(segments[2])) return segments.length === 3 && /^[A-Za-z0-9_-]{1,200}$/.test(segments[1]);
   if (segments[0] === "management") return segments.length === 2 && ["overview", "tasks"].includes(segments[1]);
   return segments.length > 0 && segments.length <= 20
     && backendRoots.some((root) => root === segments[0])

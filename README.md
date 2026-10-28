@@ -240,7 +240,7 @@ Los tests offline no sustituyen esta comprobación real.
 
 Con un rol se selecciona automáticamente; con varios se muestra el selector inicial.
 El selector **Trabajando como** permite cambiar entre Asesor Comercial, Presupuestos,
-Jefe Comercial y Gerencia sin cambiar cuenta ni token. Solo aparecen áreas disponibles.
+Jefe Comercial, Contabilidad y Gerencia sin cambiar cuenta ni token. Solo aparecen áreas disponibles.
 Sin roles se muestra «Tu cuenta no tiene un área asignada en SnG Control.»
 
 Asesor, Presupuestos y Jefe ven Inicio, Clientes, Proyectos, Tareas y Notificaciones.
@@ -267,6 +267,7 @@ Tareas muestra únicamente trabajo asignado al Subject actual dentro del rol act
 | --- | --- | --- | --- |
 | Presupuestos | Budgets | PrepareQuotation | Pendiente |
 | Jefe Comercial | Commercial | ReviewQuotation | En curso |
+| Contabilidad | Accounting | RegisterInitialDeposit | Pendiente |
 | Asesor Comercial | Commercial | PresentQuotationToClient | En curso |
 
 Solo se puede filtrar Estado (Pendiente/En curso/Completada). El cambio de área se hace en
@@ -352,4 +353,29 @@ confirmada. La decisión actual pertenece a la cotización comercial actual.
 El historial es de solo lectura, usa fechas de Colombia y muestra las primeras 20 rondas
 con advertencia explícita si es parcial. F5 recupera el estado oficial del servidor; no se
 reconstruye a partir de mensajes locales. Los contratos rechazan rondas/versiones inválidas.
-No se implementan pagos, cierre de proyecto ni recotización automática.
+La recotización no registra pagos ni cierra proyectos, y nunca es automática.
+
+
+## Accounting Initial Deposit V1
+
+Contabilidad es un área utilizable si auth/me devuelve Accounting. Su bandeja muestra la tarea
+Registrar anticipo inicial con proyecto, cliente y SG. Backend limita proyectos/tareas por
+asignación; el rol activo no concede permisos por sí solo.
+
+El asesor asignado puede enviar explícitamente una cotización Approved a Contabilidad con
+confirmación de ronda. Aprobar no hace el envío. La tarea creada no tiene ronda propia ni SLA.
+Contabilidad asignada registra importe recibido, fecha/hora de recepción (Colombia), referencia
+opcional (200) y nota opcional (2000). Se confirma el valor/fecha antes de enviar; no se puede
+editar después. El parser monetario acepta decimal con coma o punto, sin separadores de miles,
+y envía string canónico de dos decimales sin aritmética floating point. COP viene del Backend.
+
+El BFF solo admite POST send-approved-quotation-to-accounting y GET/POST initial-deposit.
+Los contratos cerrados validan importe, zona horaria, proyecto, tarea y consistencia del estado.
+Tras guardar se muestra el estado oficial y se actualizan tareas/notificaciones; conflictos
+409 provocan una lectura, nunca un reintento automático de escritura. F5 relee Backend.
+Otros roles con acceso ven resumen sin formulario de pago. No hay autoridad en localStorage.
+
+La ausencia de registro no prueba impago. No hay porcentaje requerido, anticipo esperado,
+saldo, pago completo, Ingeniería o Producción en este bloque. El contexto de cotización se
+mantiene en la vista comercial de lectura. Desplegar después de configurar el Subject de
+Contabilidad y aplicar manualmente las migraciones pendientes del Backend en orden.

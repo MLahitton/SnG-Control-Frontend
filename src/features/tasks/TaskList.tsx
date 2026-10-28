@@ -26,11 +26,11 @@ export function TaskTimingStatus({ task, technical = false }: { task: ProjectTas
   return <div className="space-y-2">
     <TaskTimingBadge task={task} technical={technical} />
     <p className="font-medium">Vence: {task.deadlineAt ? formatDate(task.deadlineAt) : "Sin fecha asignada"}</p>
-    {!task.deadlineAt && task.leadTimeStatus === "NotStarted" && <p className="metadata">{task.type === "PrepareQuotation" ? "El plazo comienza al asignar el SG." : "La tarea todavía no ha iniciado su plazo."}</p>}
+    {!task.deadlineAt && task.leadTimeStatus === "NotStarted" && <p className="metadata">{task.type === "RegisterInitialDeposit" ? "Esperando registro del anticipo. No hay un plazo formal definido." : task.type === "PrepareQuotation" ? "El plazo comienza al asignar el SG." : "La tarea todavía no ha iniciado su plazo."}</p>}
   </div>;
 }
 
-export function TaskList({ tasks, projectNames, compact = false }: { tasks: ProjectTask[]; projectNames?: ReadonlyMap<string, string>; compact?: boolean }) {
+export function TaskList({ tasks, projectNames, projectContext, compact = false }: { tasks: ProjectTask[]; projectNames?: ReadonlyMap<string, string>; compact?: boolean; projectContext?: ReadonlyMap<string, { sgCode: string | null; clientName: string | null }> }) {
   if (compact) return tasks.length ? <ul className={styles.list}>{tasks.map((task) => <li key={task.id} className={`${styles.task} ${task.leadTimeStatus === "Overdue" ? styles.overdue : ""}`}>
     <div className={styles.heading}><h3>{taskTypeLabels[task.type]}</h3>{task.quotationRound && <span className="metadata">Ronda {task.quotationRound}</span>}<TaskStatusBadge task={task} technical /></div>
     <p className={styles.area}>Área: {taskAreaLabels[task.area]}</p>
@@ -48,6 +48,7 @@ export function TaskList({ tasks, projectNames, compact = false }: { tasks: Proj
     <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="stack"><div className="section-header"><h3 className="font-semibold">{taskTypeLabels[task.type]}</h3>{task.quotationRound && <span className="metadata">Ronda {task.quotationRound}</span>}<TaskStatusBadge task={task} /></div>
         {projectNames && <Link className="text-link break-words" href={`/projects/${encodeURIComponent(task.projectId)}`}>{projectNames.get(task.projectId) ?? "Abrir proyecto"}</Link>}
+        {projectContext?.get(task.projectId) && <p className="metadata">Cliente: {projectContext.get(task.projectId)?.clientName ?? "No disponible"} · SG: {projectContext.get(task.projectId)?.sgCode ?? "Sin asignar"}</p>}
         <p className="metadata">Área: {taskAreaLabels[task.area]}</p>
       </div>
       <div>

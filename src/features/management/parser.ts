@@ -21,7 +21,7 @@ function date(value: unknown): string {
   const result = string(value);
   return /^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(result) && Number.isFinite(Date.parse(result)) ? result : invalid();
 }
-function area(value: unknown): TaskArea { return choice(value, ["Commercial", "Budgets"]); }
+function area(value: unknown): TaskArea { return choice(value, ["Commercial", "Budgets", "Accounting"]); }
 function status(value: unknown): TaskStatus { return choice(value, ["Pending", "InProgress", "Completed"]); }
 function timing(value: unknown): LeadTimeStatus {
   return choice(value, ["NotStarted", "OnTrack", "DueSoon", "DueToday", "Overdue", "CompletedOnTime", "CompletedLate", "UntrackedLegacy"]);
@@ -58,7 +58,8 @@ export function parseManagementOverview(value: unknown): ManagementOverview {
 export function parseManagementTasks(value: unknown): ManagementTask[] {
   return list(value, (entry) => {
     const v = object(entry, ["taskId", "projectId", "projectName", "clientId", "clientName", "sgCode", "city", "productLine", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "deadlineAt", "wasOverdue", "leadTimeStatus", "quotationRound"]);
-    const quotationRound = count(v.quotationRound); if (quotationRound < 1) invalid();
+    const quotationRound = v.quotationRound === null ? null : count(v.quotationRound);
+    if (v.type === "RegisterInitialDeposit" ? quotationRound !== null : quotationRound === null || quotationRound < 1) invalid();
     return { quotationRound, ...context(v), clientId: string(v.clientId), city: string(v.city), productLine: string(v.productLine),
       type: string(v.type), status: status(v.status), assignedAt: date(v.assignedAt),
       completedAt: nullable(v.completedAt, date), wasOverdue: nullable(v.wasOverdue, boolean) };

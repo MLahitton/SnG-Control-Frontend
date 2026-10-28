@@ -1,4 +1,5 @@
 "use client";
+import { AccountingPanel } from "@/features/accounting/AccountingPanel";
 import { QuotationRoundsPanel } from "@/features/quotationRounds/QuotationRoundsPanel";
 
 import { ClientDecisionCard } from "@/features/clientDecision/ClientDecisionCard";
@@ -76,7 +77,7 @@ function ProjectDetailContent({ id }: { id: string }) {
   const isPreparationAssignee = activeRole === "Budgets" && !!user && user.subject === preparation?.assignedToGoogleSubject;
   const advisorOwner = activeRole === "CommercialAdvisor" && user?.subject === data?.project.createdBy?.subject;
   const canReadBudget = advisorOwner || isPreparationAssignee || canReview || activeRole === "Management";
-  const canReadCommercial = advisorOwner || canReview || activeRole === "Management";
+  const canReadCommercial = advisorOwner || canReview || activeRole === "Management" || activeRole === "Accounting";
   const pendingSg = preparation?.status === "Pending" && data?.project.sgCode === null;
   const canAssign = isPreparationAssignee && pendingSg;
   const canCorrect = isPreparationAssignee && preparation?.status === "InProgress" && !!data?.project.sgCode;
@@ -160,6 +161,7 @@ function ProjectDetailContent({ id }: { id: string }) {
     {data && <>
       <ProjectHeader project={data.project} clientName={data.client.name} />
       <ProjectStatusStrip tasks={data.tasks} />
+      {data.tasks.some(t => t.type === "PresentQuotationToClient" || t.type === "RegisterInitialDeposit") && <div className={styles.documents}><AccountingPanel key={`accounting:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
       {preparation && <div className={styles.documents}><QuotationRoundsPanel key={`history:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
       {data.tasks.some(t => t.type === "PresentQuotationToClient") && <div className={styles.documents}><ClientDecisionCard key={latestQuotationTask(data.tasks, "PresentQuotationToClient")?.quotationRound} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
       {pendingSg && !isPreparationAssignee && <p role="status" className={styles.waiting}>Pendiente de asignación de SG por Presupuestos.</p>}
