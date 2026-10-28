@@ -4,10 +4,14 @@ import { describe, expect, it } from "vitest";
 import { ProjectDetailPage } from "@/features/projects/ProjectDetailPage";
 import type { Project } from "@/features/projects/types";
 import type { ProjectTask } from "@/features/tasks/types";
-import { client, project, task, inProgressTask, notification, deferred, mockBackend, renderOperational } from "./operationalFixtures";
+import { client, project as baseProject, task as baseTask, inProgressTask as baseInProgressTask, notification, deferred, mockBackend, renderOperational } from "./operationalFixtures";
 import { user } from "./fixtures";
 import { projectDocuments } from "./documentFixtures";
 import { notConfirmedStatus } from "./budgetQuotationFixtures";
+
+const project = { ...baseProject, id: "10000000-0000-4000-8000-000000000001" };
+const task = { ...baseTask, projectId: project.id };
+const inProgressTask = { ...baseInProgressTask, projectId: project.id };
 
 // Synthetic identities: same email/name, different stable Subjects.
 const assignedUser = { ...user, roles: ["Budgets" as const], subject: task.assignedToGoogleSubject! };
@@ -17,18 +21,18 @@ function backend(initialTasks: ProjectTask[] = [], initialProject: Project = pro
   let mutation: (path: string, init: RequestInit) => unknown = () => Response.json({}, { status: 500 });
   const fetchMock = mockBackend((path, init) => {
     if (init.method !== "GET") return mutation(path, init);
-    if (path === "projects/project-1") return state.project;
+    if (path === "projects/10000000-0000-4000-8000-000000000001") return state.project;
     if (path === "clients/client-1") return client;
-    if (path === "projects/project-1/tasks") return state.tasks;
-    if (path === "projects/project-1/budget-quotation/status") return notConfirmedStatus;
-    if (path === "projects/project-1/notifications") return state.notifications;
-    if (path === "projects/project-1/documents") return { ...projectDocuments, canSendToBudgets: state.tasks.length === 0 };
+    if (path === "projects/10000000-0000-4000-8000-000000000001/tasks") return state.tasks;
+    if (path === "projects/10000000-0000-4000-8000-000000000001/budget-quotation/status") return { ...notConfirmedStatus, projectId: project.id };
+    if (path === "projects/10000000-0000-4000-8000-000000000001/notifications") return state.notifications;
+    if (path === "projects/10000000-0000-4000-8000-000000000001/documents") return { ...projectDocuments, canSendToBudgets: state.tasks.length === 0 };
     throw new Error("Unexpected test endpoint");
   });
   return { state, fetchMock, setMutation: (handler: typeof mutation) => { mutation = handler; } };
 }
 async function openDetail(currentUser = user) {
-  renderOperational(<ProjectDetailPage id="project-1" />, currentUser);
+  renderOperational(<ProjectDetailPage id="10000000-0000-4000-8000-000000000001" />, currentUser);
   await screen.findByRole("heading", { name: project.name });
 }
 const taskHistory = () => within(screen.getByRole("region", { name: "Tareas del proyecto" }));
@@ -38,7 +42,7 @@ describe("Project detail and send to Budgets", () => {
   it("loads project, client, tasks and notification history without operational subjects", async () => {
     const { fetchMock } = backend([task]); await openDetail();
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(expect.arrayContaining([
-      "/api/backend/projects/project-1", "/api/backend/clients/client-1", "/api/backend/projects/project-1/tasks", "/api/backend/projects/project-1/notifications",
+      "/api/backend/projects/10000000-0000-4000-8000-000000000001", "/api/backend/clients/client-1", "/api/backend/projects/10000000-0000-4000-8000-000000000001/tasks", "/api/backend/projects/10000000-0000-4000-8000-000000000001/notifications",
     ]));
     for (const text of [client.name, notification.title]) expect(screen.getByText(text)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Preparar cotización" })).toBeInTheDocument();
@@ -57,7 +61,7 @@ describe("Project detail and send to Budgets", () => {
   it("requires explicit confirmation, blocks double send, then refreshes tasks and notifications", async () => {
     const { state, fetchMock, setMutation } = backend();
     const pending = deferred<ProjectTask>();
-    setMutation((path, init) => { expect(path).toBe("projects/project-1/send-to-budgets"); expect(init.body).toBeUndefined(); return pending.promise; });
+    setMutation((path, init) => { expect(path).toBe("projects/10000000-0000-4000-8000-000000000001/send-to-budgets"); expect(init.body).toBeUndefined(); return pending.promise; });
     await openDetail();
     await userEvent.click(screen.getByRole("button", { name: "Enviar a Presupuestos" }));
     expect(mutationCalls(fetchMock)).toHaveLength(0);
@@ -90,7 +94,7 @@ describe("Project detail and send to Budgets", () => {
     expect(screen.queryByRole("button", { name: "Enviar a Presupuestos" })).not.toBeInTheDocument();
     expect(screen.queryByText(/secret-token/)).not.toBeInTheDocument();
     expect(mutationCalls(fetchMock)).toHaveLength(1);
-    expect(fetchMock.mock.calls.filter(([url]) => url === "/api/backend/projects/project-1")).toHaveLength(2);
+    expect(fetchMock.mock.calls.filter(([url]) => url === "/api/backend/projects/10000000-0000-4000-8000-000000000001")).toHaveLength(2);
   });
   it("retains the successful transition if its related refresh fails, with GET-only retry", async () => {
     let sent = false; let refreshFails = true;
@@ -118,7 +122,7 @@ describe("SG assignment and correction", () => {
   it("assigns normalized SG001 once and renders the backend project/task response and notifications", async () => {
     const { state, fetchMock, setMutation } = backend([task]);
     const pending = deferred<unknown>();
-    setMutation((path, init) => { expect(path).toBe("projects/project-1/sg-code"); expect(init.method).toBe("PUT"); expect(JSON.parse(init.body as string)).toEqual({ sgCode: "SG001" }); return pending.promise; });
+    setMutation((path, init) => { expect(path).toBe("projects/10000000-0000-4000-8000-000000000001/sg-code"); expect(init.method).toBe("PUT"); expect(JSON.parse(init.body as string)).toEqual({ sgCode: "SG001" }); return pending.promise; });
     await openDetail(assignedUser);
     await userEvent.type(screen.getByLabelText("Código SG"), " sg001 ");
     const form = screen.getByRole("button", { name: "Asignar SG" }).closest("form")!;

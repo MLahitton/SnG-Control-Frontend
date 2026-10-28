@@ -16,7 +16,7 @@ export const project: Project = {
   id: "project-1", clientId: client.id, name: "Proyecto Norte", city: "Bogotá", productLine: "Classic",
   sgCode: null, createdAt: "2026-10-15T15:00:00Z", updatedAt: "2026-10-15T15:00:00Z", createdBy: user,
 };
-export const task: ProjectTask = {
+export const task: ProjectTask = { quotationRound: 1,
   id: "task-1", projectId: project.id, area: "Budgets", type: "PrepareQuotation", status: "Pending",
   assignedAt: "2026-10-15T15:00:00Z", startedAt: null, completedAt: null,
   assignedToGoogleSubject: "private-assignee-subject", deadlineAt: null, wasOverdue: null, leadTimeStatus: "NotStarted",
@@ -39,7 +39,7 @@ export function renderOperational(children: ReactNode, currentUser: CurrentUser 
 export function mockBackend(handler: (path: string, init: RequestInit) => unknown | Promise<unknown>, quotationViews?: (path: string, init: RequestInit) => unknown | Promise<unknown>) {
   const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
     const path = url.replace("/api/backend/", "");
-    const result = await (init.method === "GET" && /\/(budget|commercial)-quotation\/view$/.test(path)
+    const result = path.endsWith("/quotation-rounds") ? { projectId: path.split("/")[1], total: 0, returned: 0, hasMore: false, rounds: [] } : await (init.method === "GET" && /\/(budget|commercial)-quotation\/view$/.test(path)
       ? quotationViews ? quotationViews(path, init) : Response.json({}, { status: 404 })
       : handler(path, init));
     return result instanceof Response ? result : Response.json(result);

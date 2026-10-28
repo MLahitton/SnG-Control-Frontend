@@ -40,7 +40,7 @@ function uniqueRows(items: { sourceRow: number }[], count: number) {
   if (items.length !== count || new Set(items.map((item) => item.sourceRow)).size !== count) invalid();
 }
 export function parsePreview(value: unknown, projectId: string): BudgetQuotationPreviewResponse {
-  const v = object(value, ["projectId", "projectSgCode", "document", "itemCount", "totalQuantity", "items", "warnings"]);
+  const v = object(value, ["quotationRound", "projectId", "projectSgCode", "document", "itemCount", "totalQuantity", "items", "warnings"]);
   if (required(v.projectId) !== projectId) invalid();
   const items = list(v.items, (entry) => {
     const item = object(entry, [...valueFields, "section", "sourceRow", "image"]);
@@ -61,12 +61,12 @@ export function parsePreview(value: unknown, projectId: string): BudgetQuotation
     if (!items.some((item) => item.sourceRow === warning.sourceRow && item.itemNumber === warning.itemNumber)) invalid();
     return warning;
   });
-  return { projectId, projectSgCode: required(v.projectSgCode), document: document(v.document), itemCount, totalQuantity: positive(v.totalQuantity, true), items, warnings };
+  return { quotationRound: positive(v.quotationRound, true), projectId, projectSgCode: required(v.projectSgCode), document: document(v.document), itemCount, totalQuantity: positive(v.totalQuantity, true), items, warnings };
 }
 function task(value: unknown, projectId: string, type: "PrepareQuotation" | "ReviewQuotation" = "PrepareQuotation"): ProjectTask {
-  const v = object(value, ["id", "projectId", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "assignedToGoogleSubject", "deadlineAt", "wasOverdue", "leadTimeStatus"]);
+  const v = object(value, ["id", "projectId", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "assignedToGoogleSubject", "deadlineAt", "wasOverdue", "leadTimeStatus", "quotationRound"]);
   if (required(v.projectId) !== projectId) invalid();
-  return { id: required(v.id), projectId, area: choice(v.area, [type === "PrepareQuotation" ? "Budgets" : "Commercial"]), type: choice(v.type, [type]),
+  return { quotationRound: positive(v.quotationRound, true), id: required(v.id), projectId, area: choice(v.area, [type === "PrepareQuotation" ? "Budgets" : "Commercial"]), type: choice(v.type, [type]),
     status: choice(v.status, ["Pending", "InProgress", "Completed"]), assignedAt: date(v.assignedAt), startedAt: nullable(v.startedAt, date),
     completedAt: nullable(v.completedAt, date), deadlineAt: nullable(v.deadlineAt, date), assignedToGoogleSubject: nullable(v.assignedToGoogleSubject, required),
     wasOverdue: nullable(v.wasOverdue, (b) => typeof b === "boolean" ? b : invalid()),
@@ -74,21 +74,26 @@ function task(value: unknown, projectId: string, type: "PrepareQuotation" | "Rev
 }
 
 export function parseStatus(value: unknown, projectId: string): BudgetQuotationStatusResponse {
-  const v = object(value, ["projectId", "status", "versionNumber", "confirmedAt", "itemCount", "totalQuantity", "documentSgCode", "currentProjectSgCode", "canSendToCommercial", "sendBlockReason"]);
+  const v = object(value, ["quotationRound", "projectId", "status", "versionNumber", "confirmedAt", "itemCount", "totalQuantity", "documentSgCode", "currentProjectSgCode", "canSendToCommercial", "sendBlockReason"]);
   if (required(v.projectId) !== projectId || typeof v.canSendToCommercial !== "boolean") invalid();
   const status = choice(v.status, ["NotConfirmed", "Confirmed", "SentToCommercial"]);
   const sendBlockReason = choice(v.sendBlockReason, ["None", "SgChangedAfterConfirmation", "InvalidState"]);
+  const quotationRound = nullable(v.quotationRound, (n) => positive(n, true));
   const versionNumber = nullable(v.versionNumber, (n) => positive(n, true));
   const confirmedAt = nullable(v.confirmedAt, date);
   const documentSgCode = nullable(v.documentSgCode, required);
   const currentProjectSgCode = nullable(v.currentProjectSgCode, required);
   const count = (n: unknown) => n === 0 ? 0 : positive(n, true);
   const itemCount = count(v.itemCount), totalQuantity = count(v.totalQuantity);
-  if (status === "NotConfirmed" && (versionNumber !== null || confirmedAt !== null || documentSgCode !== null || itemCount !== 0 || totalQuantity !== 0 || v.canSendToCommercial || sendBlockReason !== "None")) invalid();
+  if (status === "NotConfirmed") {
+    if (v.canSendToCommercial || sendBlockReason !== "None") invalid();
+    if (versionNumber === null) { if (confirmedAt !== null || documentSgCode !== null || itemCount !== 0 || totalQuantity !== 0) invalid(); }
+    else if (quotationRound === null || quotationRound <= versionNumber || confirmedAt === null || documentSgCode === null) invalid();
+  }
   if (status !== "NotConfirmed" && (versionNumber === null || confirmedAt === null || documentSgCode === null)) invalid();
   if (status === "SentToCommercial" && (v.canSendToCommercial || sendBlockReason !== "None")) invalid();
   if (status === "Confirmed" && (v.canSendToCommercial !== (sendBlockReason === "None"))) invalid();
-  return { projectId, status, versionNumber, confirmedAt, itemCount, totalQuantity, documentSgCode, currentProjectSgCode, canSendToCommercial: v.canSendToCommercial, sendBlockReason };
+  return { quotationRound, projectId, status, versionNumber, confirmedAt, itemCount, totalQuantity, documentSgCode, currentProjectSgCode, canSendToCommercial: v.canSendToCommercial, sendBlockReason };
 }
 
 export function parseSendToCommercial(value: unknown, projectId: string): SendToCommercialResponse {

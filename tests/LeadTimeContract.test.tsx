@@ -14,7 +14,7 @@ const backendOverview = {
     completedOnTime: 2, completedLate: 0, untrackedLegacy: 0 },
   areas: [], attention: { total: 0, items: [] },
 };
-const backendTask = {
+const backendTask = { quotationRound: 1,
   taskId: "20000000-0000-4000-8000-000000000002", projectId: "10000000-0000-4000-8000-000000000001",
   projectName: "Proyecto", clientId: "30000000-0000-4000-8000-000000000003", clientName: "Cliente",
   sgCode: null, city: "Bogotá", productLine: "Classic", area: "Budgets", type: "PrepareQuotation",

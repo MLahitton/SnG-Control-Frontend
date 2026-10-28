@@ -35,7 +35,7 @@ function differencesSummary(v: Record<string, unknown>) {
   return { technicalDifferencesCount, hasTechnicalDifferences };
 }
 export function parsePreview(value: unknown, projectId: string): CommercialQuotationPreviewResponse {
-  const v = object(value, ["currencyCode", "projectId", "projectTotal", "items", "technicalDifferencesCount", "hasTechnicalDifferences"]);
+  const v = object(value, ["quotationRound", "currencyCode", "projectId", "projectTotal", "items", "technicalDifferencesCount", "hasTechnicalDifferences"]);
   if (text(v.projectId, true) !== projectId) invalid();
   const items = list(v.items, (entry) => {
     const i = object(entry, ["section", "sourceRow", "commercialCatalogItemId", "values", "unitPrice", "totalPrice", "technicalDifferences"]);
@@ -52,12 +52,12 @@ export function parsePreview(value: unknown, projectId: string): CommercialQuota
   if (!items.length || new Set(items.map((i) => `${i.section}:${i.sourceRow}`)).size !== items.length
     || new Set(items.map((i) => i.commercialCatalogItemId)).size !== items.length
     || items.reduce((count, i) => count + i.technicalDifferences.length, 0) !== summary.technicalDifferencesCount) invalid();
-  return { currencyCode: choice(v.currencyCode, ["COP"]), projectId, projectTotal: number(v.projectTotal), items, ...summary };
+  return { quotationRound: number(v.quotationRound, true, true), currencyCode: choice(v.currencyCode, ["COP"]), projectId, projectTotal: number(v.projectTotal), items, ...summary };
 }
 function task(value: unknown, projectId: string, type: "ReviewQuotation" | "PresentQuotationToClient"): ProjectTask {
-  const v = object(value, ["id", "projectId", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "assignedToGoogleSubject", "deadlineAt", "wasOverdue", "leadTimeStatus"]);
+  const v = object(value, ["id", "projectId", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "assignedToGoogleSubject", "deadlineAt", "wasOverdue", "leadTimeStatus", "quotationRound"]);
   if (text(v.projectId, true) !== projectId) invalid();
-  return { id: text(v.id, true), projectId, area: choice(v.area, ["Commercial"]), type: choice(v.type, [type]),
+  return { quotationRound: number(v.quotationRound, true, true), id: text(v.id, true), projectId, area: choice(v.area, ["Commercial"]), type: choice(v.type, [type]),
     status: choice(v.status, [type === "ReviewQuotation" ? "Completed" : "InProgress"]), assignedAt: date(v.assignedAt),
     startedAt: nullable(v.startedAt, date), completedAt: nullable(v.completedAt, date), deadlineAt: nullable(v.deadlineAt, date),
     assignedToGoogleSubject: nullable(v.assignedToGoogleSubject, (v) => text(v, true)), wasOverdue: nullable(v.wasOverdue, bool),

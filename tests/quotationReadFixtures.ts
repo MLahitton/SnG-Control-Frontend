@@ -9,5 +9,5 @@ export const budgetRead: BudgetReadView = {
     imageStatus: i.image.status, hasImage: i.image.status === "Stored",
     technicalDifferences: index === 0 ? [{ field: "Glass", previousValue: "Claro", currentValue: "Vidrio confirmado persistido" }] : [] })),
 };
-export const commercialRead: CommercialReadView = { currencyCode: "COP", projectId: commercialPreview.projectId, commercialQuotationId: "commercial-1",
+export const commercialRead: CommercialReadView = { versionNumber: 1, currencyCode: "COP", projectId: commercialPreview.projectId, commercialQuotationId: "commercial-1",
   confirmedAt: "2026-10-21T15:00:00Z", projectTotal: commercialPreview.projectTotal, items: commercialPreview.items.map(i => ({ ...i, imageStatus: "Missing", hasImage: false })) };

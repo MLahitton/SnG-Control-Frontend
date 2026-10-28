@@ -1,7 +1,7 @@
 export const backendRoots = ["clients", "projects", "project-tasks", "notifications"] as const;
 
 export function isBackendPath(segments: string[]): boolean {
-  if (segments[0] === "projects" && segments[2] === "client-quotation-decision") return segments.length === 3 && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(segments[1]);
+  if (segments[0] === "projects" && ["client-quotation-decision", "quotation-rounds", "requotation-request"].includes(segments[2])) return segments.length === 3 && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(segments[1]);
   if (segments[0] === "projects" && segments[2] === "commercial-quotation") return isCommercialQuotationPath(segments);
   if (segments[0] === "projects" && segments[2] === "send-to-commercial") return isSendToCommercialPath(segments);
   if (segments[0] === "projects" && segments[2] === "budget-quotation") {

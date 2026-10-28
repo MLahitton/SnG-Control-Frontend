@@ -32,7 +32,7 @@ export function TaskTimingStatus({ task, technical = false }: { task: ProjectTas
 
 export function TaskList({ tasks, projectNames, compact = false }: { tasks: ProjectTask[]; projectNames?: ReadonlyMap<string, string>; compact?: boolean }) {
   if (compact) return tasks.length ? <ul className={styles.list}>{tasks.map((task) => <li key={task.id} className={`${styles.task} ${task.leadTimeStatus === "Overdue" ? styles.overdue : ""}`}>
-    <div className={styles.heading}><h3>{taskTypeLabels[task.type]}</h3><TaskStatusBadge task={task} technical /></div>
+    <div className={styles.heading}><h3>{taskTypeLabels[task.type]}</h3>{task.quotationRound && <span className="metadata">Ronda {task.quotationRound}</span>}<TaskStatusBadge task={task} technical /></div>
     <p className={styles.area}>Área: {taskAreaLabels[task.area]}</p>
     {projectNames && <Link className="text-link" href={`/projects/${encodeURIComponent(task.projectId)}`}>{projectNames.get(task.projectId) ?? "Abrir proyecto"}</Link>}
     <div className={styles.timing}><TaskTimingStatus task={task} technical /></div>
@@ -46,7 +46,7 @@ export function TaskList({ tasks, projectNames, compact = false }: { tasks: Proj
   if (!tasks.length) return <EmptyState title="No hay tareas para mostrar." />;
   return <ul className="stack">{tasks.map((task) => <li key={task.id} className={`panel ${task.leadTimeStatus === "Overdue" ? "border-l-4 border-l-[var(--danger)]" : ""}`}>
     <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div className="stack"><div className="section-header"><h3 className="font-semibold">{taskTypeLabels[task.type]}</h3><TaskStatusBadge task={task} /></div>
+      <div className="stack"><div className="section-header"><h3 className="font-semibold">{taskTypeLabels[task.type]}</h3>{task.quotationRound && <span className="metadata">Ronda {task.quotationRound}</span>}<TaskStatusBadge task={task} /></div>
         {projectNames && <Link className="text-link break-words" href={`/projects/${encodeURIComponent(task.projectId)}`}>{projectNames.get(task.projectId) ?? "Abrir proyecto"}</Link>}
         <p className="metadata">Área: {taskAreaLabels[task.area]}</p>
       </div>

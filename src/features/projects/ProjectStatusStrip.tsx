@@ -5,11 +5,11 @@ import styles from "./ProjectDetail.module.css";
 
 export function ProjectStatusStrip({ tasks }: { tasks: ProjectTask[] }) {
   // Selection for presentation only; no workflow transition or timing is inferred.
-  const current = tasks.find((task) => task.status === "InProgress") ?? tasks.find((task) => task.status === "Pending") ?? tasks[0];
+  const current = tasks.find((task) => task.status === "InProgress") ?? tasks.find((task) => task.status === "Pending") ?? [...tasks].sort((a, b) => (b.quotationRound ?? 0) - (a.quotationRound ?? 0))[0];
   return <section className={styles.statusStrip} aria-label="Estado actual del proyecto">
     {current ? <>
       <div className={styles.statusGrid}>
-        <div className={styles.statusCell}><p className={styles.statusLabel}>{taskAreaLabels[current.area]}</p><p className={styles.statusTitle}>{taskTypeLabels[current.type]}</p></div>
+        <div className={styles.statusCell}><p className={styles.statusLabel}>{taskAreaLabels[current.area]}</p><p className={styles.statusTitle}>{taskTypeLabels[current.type]}</p><p>Ronda {current.quotationRound}</p></div>
         <div className={styles.statusCell}><p className={styles.statusLabel}>Estado</p><TaskStatusBadge task={current} technical /></div>
         <div className={styles.statusCell}><p className={styles.statusLabel}>Lead Time</p><TaskTimingBadge task={current} technical /></div>
         <div className={`${styles.statusCell} ${styles.statusDates}`}><p>Inicio: {formatDate(current.startedAt)}</p><p className="font-medium">Vence: {current.deadlineAt ? formatDate(current.deadlineAt) : "Sin fecha asignada"}</p></div>

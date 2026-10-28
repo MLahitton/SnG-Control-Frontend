@@ -5,7 +5,7 @@ import { user } from "./fixtures";
 
 export const commercialUser = { ...user, roles: ["CommercialHead" as const], subject: "test-commercial-head" };
 export const reviewTask: ProjectTask = { ...inProgressTask, id: "review-1", area: "Commercial", type: "ReviewQuotation", assignedToGoogleSubject: commercialUser.subject, wasOverdue: false };
-export const commercialPreview: CommercialQuotationPreviewResponse = {
+export const commercialPreview: CommercialQuotationPreviewResponse = { quotationRound: 1,
   currencyCode: "COP", projectId: project.id, projectTotal: 987654.3217, technicalDifferencesCount: 1, hasTechnicalDifferences: true,
   items: [
     { section: "Main", sourceRow: 15, commercialCatalogItemId: "item-1", values: { itemNumber: "V-2", location: "Sala", system: "Siena", glass: "Laminado 4+4", aluminumFinish: "Negro", lockType: "Simple", observations: "Revisar acabado", width: 2, height: 3, squareMeters: 6, quantity: 2 },

@@ -13,6 +13,7 @@ export interface CommercialQuotationItem extends CommercialItemKey {
   technicalDifferences: TechnicalDifference[];
 }
 export interface CommercialQuotationPreviewResponse {
+  quotationRound: number;
   currencyCode: "COP"; projectId: string; projectTotal: number; items: CommercialQuotationItem[];
   technicalDifferencesCount: number; hasTechnicalDifferences: boolean;
 }

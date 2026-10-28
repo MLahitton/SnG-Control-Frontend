@@ -473,3 +473,9 @@ Commercial Presentation Outcome V1: show the decision action only for the active
 CommercialAdvisor with an in-progress presentation and an official absent decision. Confirm
 before recording, prevent duplicate submission, then reread official state. Other roles with
 shared access see a read-only summary. No local persistence or inference from task completion.
+
+Versioned Requotation Loop V2: show authoritative quotationRound and confirmed version.
+Select tasks by round, preserve historical tasks, and distinguish active preparation from
+latest confirmed Commercial. Formal advisor changes require explicit input and confirmation;
+never prefill from a client decision note. Server responses own workflow, timing and permissions.
+History is bounded first 20 ascending, with coverage disclosed; reload uses official reads.

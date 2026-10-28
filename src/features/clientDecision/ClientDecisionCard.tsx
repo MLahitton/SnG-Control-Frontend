@@ -26,7 +26,7 @@ export function ClientDecisionCard({ projectId, tasks, onRefresh }: {
   const [saved, setSaved] = useState(false);
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), []);
-  const presentations = tasks.filter(t => t.type === "PresentQuotationToClient");
+  const presentations = tasks.filter(t => t.type === "PresentQuotationToClient" && t.quotationRound === resource.data?.quotationRound);
   const task = presentations.length === 1 ? presentations[0] : undefined;
   const canRecord = !saved && resource.data?.available === false && activeRole === "CommercialAdvisor"
     && task?.assignedToGoogleSubject === user?.subject && task?.area === "Commercial"
@@ -59,7 +59,7 @@ export function ClientDecisionCard({ projectId, tasks, onRefresh }: {
     {conflict ? <p role="alert" className="error-message">{conflict}</p> : <ErrorNotice error={error} retry={() => { resource.refresh(); void onRefresh(new AbortController().signal).catch(setError); }} />}
     {saved && <p role="status">Respuesta registrada.</p>}
     {resource.data?.available && <div className="stack">
-      <p className="font-medium">{decisionLabels[resource.data.decision!]}</p>
+      <p>Ronda {resource.data.quotationRound}</p><p className="font-medium">{decisionLabels[resource.data.decision!]}</p>
       <p>Registrada: {formatDate(resource.data.recordedAt)}</p>
       {resource.data.note && <p className="whitespace-pre-wrap break-words">Nota: {resource.data.note}</p>}
     </div>}

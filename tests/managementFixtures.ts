@@ -2,7 +2,7 @@ import type { ManagementOverview, ManagementTask } from "@/features/management/t
 import { user } from "./fixtures";
 
 export const manager = { ...user, isManagement: true, roles: ["Management"] as import("@/features/auth/types/auth").SystemRole[] };
-export const managementTask: ManagementTask = {
+export const managementTask: ManagementTask = { quotationRound: 1,
   taskId: "task-overdue", projectId: "project-1", projectName: "Proyecto Norte",
   clientId: "client-1", clientName: "Cliente Norte", sgCode: "SG001", city: "Bogotá", productLine: "Classic",
   area: "Budgets", type: "PrepareQuotation", status: "InProgress",

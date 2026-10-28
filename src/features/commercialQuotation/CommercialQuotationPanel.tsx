@@ -100,7 +100,8 @@ export function CommercialQuotationPanel({ projectId, reviewStatus, disabled, on
       <p className={styles.muted}>Edita este archivo en Excel y vuelve a subirlo para revisar los valores comerciales.</p>
       <label className="field-label">Seleccionar XLSX comercial<input ref={fileInput} className="form-control" type="file" accept=".xlsx" disabled={blocked} onChange={(e) => select(e.target.files)} /></label>
       <div><button className="button-primary" disabled={blocked || !file} onClick={() => void run("preview")}>Generar preview</button></div>
-      {preview && <><CommercialQuotationPreview preview={preview.data} />
+      {preview && <p>Ronda {preview.data.quotationRound}</p>}
+    {preview && <><CommercialQuotationPreview preview={preview.data} />
         {prompt ? <div role="group" aria-label="Confirmar cotización comercial" className={styles.confirmation}>
           <h3>¿Confirmas esta cotización comercial?</h3><p>Al confirmar, la revisión Comercial finalizará y el proyecto pasará al asesor responsable para presentar la propuesta al cliente.</p>
           <div className={styles.buttons}><button className="button-primary" disabled={blocked} onClick={() => void run("confirm")}>Confirmar</button>

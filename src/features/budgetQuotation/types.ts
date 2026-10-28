@@ -25,6 +25,7 @@ export interface QuotationWarning {
   code: "MissingImage" | "AmbiguousImage"; itemNumber: string; sourceRow: number; message: string;
 }
 export interface BudgetQuotationPreviewResponse {
+  quotationRound: number;
   projectId: string; projectSgCode: string; document: QuotationDocument;
   itemCount: number; totalQuantity: number; items: PreviewItem[]; warnings: QuotationWarning[];
 }
@@ -43,6 +44,7 @@ export type ItemDraft = { [K in keyof ItemValues]: string };
 export type QuotationStatus = "NotConfirmed" | "Confirmed" | "SentToCommercial";
 export type SendBlockReason = "None" | "SgChangedAfterConfirmation" | "InvalidState";
 export interface BudgetQuotationStatusResponse {
+  quotationRound: number | null;
   projectId: string; status: QuotationStatus; versionNumber: number | null; confirmedAt: string | null;
   itemCount: number; totalQuantity: number; documentSgCode: string | null; currentProjectSgCode: string | null;
   canSendToCommercial: boolean; sendBlockReason: SendBlockReason;

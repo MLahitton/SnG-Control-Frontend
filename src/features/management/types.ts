@@ -22,6 +22,7 @@ export interface ManagementOverview {
 }
 
 export interface ManagementTask {
+  quotationRound: number;
   taskId: string; projectId: string; projectName: string;
   clientId: string; clientName: string; sgCode: string | null;
   city: string; productLine: string; area: TaskArea; type: string; status: TaskStatus;

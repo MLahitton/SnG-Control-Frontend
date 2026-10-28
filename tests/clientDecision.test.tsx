@@ -10,7 +10,7 @@ import { user } from "./fixtures";
 const id = "11111111-1111-4111-8111-111111111111";
 const taskId = "22222222-2222-4222-8222-222222222222";
 const date = "2026-10-28T13:00:00-05:00";
-const absent = { available: false, projectId: id, commercialQuotationId: null, presentQuotationTaskId: null, decision: null, note: null, recordedAt: null };
+const absent = { quotationRound: 1, available: false, projectId: id, commercialQuotationId: null, presentQuotationTaskId: null, decision: null, note: null, recordedAt: null };
 const decision = { ...absent, available: true, commercialQuotationId: taskId, presentQuotationTaskId: taskId, decision: "ChangesRequested", recordedAt: date, note: "Revisar medidas" };
 const task = { ...inProgressTask, id: taskId, projectId: id, type: "PresentQuotationToClient" as const, area: "Commercial" as const, completedAt: null, assignedToGoogleSubject: user.subject };
 const recorded = { outcome: decision, task: { ...task, status: "Completed", completedAt: date, wasOverdue: false, leadTimeStatus: "CompletedOnTime" } };

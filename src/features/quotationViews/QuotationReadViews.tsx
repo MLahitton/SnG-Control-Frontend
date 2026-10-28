@@ -97,7 +97,7 @@ export function CommercialQuotationReadView({ projectId, allowDownload = false }
   if (resource.error) return <div className={styles.feedback}><p>Cotización comercial confirmada</p><ErrorNotice error={resource.error} retry={resource.refresh} /></div>;
   if (!view) return null;
   return <section aria-labelledby="commercial-read-title" className={styles.panel}>
-    <h2 id="commercial-read-title">Cotización Comercial confirmada</h2><p className={styles.muted}>Snapshot confirmado · Solo lectura</p>
+    <h2 id="commercial-read-title">Cotización Comercial confirmada</h2><p>Ronda {view.versionNumber}</p><p className={styles.muted}>Snapshot confirmado · Solo lectura</p>
     <dl className={styles.fields}><div><dt>Confirmada</dt><dd>{formatDate(view.confirmedAt)}</dd></div><div><dt>Valor total del proyecto</dt><dd>{formatCop(view.projectTotal)}</dd></div></dl>
     {allowDownload && <FinalDownload projectId={projectId} />}
     <div className={styles.items}>{view.items.map(item => <article className={styles.item} key={`${item.section}:${item.sourceRow}`}>

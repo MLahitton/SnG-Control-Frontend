@@ -3,6 +3,7 @@ export type TaskStatus = "Pending" | "InProgress" | "Completed";
 export type TaskType = "PrepareQuotation" | "ReviewQuotation" | "PresentQuotationToClient";
 export type LeadTimeStatus = "NotStarted" | "OnTrack" | "DueSoon" | "DueToday" | "Overdue" | "CompletedOnTime" | "CompletedLate" | "UntrackedLegacy";
 export interface ProjectTask {
+  quotationRound: number | null;
   id: string;
   projectId: string;
   area: TaskArea;
@@ -26,4 +27,9 @@ export const taskTypeLabels: Record<TaskType, string> = {
 
 export function taskTypeLabel(type: string): string {
   return Object.hasOwn(taskTypeLabels, type) ? taskTypeLabels[type as TaskType] : "Otra tarea";
+}
+
+
+export function latestQuotationTask(tasks: ProjectTask[], type: TaskType) {
+  return tasks.filter(t => t.type === type).sort((a, b) => (b.quotationRound ?? 0) - (a.quotationRound ?? 0))[0];
 }

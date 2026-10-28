@@ -1,4 +1,5 @@
 "use client";
+import { QuotationRoundsPanel } from "@/features/quotationRounds/QuotationRoundsPanel";
 
 import { ClientDecisionCard } from "@/features/clientDecision/ClientDecisionCard";
 import Link from "next/link";
@@ -8,6 +9,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { clientsService } from "@/features/clients/service";
 import { notificationsService } from "@/features/notifications/service";
 import { NotificationList } from "@/features/notifications/NotificationList";
+import { latestQuotationTask } from "@/features/tasks/types";
 import { tasksService } from "@/features/tasks/service";
 import { TaskList } from "@/features/tasks/TaskList";
 import { ApiError } from "@/lib/api/apiError";
@@ -66,8 +68,8 @@ function ProjectDetailContent({ id }: { id: string }) {
   const [validation, setValidation] = useState("");
   const [conflict, setConflict] = useState("");
   const [notice, setNotice] = useState("");
-  const preparation = data?.tasks.find((task) => task.type === "PrepareQuotation");
-  const review = data?.tasks.find((task) => task.type === "ReviewQuotation");
+  const preparation = latestQuotationTask(data?.tasks ?? [], "PrepareQuotation");
+  const review = latestQuotationTask((data?.tasks ?? []).filter(t => !preparation || t.quotationRound === preparation.quotationRound), "ReviewQuotation");
   const canReview = activeRole === "CommercialHead" && !!user && user.subject === review?.assignedToGoogleSubject
     && (review.status === "InProgress" || review.status === "Completed");
   // Presentation only; the backend's BudgetsAssignee policy authorizes the PUT.
@@ -140,7 +142,7 @@ function ProjectDetailContent({ id }: { id: string }) {
   }
   async function refreshQuotationRelated(signal: AbortSignal) {
     const [tasks, notifications] = await Promise.all([tasksService.forProject(api, id, signal), notificationsService.forProject(api, id, signal)]);
-    if (data && !signal.aborted) resource.update({ ...data, tasks, notifications });
+    if (data && !signal.aborted) { resource.update({ ...data, tasks, notifications }); setQuotationRevision(value => value + 1); }
   }
 
   return <div className={styles.projectSurface}>
@@ -158,7 +160,8 @@ function ProjectDetailContent({ id }: { id: string }) {
     {data && <>
       <ProjectHeader project={data.project} clientName={data.client.name} />
       <ProjectStatusStrip tasks={data.tasks} />
-      {data.tasks.some(t => t.type === "PresentQuotationToClient") && <div className={styles.documents}><ClientDecisionCard projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
+      {preparation && <div className={styles.documents}><QuotationRoundsPanel key={`history:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
+      {data.tasks.some(t => t.type === "PresentQuotationToClient") && <div className={styles.documents}><ClientDecisionCard key={latestQuotationTask(data.tasks, "PresentQuotationToClient")?.quotationRound} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
       {pendingSg && !isPreparationAssignee && <p role="status" className={styles.waiting}>Pendiente de asignación de SG por Presupuestos.</p>}
       <div className={styles.workspace}>
       <div className={styles.documents}><DocumentsPanel projectId={id} resource={documents} hasPreparation={!!preparation} disabled={busy || quotationBusy || commercialBusy}
@@ -185,7 +188,7 @@ function ProjectDetailContent({ id }: { id: string }) {
       </section>}
       </div>
       {canReadBudget && <div className={styles.quotation}>
-        {isPreparationAssignee && preparation?.status !== "Pending" ? <BudgetQuotationPanel key={data.project.sgCode} projectId={id}
+        {isPreparationAssignee && preparation?.status !== "Pending" ? <BudgetQuotationPanel key={`${data.project.sgCode}:${preparation?.quotationRound}`} projectId={id}
           canEdit={canCorrect} reviewStatus={review?.status} disabled={busy || documentBusy || commercialBusy} onBusyChange={setQuotationBusy}
           readView={<BudgetQuotationReadView key={quotationRevision} projectId={id} />} onRefreshRelated={refreshQuotationRelated}
           onTasksUpdated={(tasks) => { setQuotationRevision(value => value + 1); resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] }); }} />
@@ -193,7 +196,7 @@ function ProjectDetailContent({ id }: { id: string }) {
       </div>}
       {canReadCommercial && <div className={styles.commercial}>
         <CommercialQuotationReadView key={`${quotationRevision}:${review?.status}`} projectId={id} allowDownload={advisorOwner} />
-        {canReview && review && review.status !== "Pending" && <CommercialQuotationPanel projectId={id} reviewStatus={review.status}
+        {canReview && review && review.status !== "Pending" && <CommercialQuotationPanel key={review.quotationRound} projectId={id} reviewStatus={review.status}
           disabled={busy || documentBusy || quotationBusy} onBusyChange={setCommercialBusy} onRefreshRelated={refreshQuotationRelated}
           onTasksUpdated={(tasks) => { setQuotationRevision(value => value + 1); resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] }); }} />}
       </div>}

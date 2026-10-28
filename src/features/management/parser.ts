@@ -57,8 +57,9 @@ export function parseManagementOverview(value: unknown): ManagementOverview {
 }
 export function parseManagementTasks(value: unknown): ManagementTask[] {
   return list(value, (entry) => {
-    const v = object(entry, ["taskId", "projectId", "projectName", "clientId", "clientName", "sgCode", "city", "productLine", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "deadlineAt", "wasOverdue", "leadTimeStatus"]);
-    return { ...context(v), clientId: string(v.clientId), city: string(v.city), productLine: string(v.productLine),
+    const v = object(entry, ["taskId", "projectId", "projectName", "clientId", "clientName", "sgCode", "city", "productLine", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "deadlineAt", "wasOverdue", "leadTimeStatus", "quotationRound"]);
+    const quotationRound = count(v.quotationRound); if (quotationRound < 1) invalid();
+    return { quotationRound, ...context(v), clientId: string(v.clientId), city: string(v.city), productLine: string(v.productLine),
       type: string(v.type), status: status(v.status), assignedAt: date(v.assignedAt),
       completedAt: nullable(v.completedAt, date), wasOverdue: nullable(v.wasOverdue, boolean) };
   });

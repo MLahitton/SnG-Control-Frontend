@@ -338,3 +338,18 @@ El BFF admite GET/POST a projects/{id}/client-quotation-decision; servicios del 
 el contrato cerrado, IDs de proyecto/tarea y timestamps con zona horaria. 201 tiene outcome y
 task; GET entrega available y los campos de la decisión (null si no existe). Desplegar primero
 la migración/contrato Backend. No se crean transiciones de pago, recotización o cierre.
+
+## Versioned Requotation Loop V2
+
+Las tareas y previews muestran su ronda; la cotización confirmada muestra su versión.
+El asesor asignado puede solicitar una nueva cotización después de una respuesta oficial
+ChangesRequested: debe redactar cambios formales y confirmar. La nota de la decisión no
+se copia al formulario. Presupuestos ve los cambios en el historial antes del editor.
+La nueva tarea inicia con el SG existente; los flujos de preview, confirmación y envío a
+Comercial trabajan sobre esa ronda. Una preparación nueva no sustituye la última comercial
+confirmada. La decisión actual pertenece a la cotización comercial actual.
+
+El historial es de solo lectura, usa fechas de Colombia y muestra las primeras 20 rondas
+con advertencia explícita si es parcial. F5 recupera el estado oficial del servidor; no se
+reconstruye a partir de mensajes locales. Los contratos rechazan rondas/versiones inválidas.
+No se implementan pagos, cierre de proyecto ni recotización automática.

@@ -62,6 +62,7 @@ export function BudgetQuotationPanel({ projectId, canEdit, disabled, reviewStatu
   }
   return <section className={styles.panel} aria-labelledby="budget-quotation-title">
     <h2 id="budget-quotation-title" className={styles.title}>Cotización de Presupuestos</h2>
+    {current?.quotationRound && <p>Ronda {current.quotationRound}</p>}
     {sent && <p role="status" className="success-notice">Cotización enviada a Comercial.</p>}
     {confirmed && !sent && <p role="status" className="success-notice">Cotización de Presupuestos confirmada.</p>}
     {!!confirmed?.adjusted && <p>{confirmed.adjusted === 1 ? "1 ítem fue ajustado" : `${confirmed.adjusted} ítems fueron ajustados`} antes de confirmar.</p>}
