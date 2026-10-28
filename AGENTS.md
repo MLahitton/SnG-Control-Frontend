@@ -186,7 +186,7 @@ Commercial Head:
 - confirms commercial.xlsx
 Advisor:
 - receives PresentQuotationToClient
-Do not implement client approval or payment until backend supports it.
+Client quotation decisions now use the official Commercial Presentation Outcome V1 endpoint. Do not implement payment or downstream transitions.
 13. Project responsibility
 Project creator is currently the responsible commercial advisor.
 Backend exposes creator identity.
@@ -467,3 +467,9 @@ Efficiency must never mean inventing backend behavior or skipping final verifica
 - Existing operational document upload/download behavior remains outside this feature.
 
 Identity & Areas V1: available roles come only from Backend auth/me. One activeRole controls navigation and actions; sessionStorage is a non-authoritative preference revalidated on restore. Operational requests send X-SnG-Active-Role through the closed BFF. Role switches cancel/remount the experience and clean up Management Intelligence/voice; do not change project ownership or task assignments.
+
+
+Commercial Presentation Outcome V1: show the decision action only for the active assigned
+CommercialAdvisor with an in-progress presentation and an official absent decision. Confirm
+before recording, prevent duplicate submission, then reread official state. Other roles with
+shared access see a read-only summary. No local persistence or inference from task completion.

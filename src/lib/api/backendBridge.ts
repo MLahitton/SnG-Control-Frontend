@@ -56,6 +56,7 @@ async function hasPayload(body: ReadableStream<Uint8Array>, signal: AbortSignal)
 }
 
 export async function forwardBackend(request: Request, segments: string[]): Promise<Response> {
+  if (segments[2] === "client-quotation-decision" && !["GET", "POST"].includes(request.method)) return problem(405, undefined, new Headers({ Allow: "GET, POST" }));
   const quotationMethod = isQuotationImagePath(segments) ? "GET" : isBudgetQuotationPath(segments) || isCommercialQuotationPath(segments)
     ? (["status", "commercial-file", "file", "view"].includes(segments[3]) ? "GET" : "POST") : isSendToCommercialPath(segments) ? "POST" : null;
   if (quotationMethod && request.method !== quotationMethod) return problem(405, undefined, new Headers({ Allow: quotationMethod }));

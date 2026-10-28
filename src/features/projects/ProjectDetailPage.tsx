@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientDecisionCard } from "@/features/clientDecision/ClientDecisionCard";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
@@ -157,6 +158,7 @@ function ProjectDetailContent({ id }: { id: string }) {
     {data && <>
       <ProjectHeader project={data.project} clientName={data.client.name} />
       <ProjectStatusStrip tasks={data.tasks} />
+      {data.tasks.some(t => t.type === "PresentQuotationToClient") && <div className={styles.documents}><ClientDecisionCard projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
       {pendingSg && !isPreparationAssignee && <p role="status" className={styles.waiting}>Pendiente de asignación de SG por Presupuestos.</p>}
       <div className={styles.workspace}>
       <div className={styles.documents}><DocumentsPanel projectId={id} resource={documents} hasPreparation={!!preparation} disabled={busy || quotationBusy || commercialBusy}

@@ -319,3 +319,22 @@ Money Contract V1: preview, confirmación y vista comercial requieren `currencyC
 del Backend. Los parsers cerrados conservan el campo y rechazan moneda ausente/desconocida;
 Budget no lo incorpora. Ajuste contractual necesario para aceptar el nuevo payload sin 502,
 sin cambios de UI, cálculos ni formato. Desplegar junto con Backend Money Contract V1.
+
+
+## Commercial Presentation Outcome V1
+
+El detalle del proyecto muestra Respuesta del cliente cuando existe la tarea de presentación.
+El asesor asignado, con rol CommercialAdvisor activo y presentación InProgress, puede elegir
+Aprobó la cotización, Solicitó cambios o Rechazó la cotización y una nota opcional (2000 caracteres).
+Una confirmación explícita avisa que la respuesta no es editable. El envío deshabilita controles;
+tras 201 se relee la decisión y las tareas/notificaciones oficiales. Si falla la actualización
+posterior no se habilita un nuevo registro de una operación ya guardada.
+
+Los demás roles con acceso ven la respuesta en modo lectura. F5 vuelve a consultar Backend;
+no hay almacenamiento local de la decisión. La fecha se presenta en America/Bogota. Ausencia
+no significa rechazo. Los conflictos y permisos se muestran con mensajes seguros.
+
+El BFF admite GET/POST a projects/{id}/client-quotation-decision; servicios del feature validan
+el contrato cerrado, IDs de proyecto/tarea y timestamps con zona horaria. 201 tiene outcome y
+task; GET entrega available y los campos de la decisión (null si no existe). Desplegar primero
+la migración/contrato Backend. No se crean transiciones de pago, recotización o cierre.
