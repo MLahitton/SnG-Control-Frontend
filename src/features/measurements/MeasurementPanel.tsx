@@ -9,6 +9,7 @@ import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { ApiError } from "@/lib/api/apiError";
 import { saveDownload } from "@/lib/api/saveDownload";
 import { formatDate } from "@/lib/formatDate";
+import styles from "./MeasurementPanel.module.css";
 import type { MeasurementAction, MeasurementCommand, MeasurementState } from "./contracts";
 
 export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; onRefresh: (signal: AbortSignal) => Promise<void> }) {
@@ -62,7 +63,7 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
   }
   if (!data) return <><p role="status">Consultando toma de medidas…</p><ErrorNotice error={resource.error} retry={resource.refresh} /></>;
   const current = data.documents.filter(d => d.isCurrent);
-  const groups = Map.groupBy(data.structures, s => s.itemId ?? "added");
+  const groups = Map.groupBy(data.structures.filter(s => !s.retiredAt), s => s.itemId ?? "added");
   const labels: Record<string, string> = { Initialize: "Checklist iniciado", Add: "Estructura agregada", Retire: "Estructura retirada", Measure: "Marcada como medida", Unmeasure: "Medición desmarcada", Submit: "Medidas radicadas" };
   const messages: Record<string, string> = { MeasurementRevisionConflict: "El checklist cambió en otra sesión. Revisa el estado actualizado antes de continuar.", MeasurementsLocked: "La toma de medidas ya no admite cambios.", MeasurementDocumentsChanged: "Los documentos cambiaron. Revisa los archivos antes de radicar.", MeasurementsIncomplete: "Debe existir al menos una estructura vigente y todas deben estar medidas.", MeasurementRequestConflict: "El reintento no coincide con la operación original." };
   return <section className="panel stack" aria-labelledby="measurements-title">
@@ -107,10 +108,27 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
       {writable && <button className="button-primary" disabled={disabled || data.summary.active === 0 || data.summary.pending > 0 || !current.length} onClick={() => setConfirmation({ action: "Submit", documentIds: current.map(d => d.id) })}>Radicar medidas</button>}
       {data.submissionId && <p role="status">Medidas radicadas · {formatDate(data.submittedAt!)} · {data.submissionId}. Checklist y documentos congelados para su consulta por Ingeniería.</p>}
     </>}
-    {confirmation && <div role="dialog" aria-modal="true" aria-label={confirmation.action === "Retire" ? "Confirmar retiro" : "Confirmar radicación"} className="panel stack">
-      <p>{confirmation.action === "Retire" ? "La estructura se excluirá del total vigente y conservará su historial. ¿Confirmas el retiro?" : "Se congelarán el checklist y los documentos vigentes y se completará la tarea. ¿Confirmas la radicación?"}</p>
-      <button className="button-primary" disabled={disabled} onClick={() => command(confirmation)}>Confirmar</button><button className="button-secondary" disabled={busy} onClick={() => setConfirmation(null)}>Cancelar</button>
-    </div>}
+    {confirmation && <MeasurementConfirmation action={confirmation} data={data} onCancel={() => setConfirmation(null)} onConfirm={() => { setConfirmation(null); command(confirmation); }} />}
+    {data.structures.some(s => s.retiredAt) && <details><summary>Estructuras retiradas</summary><ul>{data.structures.filter(s => s.retiredAt).map(s => <li key={s.id}>
+      {s.itemId ? `Ítem ${s.itemNumber ?? ""} · Unidad ${s.unitOrdinal}/${s.unitCount}` : "Agregada en obra"} · {s.id} · {s.description} {s.location} · Retirada {formatDate(s.retiredAt!)}
+    </li>)}</ul></details>}
     <details><summary>Historial de cambios</summary><ol>{data.history.map(event => <li key={event.id}>{labels[event.action] ?? event.action} {event.structureId?.slice(0, 8)} · {event.actor.name ?? event.actor.email ?? "Cuenta de Instalación"} · {formatDate(event.at)}</li>)}</ol></details>
   </section>;
+}
+
+function MeasurementConfirmation({ action, data, onCancel, onConfirm }: { action: MeasurementAction; data: MeasurementState; onCancel: () => void; onConfirm: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null); const cancel = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const element = dialog.current!; const previous = document.activeElement;
+    element.showModal(); cancel.current?.focus();
+    return () => { element.close(); if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
+  }, []);
+  const structure = action.action === "Retire" ? data.structures.find(s => s.id === action.structureId) : null;
+  return <dialog ref={dialog} aria-labelledby="measurement-confirmation-title" className={`panel stack ${styles.confirmation}`} onCancel={event => { event.preventDefault(); onCancel(); }}>
+    <h3 id="measurement-confirmation-title">{action.action === "Retire" ? "Confirmar retiro" : "Confirmar radicación"}</h3>
+    {structure && <p>{structure.itemId ? `Ítem ${structure.itemNumber ?? ""} · Unidad ${structure.unitOrdinal}/${structure.unitCount}` : "Agregada en obra"}<br />{structure.id}<br />{structure.description} {structure.location}</p>}
+    <p>{action.action === "Retire" ? "La estructura se excluirá del total vigente y conservará su historial. ¿Confirmas el retiro?" : "Se congelarán el checklist y los documentos vigentes y se completará la tarea. ¿Confirmas la radicación?"}</p>
+    <button type="button" className="button-primary" onClick={onConfirm}>Confirmar</button>
+    <button ref={cancel} type="button" className="button-secondary" onClick={onCancel}>Cancelar</button>
+  </dialog>;
 }

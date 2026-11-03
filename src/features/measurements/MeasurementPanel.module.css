@@ -1,0 +1,8 @@
+.confirmation {
+  margin: auto;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.confirmation::backdrop { background: rgb(0 0 0 / 40%); }

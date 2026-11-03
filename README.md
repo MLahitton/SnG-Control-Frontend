@@ -403,3 +403,7 @@ y completa la tarea sin SLA. Después se conserva el estado final al recargar. N
 de Vanos ni habilita una tarea de Ingeniería. Rutas BFF cerradas bajo
 `projects/{id}/measurements`: GET, POST initialize, POST commands y POST documents/batch.
 Las medidas documentales no se extraen ni modifican precios o la cotización original.
+
+El retiro abre una confirmación modal centrada que identifica ítem, unidad e ID y recibe el foco.
+Cancelar o Escape no envían cambios. Tras confirmar, la unidad sale de las vigentes y permanece
+en Estructuras retiradas y en el historial; conteos y progreso se recuperan del Backend.
