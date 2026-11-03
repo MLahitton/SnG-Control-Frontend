@@ -26,7 +26,8 @@ export function TaskTimingStatus({ task, technical = false }: { task: ProjectTas
   return <div className="space-y-2">
     <TaskTimingBadge task={task} technical={technical} />
     <p className="font-medium">Vence: {task.deadlineAt ? formatDate(task.deadlineAt) : "Sin fecha asignada"}</p>
-    {!task.deadlineAt && task.leadTimeStatus === "NotStarted" && <p className="metadata">{task.type === "RegisterInitialDeposit" ? "Esperando registro del anticipo. No hay un plazo formal definido." : task.type === "PrepareQuotation" ? "El plazo comienza al asignar el SG." : "La tarea todavía no ha iniciado su plazo."}</p>}
+    {task.type === "CorrectDepositReceipts" && <p className="metadata">Corrección de comprobantes sin SLA. Abre el expediente para corregir y reenviar.</p>}
+    {!task.deadlineAt && task.leadTimeStatus === "NotStarted" && <p className="metadata">{task.type === "CorrectDepositReceipts" ? "Corrige y vuelve a enviar los comprobantes desde el expediente. Sin plazo formal definido." : task.type === "TakeMeasurements" ? "Toma de medidas pendiente, sin plazo formal definido." : task.type === "RegisterInitialDeposit" ? "Esperando verificación del anticipo. No hay un plazo formal definido." : task.type === "PrepareQuotation" ? "El plazo comienza al asignar el SG." : "La tarea todavía no ha iniciado su plazo."}</p>}
   </div>;
 }
 

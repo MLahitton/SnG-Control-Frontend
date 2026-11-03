@@ -21,7 +21,7 @@ function date(value: unknown): string {
   const result = string(value);
   return /^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(result) && Number.isFinite(Date.parse(result)) ? result : invalid();
 }
-function area(value: unknown): TaskArea { return choice(value, ["Commercial", "Budgets", "Accounting"]); }
+function area(value: unknown): TaskArea { return choice(value, ["Commercial", "Budgets", "Accounting", "Installation"]); }
 function status(value: unknown): TaskStatus { return choice(value, ["Pending", "InProgress", "Completed"]); }
 function timing(value: unknown): LeadTimeStatus {
   return choice(value, ["NotStarted", "OnTrack", "DueSoon", "DueToday", "Overdue", "CompletedOnTime", "CompletedLate", "UntrackedLegacy"]);

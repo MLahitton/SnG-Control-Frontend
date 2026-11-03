@@ -488,3 +488,10 @@ COP decimal strings without floating arithmetic and distinguish receivedAt from 
 No required percentage, balance, SLA or full-payment inference. Restore official state on reload;
 409 refreshes do not retry writes. Other authorized roles see read-only state. Closed BFF routes
 and parsers remain mandatory; no downstream Engineering/Production workflow.
+
+Deposit Verification: show the contextual panel only when Backend marks the approved stage
+available. Uploading receipts never submits a review. Confirm submission and each decision;
+freeze selected document IDs and preserve the idempotency key on retries. Rejection requires
+a note; approval sends exact COP strings and aware receipt time. Reread official state after
+writes and 409, preserve history and cancel on role changes. TakeMeasurements is prepared
+without an SLA; do not add the next Installation workflow or navigation in this block.

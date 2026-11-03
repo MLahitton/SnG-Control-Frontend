@@ -1,7 +1,7 @@
 import type { TaskType } from "@/features/tasks/types";
 
 export type NotificationState = "Informational" | "Active" | "Resolved";
-export type NotificationKind = "TaskAssigned" | "DueInTwoBusinessDays" | "DueToday" | "Overdue" | "ProjectDocumentsUpdated";
+export type NotificationKind = "TaskAssigned" | "DueInTwoBusinessDays" | "DueToday" | "Overdue" | "ProjectDocumentsUpdated" | "DepositVerificationRequested" | "DepositVerificationApproved" | "DepositVerificationRejected";
 export interface ProjectNotification {
   id: string;
   projectId: string;
