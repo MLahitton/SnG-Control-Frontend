@@ -1,4 +1,5 @@
 "use client";
+import { formatTechnicalValue } from "@/lib/technicalMeasure";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
@@ -16,15 +17,15 @@ import styles from "./QuotationReadViews.module.css";
 const fields: Record<keyof ItemValues, string> = { itemNumber: "Ítem", location: "Ubicación", system: "Sistema", glass: "Vidrio",
   aluminumFinish: "Acabado", lockType: "Cerradura", observations: "Observaciones", width: "Ancho (m)", height: "Alto (m)", squareMeters: "Superficie (m²)", quantity: "Cantidad" };
 function Values({ values }: { values: ItemValues }) {
-  return <dl className={styles.fields}>{Object.entries(fields).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{values[key as keyof ItemValues] || "Sin valor"}</dd></div>)}</dl>;
+  return <dl className={styles.fields}>{Object.entries(fields).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{formatTechnicalValue(key, values[key as keyof ItemValues]) || "Sin valor"}</dd></div>)}</dl>;
 }
 function Differences({ differences, budget = false }: { differences: TechnicalDifference[]; budget?: boolean }) {
   if (!differences.length) return null;
   const label = (field: TechnicalField) => fields[`${field[0].toLowerCase()}${field.slice(1)}` as keyof ItemValues];
   return <details className={styles.differences}><summary>{budget ? "Ajustes frente a la extracción original" : "Cambios técnicos frente a Presupuestos"} ({differences.length})</summary>
     {differences.map(d => <div key={d.field}><h4>{label(d.field)}</h4><dl className={styles.fields}>
-      <div><dt>{budget ? "Extraído" : "Presupuestos"}</dt><dd>{d.previousValue || "Sin valor"}</dd></div>
-      <div><dt>{budget ? "Confirmado" : "Comercial"}</dt><dd>{d.currentValue || "Sin valor"}</dd></div>
+      <div><dt>{budget ? "Extraído" : "Presupuestos"}</dt><dd>{formatTechnicalValue(d.field, d.previousValue) || "Sin valor"}</dd></div>
+      <div><dt>{budget ? "Confirmado" : "Comercial"}</dt><dd>{formatTechnicalValue(d.field, d.currentValue) || "Sin valor"}</dd></div>
     </dl></div>)}
   </details>;
 }

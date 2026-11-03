@@ -1,3 +1,4 @@
+import { formatTechnicalValue } from "@/lib/technicalMeasure";
 import type { CommercialQuotationPreviewResponse, TechnicalField, TechnicalDifference } from "./types";
 import { formatCop } from "./validation";
 import styles from "./CommercialQuotation.module.css";
@@ -9,8 +10,8 @@ function Differences({ differences }: { differences: TechnicalDifference[] }) {
   if (!differences.length) return <p className={styles.muted}>Sin cambios técnicos frente a Presupuestos.</p>;
   return <div className={styles.differences}><h5>Cambios frente a Presupuestos</h5>
     {differences.map((d) => <div key={d.field} className={styles.change}><h6>{labels[d.field]}</h6>
-      <dl className={styles.comparison}><div><dt>Antes (Presupuestos)</dt><dd>{d.previousValue || "Sin valor"}</dd></div>
-        <div><dt>Ahora (Comercial)</dt><dd>{d.currentValue || "Sin valor"}</dd></div></dl>
+      <dl className={styles.comparison}><div><dt>Antes (Presupuestos)</dt><dd>{formatTechnicalValue(d.field, d.previousValue) || "Sin valor"}</dd></div>
+        <div><dt>Ahora (Comercial)</dt><dd>{formatTechnicalValue(d.field, d.currentValue) || "Sin valor"}</dd></div></dl>
     </div>)}
   </div>;
 }
@@ -24,7 +25,7 @@ export function CommercialQuotationPreview({ preview }: { preview: CommercialQuo
       <h4 id={`commercial-item-${index}`}>Ítem {item.values.itemNumber}</h4>
       <dl className={styles.values}>{Object.entries(labels).map(([field, label]) => {
         const key = `${field[0].toLowerCase()}${field.slice(1)}` as keyof typeof item.values;
-        return <div key={field}><dt>{label}</dt><dd>{item.values[key] === "" ? "Sin valor" : item.values[key]}</dd></div>;
+        return <div key={field}><dt>{label}</dt><dd>{item.values[key] === "" ? "Sin valor" : formatTechnicalValue(field, item.values[key])}</dd></div>;
       })}</dl>
       <dl className={styles.prices}><div><dt>Precio unitario</dt><dd>{formatCop(item.unitPrice)}</dd></div><div><dt>Precio total</dt><dd>{formatCop(item.totalPrice)}</dd></div></dl>
       <Differences differences={item.technicalDifferences} />

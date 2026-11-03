@@ -742,3 +742,48 @@ El BFF admite GET/POST a projects/{id}/client-quotation-decision; servicios del 
 el contrato cerrado, IDs de proyecto/tarea y timestamps con zona horaria. 201 tiene outcome y
 task; GET entrega available y los campos de la decisión (null si no existe). Desplegar primero
 la migración/contrato Backend. No se crean transiciones de pago, recotización o cierre.
+
+## Verificación del anticipo
+
+AccountingPanel usa verificationService y el contrato cerrado VerificationState del Backend.
+GET projects/{id}/deposit-verifications aporta capacidades, estado contable, comprobantes e
+historial. El panel también comprueba rol activo y tarea asignada antes de ofrecer acciones;
+la autorización definitiva siempre pertenece al servidor.
+
+El BFF permite GET/POST en la colección, POST receipts/batch y POST {reviewId}/decision,
+con GUIDs y métodos cerrados. La carga reutiliza documentBatch y el streaming multipart:
+manifest más archivos, límites existentes y descarga documental compartida. Cada selección
+se envía con requestKey y documentIds; reintentos de la misma selección conservan la clave.
+Las decisiones envían approve/amount/receivedAt/note. Recepción local usa America/Bogota
+(-05:00); COP se representa mediante strings decimales canónicos. Los errores no muestran
+detalles privados; las operaciones se cancelan al desmontar o cambiar área.
+
+Los POST contables anteriores quedan retirados en Backend (409 DepositVerificationRequired).
+GET initial-deposit sigue disponible para evidencia histórica. No se inventan revisiones
+para anticipos anteriores. Los enums aceptan TakeMeasurements/Installation y notificaciones
+DepositVerificationRequested/Approved/Rejected. Instalación queda preparada como tarea,
+sin nueva navegación ni formulario de medidas.
+
+Pruebas: accounting.test.tsx cubre confirmación/cancelación, selección, múltiples archivos,
+sustitución, rechazo, lectura tras reload, roles, idempotencia y conflicto concurrente.
+accounting-bridge.test.ts cubre rutas y métodos permitidos/rechazados. El smoke de base de
+datos y la atomicidad pertenecen a la suite Backend aislada; no se requiere Google real.
+
+Ante 503 al aprobar, comprobar Authentication:InstallationAssigneeSubject en la configuración
+privada del Backend y reiniciar ese proceso tras configurarlo. GET puede funcionar sin esa
+clave: solo la aprobación la necesita. safeProblem conserva exclusivamente el código seguro
+InstallationAssigneeNotConfigured en 503, tanto en el BFF como en ApiError; otros diagnósticos
+siguen ocultos. Un fallo de transporte del bridge devuelve 502; URL base inválida devuelve 503
+antes de fetch. No desactivar TLS ni asignar automáticamente otra cuenta.
+
+CorrectDepositReceipts es una tarea persistida de Comercial, iniciada por Backend sin SLA
+al rechazar comprobantes. El contrato admite ronda null y muestra la tarea en En curso,
+con enlace al expediente. El reenvío actualiza tareas mediante la lectura oficial existente.
+No se infiere una tarea a partir de una notificación ni se reabre la presentación comercial.
+
+La precisión técnica de comparación es 3 decimales en metros para ancho/alto y 6 decimales
+en m² para superficie. Las mitades se redondean alejándose de cero. Backend decide las
+diferencias; Frontend usa la misma normalización decimal para presentación legible, con coma
+decimal y sin ceros finales innecesarios. No modifica valores originales, fórmulas ni dinero;
+esta regla no representa una tolerancia de fabricación o instalación. Los editores mantienen
+el valor original para evitar guardar redondeos por mera visualización.

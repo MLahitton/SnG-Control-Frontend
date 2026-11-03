@@ -356,26 +356,32 @@ reconstruye a partir de mensajes locales. Los contratos rechazan rondas/versione
 La recotización no registra pagos ni cierra proyectos, y nunca es automática.
 
 
-## Accounting Initial Deposit V1
+## Verificación del anticipo
 
-Contabilidad es un área utilizable si auth/me devuelve Accounting. Su bandeja muestra la tarea
-Registrar anticipo inicial con proyecto, cliente y SG. Backend limita proyectos/tareas por
-asignación; el rol activo no concede permisos por sí solo.
+En el expediente, el asesor responsable ve la sección solo cuando Backend confirma la etapa
+de cotización Approved. Puede cargar varios comprobantes, sustituir versiones conservando
+historial y elegir cuáles enviar a Contabilidad. Cargar no envía ni confirma dinero: el envío
+requiere confirmación humana y conserva una clave idempotente durante los reintentos.
 
-El asesor asignado puede enviar explícitamente una cotización Approved a Contabilidad con
-confirmación de ronda. Aprobar no hace el envío. La tarea creada no tiene ronda propia ni SLA.
-Contabilidad asignada registra importe recibido, fecha/hora de recepción (Colombia), referencia
-opcional (200) y nota opcional (2000). Se confirma el valor/fecha antes de enviar; no se puede
-editar después. El parser monetario acepta decimal con coma o punto, sin separadores de miles,
-y envía string canónico de dos decimales sin aritmética floating point. COP viene del Backend.
+La bandeja de Contabilidad mantiene proyecto, cliente y SG. La persona asignada consulta
+cotización, archivos exactos de cada solicitud e historial; aprueba con importe COP positivo,
+fecha/hora de recepción (Colombia) y observación opcional, o rechaza con observación obligatoria.
+Ambas decisiones requieren confirmación. Rechazo permite corregir y enviar otra solicitud;
+aprobación registra el anticipo y crea la tarea de Toma de medidas para Instalación sin SLA.
+No se implementan formularios ni navegación de la siguiente fase.
 
-El BFF solo admite POST send-approved-quotation-to-accounting y GET/POST initial-deposit.
-Los contratos cerrados validan importe, zona horaria, proyecto, tarea y consistencia del estado.
-Tras guardar se muestra el estado oficial y se actualizan tareas/notificaciones; conflictos
-409 provocan una lectura, nunca un reintento automático de escritura. F5 relee Backend.
-Otros roles con acceso ven resumen sin formulario de pago. No hay autoridad en localStorage.
+Tras escribir se relee Backend y se actualizan tareas/notificaciones. F5 recupera el estado
+oficial. Un 409 actualiza sin reintentar automáticamente la escritura. Management y otros roles
+autorizados ven evidencia de solo lectura. No se infieren pago total, porcentaje esperado,
+saldo ni sumas de comprobantes. El importe viaja como string decimal COP, sin floating point.
 
-La ausencia de registro no prueba impago. No hay porcentaje requerido, anticipo esperado,
-saldo, pago completo, Ingeniería o Producción en este bloque. El contexto de cotización se
-mantiene en la vista comercial de lectura. Desplegar después de configurar el Subject de
-Contabilidad y aplicar manualmente las migraciones pendientes del Backend en orden.
+El despliegue requiere la migración de comprobantes del Backend, con autorización operativa,
+y configurar privadamente los Subjects de Contabilidad e Instalación. La falta de Instalación
+bloquea la aprobación con un mensaje claro. Intelligence permanece independiente.
+
+La precisión técnica de comparación es 3 decimales en metros para ancho/alto y 6 decimales
+en m² para superficie. Las mitades se redondean alejándose de cero. Backend decide las
+diferencias; Frontend usa la misma normalización decimal para presentación legible, con coma
+decimal y sin ceros finales innecesarios. No modifica valores originales, fórmulas ni dinero;
+esta regla no representa una tolerancia de fabricación o instalación. Los editores mantienen
+el valor original para evitar guardar redondeos por mera visualización.
