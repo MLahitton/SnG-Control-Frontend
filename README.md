@@ -385,3 +385,21 @@ diferencias; Frontend usa la misma normalización decimal para presentación leg
 decimal y sin ceros finales innecesarios. No modifica valores originales, fórmulas ni dinero;
 esta regla no representa una tolerancia de fabricación o instalación. Los editores mantienen
 el valor original para evitar guardar redondeos por mera visualización.
+
+
+## Instalación: toma de medidas
+
+Installation usa la navegación y bandeja existentes; el expediente muestra el checklist cuando
+existe TakeMeasurements. Cada unidad física tiene un check independiente y UUID persistido.
+El Backend calcula el avance, conserva adiciones/retiros y audita marcas/desmarcados.
+La interfaz permite carga múltiple y sustitución documental, confirma retiros y radicación,
+y conserva la clave de un comando si su resultado de red es incierto. El reintento envía el mismo
+comando/revisión; una sesión desactualizada recibe 409 y debe revisar el estado oficial.
+Las cargas reutilizan la clave del lote al reintentar; una selección nueva usa otra clave.
+Management consulta sin controles de escritura. El rol activo sigue enviándose al BFF.
+
+La radicación exige estructuras vigentes, todas medidas, y documentos vigentes; congela los datos
+y completa la tarea sin SLA. Después se conserva el estado final al recargar. No implementa Acta
+de Vanos ni habilita una tarea de Ingeniería. Rutas BFF cerradas bajo
+`projects/{id}/measurements`: GET, POST initialize, POST commands y POST documents/batch.
+Las medidas documentales no se extraen ni modifican precios o la cotización original.

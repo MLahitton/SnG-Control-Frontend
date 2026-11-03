@@ -1,6 +1,11 @@
 export const backendRoots = ["clients", "projects", "project-tasks", "notifications"] as const;
 
 export function isBackendPath(segments: string[]): boolean {
+  if (segments[0] === "projects" && segments[2] === "measurements") {
+    return /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(segments[1]) &&
+      (segments.length === 3 || (segments.length === 4 && ["initialize", "commands"].includes(segments[3])) ||
+       (segments.length === 5 && segments[3] === "documents" && segments[4] === "batch"));
+  }
   if (segments[0] === "projects" && segments[2] === "deposit-verifications") {
     const guid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
     return guid.test(segments[1]) && (segments.length === 3 || (segments.length === 5 &&
@@ -43,6 +48,7 @@ export function isDocumentFilePath(segments: string[]): boolean {
 }
 
 export function isLargeDocumentTransfer(method: string, segments: string[]): boolean {
+  if (isBackendPath(segments) && segments[2] === "measurements" && segments[3] === "documents" && segments[4] === "batch") return method === "POST";
   if (isBackendPath(segments) && segments[2] === "deposit-verifications" && segments[3] === "receipts" && segments[4] === "batch") return method === "POST";
   if (!isBackendPath(segments) || segments[0] !== "projects" || segments[2] !== "documents") return false;
   return (method === "POST" && segments.length === 4 && segments[3] === "batch")

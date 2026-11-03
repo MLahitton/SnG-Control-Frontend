@@ -1,4 +1,5 @@
 "use client";
+import { MeasurementPanel } from "@/features/measurements/MeasurementPanel";
 import { AccountingPanel } from "@/features/accounting/AccountingPanel";
 import { QuotationRoundsPanel } from "@/features/quotationRounds/QuotationRoundsPanel";
 
@@ -161,6 +162,7 @@ function ProjectDetailContent({ id }: { id: string }) {
     {data && <>
       <ProjectHeader project={data.project} clientName={data.client.name} />
       <ProjectStatusStrip tasks={data.tasks} />
+      {(activeRole === "Installation" || activeRole === "Management") && data.tasks.some(t => t.type === "TakeMeasurements") && <div className={styles.documents}><MeasurementPanel key={`${id}:${activeRole}`} projectId={id} onRefresh={refreshQuotationRelated} /></div>}
       {data.tasks.some(t => t.type === "PresentQuotationToClient" || t.type === "RegisterInitialDeposit") && <div className={styles.documents}><AccountingPanel key={`accounting:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
       {preparation && <div className={styles.documents}><QuotationRoundsPanel key={`history:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
       {data.tasks.some(t => t.type === "PresentQuotationToClient") && <div className={styles.documents}><ClientDecisionCard key={latestQuotationTask(data.tasks, "PresentQuotationToClient")?.quotationRound} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}

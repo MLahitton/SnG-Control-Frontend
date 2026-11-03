@@ -671,7 +671,7 @@ ni latencia de OpenAI. Usar el plan de preguntas de README y validar cards en m�
 ## Identity & Areas V1: sesión y transporte
 
 AuthProvider expone availableRoles, activeRole y setActiveRole. Solo roles implementados
-pueden seleccionarse; los cinco roles futuros quedan reservados en SystemRole. La clave
+pueden seleccionarse; Engineering, Production y Logistics quedan reservados en SystemRole. La clave
 `sng.active_role` guarda `{ subject, role }` como preferencia, nunca autoridad: al restaurar
 se valida primero el token con Backend, luego la coincidencia de Subject y pertenencia.
 Logout borra token/preferencia; otro Subject no hereda el área anterior.
@@ -761,8 +761,7 @@ detalles privados; las operaciones se cancelan al desmontar o cambiar área.
 Los POST contables anteriores quedan retirados en Backend (409 DepositVerificationRequired).
 GET initial-deposit sigue disponible para evidencia histórica. No se inventan revisiones
 para anticipos anteriores. Los enums aceptan TakeMeasurements/Installation y notificaciones
-DepositVerificationRequested/Approved/Rejected. Instalación queda preparada como tarea,
-sin nueva navegación ni formulario de medidas.
+DepositVerificationRequested/Approved/Rejected. Instalación dispone de navegación, checklist por unidad y radicación documental en el expediente.
 
 Pruebas: accounting.test.tsx cubre confirmación/cancelación, selección, múltiples archivos,
 sustitución, rechazo, lectura tras reload, roles, idempotencia y conflicto concurrente.
@@ -787,3 +786,21 @@ diferencias; Frontend usa la misma normalización decimal para presentación leg
 decimal y sin ceros finales innecesarios. No modifica valores originales, fórmulas ni dinero;
 esta regla no representa una tolerancia de fabricación o instalación. Los editores mantienen
 el valor original para evitar guardar redondeos por mera visualización.
+
+
+## Instalación: toma de medidas
+
+Installation usa la navegación y bandeja existentes; el expediente muestra el checklist cuando
+existe TakeMeasurements. Cada unidad física tiene un check independiente y UUID persistido.
+El Backend calcula el avance, conserva adiciones/retiros y audita marcas/desmarcados.
+La interfaz permite carga múltiple y sustitución documental, confirma retiros y radicación,
+y conserva la clave de un comando si su resultado de red es incierto. El reintento envía el mismo
+comando/revisión; una sesión desactualizada recibe 409 y debe revisar el estado oficial.
+Las cargas reutilizan la clave del lote al reintentar; una selección nueva usa otra clave.
+Management consulta sin controles de escritura. El rol activo sigue enviándose al BFF.
+
+La radicación exige estructuras vigentes, todas medidas, y documentos vigentes; congela los datos
+y completa la tarea sin SLA. Después se conserva el estado final al recargar. No implementa Acta
+de Vanos ni habilita una tarea de Ingeniería. Rutas BFF cerradas bajo
+`projects/{id}/measurements`: GET, POST initialize, POST commands y POST documents/batch.
+Las medidas documentales no se extraen ni modifican precios o la cotización original.
