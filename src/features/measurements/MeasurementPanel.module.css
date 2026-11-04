@@ -20,3 +20,10 @@
 .measured input { width: 24px; height: 24px; }
 @media (min-width: 760px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1200px) { .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.card select { min-height: 44px; width: 100%; }
+.sketchDialog { margin: auto; width: min(96vw, 80rem); max-height: 96dvh; padding: 1rem; overflow: auto; }
+.sketchDialog::backdrop { background: rgb(0 0 0 / 55%); }
+.canvas { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border: 1px solid #64748b; touch-action: none; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.tools button, .tools select { min-height: 44px; padding: .5rem; }

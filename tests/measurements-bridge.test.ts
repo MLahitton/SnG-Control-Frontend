@@ -23,3 +23,14 @@ it("rejects PUT and grants large upload timeout only to document batch", async (
  expect(fetch).not.toHaveBeenCalled(); expect(isLargeDocumentTransfer("POST", ["projects", id, "measurements", "documents", "batch"])).toBe(true);
  expect(isLargeDocumentTransfer("POST", ["projects", id, "measurements", "commands"])).toBe(false);
 });
+
+it("allows only authenticated versioned sketch reads and WEBP images", async () => {
+ const fetch = vi.fn(async () => new Response(new Uint8Array([1]), { headers: { "Content-Type": "image/webp" } })); vi.stubGlobal("fetch", fetch);
+ const path = ["projects", id, "measurements", "structures", id, "sketches", id, "image"];
+ const response = await forwardBackend(new Request("https://frontend.test", { headers }), path);
+ expect(response.status).toBe(200); expect(response.headers.get("Content-Type")).toBe("image/webp"); expect(response.headers.get("Cache-Control")).toBe("no-store");
+ expect((await forwardBackend(new Request("https://frontend.test", { method: "POST", headers }), path)).status).toBe(405);
+ expect((await forwardBackend(new Request("https://frontend.test", { headers }), [...path.slice(0, 6), "..", "image"])).status).not.toBe(200);
+ fetch.mockImplementation(async () => new Response("svg", { headers: { "Content-Type": "image/svg+xml" } }));
+ expect((await forwardBackend(new Request("https://frontend.test", { headers }), path)).status).toBe(502);
+});

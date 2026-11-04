@@ -10,6 +10,8 @@ import { ApiError } from "@/lib/api/apiError";
 import { saveDownload } from "@/lib/api/saveDownload";
 import { formatDate } from "@/lib/formatDate";
 import { StructureCard, useMeasurementImages } from "./StructureCard";
+import { metresToMm, mmToMetres } from "./units";
+import { technicalText } from "./technicalText";
 import styles from "./MeasurementPanel.module.css";
 import type { MeasurementAction, MeasurementCommand, MeasurementState } from "./contracts";
 
@@ -45,7 +47,7 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
       if (controller.signal.aborted) return;
       setPending(null); setConfirmation(null);
       resource.update(await load(controller.signal));
-      if (typeof action !== "string" && action.action === "RecordActual") dirtyChanged(action.structureId, false);
+      if (typeof action !== "string" && "structureId" in action) dirtyChanged(`${action.action === "RecordTechnical" ? "technical:" : action.action === "RecordSketch" ? "sketch:" : ""}${action.structureId}`, false);
       if (controller.signal.aborted) return;
       setNotice("Operación guardada."); await onRefresh(controller.signal);
     } catch (failure) {
@@ -70,8 +72,8 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
   const detailRevisions = new Map(data.history.filter(e => e.action === "RecordActual").map(e => [e.structureId, e.revision]));
   const current = data.documents.filter(d => d.isCurrent);
 
-  const labels: Record<string, string> = { Initialize: "Checklist iniciado", Add: "Estructura agregada", Retire: "Estructura retirada", Measure: "Marcada como medida", Unmeasure: "Medición desmarcada", Submit: "Medidas radicadas", RecordActual: "Medidas de obra guardadas" };
-  const messages: Record<string, string> = { MeasurementRevisionConflict: "El checklist cambió en otra sesión. Revisa el estado actualizado antes de continuar.", MeasurementsLocked: "La toma de medidas ya no admite cambios.", MeasurementDocumentsChanged: "Los documentos cambiaron. Revisa los archivos antes de radicar.", MeasurementsIncomplete: "Debe existir al menos una estructura vigente y todas deben estar medidas.", MeasurementRequestConflict: "El reintento no coincide con la operación original." };
+  const labels: Record<string, string> = { Initialize: "Checklist iniciado", Add: "Estructura agregada", Retire: "Estructura retirada", Measure: "Marcada como medida", Unmeasure: "Medición desmarcada", Submit: "Medidas radicadas", RecordTechnical: "Ficha técnica guardada", RecordSketch: "Croquis guardado", RecordActual: "Medidas de obra guardadas" };
+  const messages: Record<string, string> = { MeasurementRevisionConflict: "El checklist cambió en otra sesión. Revisa el estado actualizado antes de continuar.", MeasurementsLocked: "La toma de medidas ya no admite cambios.", MeasurementDocumentsChanged: "Los documentos cambiaron. Revisa los archivos antes de radicar.", MeasurementsIncomplete: "Completa las medidas y detalles técnicos antes de marcar Medido. Para radicar, todas las estructuras vigentes deben estar medidas.", InvalidMeasurementTechnical: "Revisa los campos técnicos y sus unidades; la altura de manija no puede superar el alto real.", InvalidMeasurementSketch: "El croquis excede los límites o su formato no es válido.", MeasurementSketchRateLimit: "Espera dos segundos antes de guardar otra versión del croquis.", MeasurementRequestConflict: "El reintento no coincide con la operación original." };
   return <section className="panel stack" aria-labelledby="measurements-title">
     <h2 id="measurements-title" className="section-title">Toma de medidas</h2>
     <p>Responsable: {user?.subject === data.responsibleSubject ? user.name ?? "Cuenta de Instalación asignada" : "Cuenta de Instalación asignada"} · {data.taskStatus === "Completed" ? "Completada" : data.taskStatus === "Pending" ? "Pendiente" : "En curso"}</p>
@@ -84,17 +86,18 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
       <p>Iniciales: {data.summary.initial} · Vigentes: {data.summary.active} · Medidas: {data.summary.measured} · Pendientes: {data.summary.pending} · Agregadas: {data.summary.added} · Retiradas: {data.summary.retired}</p>
       <label>Avance: {data.summary.progress}% <progress aria-label="Avance de medición" max={100} value={data.summary.progress} /></label>
       <div className={styles.cards}>{data.structures.filter(s => !s.retiredAt).map(s => <StructureCard
-        key={`${s.id}:${s.actualWidth}:${s.actualHeight}:${s.actualSystemText}:${detailRevisions.get(s.id)}`} structure={s} writable={writable} disabled={disabled}
+        key={`${s.id}:${s.actualWidth}:${s.actualHeight}:${s.actualSystemText}:${detailRevisions.get(s.id)}:${JSON.stringify(s.technical)}:${s.sketchVersionId}`} structure={s} projectId={projectId} writable={writable} disabled={disabled}
         saving={busy && pending?.action === "RecordActual" && pending.structureId === s.id}
         image={s.imageCatalogItemId ? drawings.images[s.imageCatalogItemId] : undefined} retryImage={drawings.retry}
+        sketchFeedback={<>{error instanceof ApiError && error.code && messages[error.code] ? <p role="alert">{messages[error.code]}</p> : <ErrorNotice error={error} />}{pending && error && <button type="button" disabled={busy} onClick={() => void run(pending)}>Reintentar guardado de croquis</button>}</>}
         onCommand={command} onRetire={() => setConfirmation({ action: "Retire", structureId: s.id })} onDirty={dirtyChanged}
       />)}</div>
       {dirtyIds.size > 0 && <p role="status">Guarda las tarjetas editadas antes de radicar medidas.</p>}
-      {writable && <form className="stack" onSubmit={e => { e.preventDefault(); if (description.trim() && Number(width) > 0 && Number(height) > 0) command({ action: "Add", description: description.trim(), width: Number(width), height: Number(height) }); }}>
+      {writable && <form className="stack" onSubmit={e => { e.preventDefault(); if (description.trim() && Number(width) > 0 && Number(height) > 0) command({ action: "Add", description: description.trim(), width: mmToMetres(Number(width)), height: mmToMetres(Number(height)) }); }}>
         <h3>Agregar estructura</h3>
         <label>Sistema de la nueva estructura<input className="form-control" required maxLength={2000} value={description} disabled={disabled} onChange={e => setDescription(e.target.value)} /></label>
-        <label>Ancho (m)<input className="form-control" required type="number" min="0" step="any" value={width} disabled={disabled} onChange={e => setWidth(e.target.value)} /></label>
-        <label>Alto (m)<input className="form-control" required type="number" min="0" step="any" value={height} disabled={disabled} onChange={e => setHeight(e.target.value)} /></label>
+        <label>Ancho (mm)<input className="form-control" required type="number" min="0" step="any" value={width} disabled={disabled} onChange={e => setWidth(e.target.value)} /></label>
+        <label>Alto (mm)<input className="form-control" required type="number" min="0" step="any" value={height} disabled={disabled} onChange={e => setHeight(e.target.value)} /></label>
         <button className="button-secondary" disabled={disabled}>Agregar estructura</button>
       </form>}
       <h3>Documentos de medidas</h3>
@@ -112,7 +115,7 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
     {data.structures.some(s => s.retiredAt) && <details><summary>Estructuras retiradas</summary><ul>{data.structures.filter(s => s.retiredAt).map(s => <li key={s.id}>
       {s.itemId ? `Ítem ${s.itemNumber ?? ""} · Unidad ${s.unitOrdinal}/${s.unitCount}` : "Agregada en obra"} · {s.id} · {s.description} {s.location} · Retirada {formatDate(s.retiredAt!)}
     </li>)}</ul></details>}
-    <details><summary>Historial de cambios</summary><ol>{data.history.map(event => <li key={event.id}>{labels[event.action] ?? event.action} {event.structureId?.slice(0, 8)} · {event.actor.name ?? event.actor.email ?? "Cuenta de Instalación"} · {formatDate(event.at)}{event.details && <p>Anterior: {event.details.before.width ?? "—"} × {event.details.before.height ?? "—"} m · {event.details.before.systemText ?? "Sin registrar"}. Guardado: {event.details.after.width} × {event.details.after.height} m · {event.details.after.systemText}</p>}</li>)}</ol></details>
+    <details><summary>Historial de cambios</summary><ol>{data.history.map(event => <li key={event.id}>{labels[event.action] ?? event.action} {event.structureId?.slice(0, 8)} · {event.actor.name ?? event.actor.email ?? "Cuenta de Instalación"} · {formatDate(event.at)}{event.technical && <p>Ficha anterior: {technicalText(event.technical.before)} · Ficha guardada: {technicalText(event.technical.after)}</p>}{event.sketch && <p>Versión anterior: {event.sketch.before ?? "Sin croquis"} · Versión guardada: {event.sketch.after}</p>}{event.details && <p>Anterior: {event.details.before.width == null ? "—" : metresToMm(event.details.before.width)} × {event.details.before.height == null ? "—" : metresToMm(event.details.before.height)} mm · {event.details.before.systemText ?? "Sin registrar"}. Guardado: {event.details.after.width == null ? "—" : metresToMm(event.details.after.width)} × {event.details.after.height == null ? "—" : metresToMm(event.details.after.height)} mm · {event.details.after.systemText}</p>}</li>)}</ol></details>
   </section>;
 }
 

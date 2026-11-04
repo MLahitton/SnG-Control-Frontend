@@ -416,3 +416,24 @@ guardarse las tarjetas editadas. Tras radicar, la captura queda en el snapshot y
 El layout muestra tres tarjetas por fila desde 1200 px, dos desde 760 px y una en pantallas menores,
 con controles táctiles. Las imágenes usan blobs autenticados compartidos por ítem y se revocan
 al desmontar la vista. Las estructuras agregadas o ítems sin imagen muestran su ausencia explícita.
+
+La ficha de Instalación captura manija (mm, sugerencia 1100 sin guardar hasta confirmar), vista,
+apertura batiente y lado de bisagras, y alfajía. Izquierda/derecha describe las bisagras desde
+la vista seleccionada; cambiar la vista no invierte el sentido. Sistema sigue siendo texto libre.
+Los detalles pueden guardarse incompletos; Backend exige completitud al marcar Medido. Los
+checks históricos se conservan y no reciben datos técnicos ficticios.
+
+El editor de croquis usa Pointer Events, lienzo 4:3, lápiz/borrador, deshacer/rehacer, limpieza
+confirmada, guardado WEBP y cancelación sin escritura. Cada unidad tiene versiones independientes;
+los trazos se recuperan del Backend y las vistas previas son blobs autenticados revocados al
+salir. Límite 200 trazos/20000 puntos (2000 por trazo), WEBP 1200 × 900 hasta 512 KB. Los comandos
+RecordTechnical/RecordSketch conservan revisión e idempotencia del checklist; el BFF permite
+solo lecturas de versiones bajo measurements/structures/{id}/sketches/{versionId} y /image.
+Retiradas/radicadas no se editan; el snapshot refiere versiones inmutables. No se implementa Ingeniería.
+
+**Milímetros es la unidad de negocio de todas las longitudes de Steel & Glass.** Toda longitud
+visible/editable en Instalación está en mm. measurements/units.ts centraliza la conversión de
+ancho/alto hacia/desde los contratos heredados en metros (2000 × 2400 mm ↔ 2 × 2,4 m).
+El almacenamiento en metros es compatibilidad técnica, no una regla operativa; manija/alfajía
+se guardan directamente en mm. Superficies m² y valores monetarios conservan sus unidades.
+No hay migración global de unidades ni cambios de contratos en Cotizador, Presupuestos o Comercial.
