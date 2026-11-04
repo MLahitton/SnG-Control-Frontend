@@ -19,9 +19,10 @@ const ready: MeasurementState = {
  structures: [1, 2].map(n => ({ id: `${n}2222222-2222-4222-8222-222222222222`, itemId: id, itemNumber: "V1", unitOrdinal: n, unitCount: 2, description: "Ventana", location: "Sala", width: 1.2, height: 2, note: null, createdAt: date, measuredAt: null, retiredAt: null })),
  documents: [], history: [], submissionId: null, submittedAt: null,
 };
+const completeReady = (): MeasurementState => ({ ...structuredClone(ready), structures: ready.structures.map(s => ({ ...s, actualWidth: 1.2, actualHeight: 2, actualSystemText: "Libre", technicalComplete: true, technical: { handleStatus: "NotApplicable", handleHeightMm: null, viewSide: "Outside", openingType: "NotApplicable", openingDirection: null, openingHand: null, hasAlfajia: false, alfajiaMeasurementMm: null } })) });
 const doc = { id, originalFileName: "medidas.pdf", contentType: "application/pdf", sizeBytes: 3, uploadedAt: date, uploadedBy: { name: "Installer", email: null }, uploadBatchId: id, isCurrent: true, replacedAt: null, replacedByDocumentId: null, inInitialHandoff: false };
 it("keeps independent checks and presents official progress after save and reload", async () => {
- let state = structuredClone(ready);
+ let state = completeReady();
  const fetch = mockBackend((_, init) => { if (init.method === "POST") { const body = JSON.parse(init.body as string); expect(body.expectedRevision).toBe(0); expect(body.action).toBe("Measure"); state = { ...state, revision: 1, structures: state.structures.map(s => s.id === body.structureId ? { ...s, measuredAt: date } : s), summary: { ...state.summary, measured: 1, pending: 1, progress: 50 } }; return new Response(null, { status: 204 }); } return state; });
  const view = renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
  const checks = await screen.findAllByRole("checkbox"); expect(checks).toHaveLength(2);
@@ -38,7 +39,7 @@ it("requires retirement confirmation and cancellation does not write", async () 
 });
 it("retries the same command after unknown transport failure", async () => {
  const bodies: string[] = [];
- mockBackend((_, init) => { if (init.method === "POST") { bodies.push(init.body as string); if (bodies.length === 1) throw new TypeError("network"); return new Response(null, { status: 204 }); } return ready; });
+ mockBackend((_, init) => { if (init.method === "POST") { bodies.push(init.body as string); if (bodies.length === 1) throw new TypeError("network"); return new Response(null, { status: 204 }); } return completeReady(); });
  renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
  fireEvent.click((await screen.findAllByRole("checkbox"))[0]);
  await userEvent.click(await screen.findByRole("button", { name: "Reintentar operación pendiente" }));

@@ -838,3 +838,16 @@ ancho/alto hacia/desde los contratos heredados en metros (2000 × 2400 mm ↔ 2 
 El almacenamiento en metros es compatibilidad técnica, no una regla operativa; manija/alfajía
 se guardan directamente en mm. Superficies m² y valores monetarios conservan sus unidades.
 No hay migración global de unidades ni cambios de contratos en Cotizador, Presupuestos o Comercial.
+
+Medidas, detalles técnicos y croquis mantienen borradores independientes por estructura. Se pueden
+editar en cualquier orden; solo los botones de escritura se serializan mientras hay una petición.
+Guardar una sección no envía ni descarta las otras, y los refrescos/conflictos conservan los
+borradores y la edición posterior al envío. El editor permite «Volver a ficha · conservar borrador»;
+Cancelar croquis descarta únicamente ese borrador. No hay guardado automático ni almacenamiento
+local permanente. Al recargar/cerrar el navegador se advierte si quedan cambios sin guardar.
+Medido muestra los campos obligatorios pendientes y exige los datos persistidos validados por
+Backend; el croquis ausente no lo bloquea. Cualquier borrador pendiente debe guardarse o descartarse
+antes de Medido/radicación. Los checks históricos se conservan; se permite desmarcar sin descartar borradores para corregir
+una ficha incompleta. Retirar con borradores requiere
+confirmación explícita de su descarte. La altura de manija se valida contra el alto real guardado;
+si falta, se indica guardar primero Medidas, sin bloquear la edición de otros campos.

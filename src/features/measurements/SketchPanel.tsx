@@ -4,9 +4,12 @@ import { useApiClient } from "@/features/auth/hooks/useApiClient";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import type { MeasurementAction, SketchRead, Structure } from "./contracts";
 import { SketchEditor } from "./SketchEditor";
+import { useSectionDraft } from "./useSectionDraft";
 import { emptyDrawing } from "./sketch";
 export function SketchPanel({ projectId, structure: s, feedback, disabled, writable, onCommand, onDirty }: { feedback?: ReactNode; projectId: string; structure: Structure; disabled: boolean; writable: boolean; onCommand: (a: MeasurementAction) => void; onDirty: (id: string, dirty: boolean) => void }) {
   const api = useApiClient(); const [editing, setEditing] = useState(false); const [read, setRead] = useState<SketchRead>(); const [url, setUrl] = useState<string>(); const [error, setError] = useState<unknown>(); const [attempt, setAttempt] = useState(0);
+  const draft = useSectionDraft(read?.drawing ?? emptyDrawing(), JSON.stringify, `sketch:${s.id}`, onDirty);
+  const loaded = !s.sketchVersionId || read?.id === s.sketchVersionId;
   useEffect(() => {
     if (!s.sketchVersionId) return; const controller = new AbortController(); let objectUrl: string | undefined;
     const path = `projects/${projectId}/measurements/structures/${s.id}/sketches/${s.sketchVersionId}`;
@@ -20,7 +23,8 @@ export function SketchPanel({ projectId, structure: s, feedback, disabled, writa
     {url && <img src={url} alt="Croquis de Instalación guardado en WEBP" style={{ width: "100%", aspectRatio: "4 / 3", objectFit: "contain" }} /> /* eslint-disable-line @next/next/no-img-element */}
     <ErrorNotice error={error} retry={() => setAttempt(a => a + 1)} />
     <p>{s.sketchVersionId ? read ? `Guardado · revisión ${read.revision}` : "Cargando croquis…" : "Sin croquis guardado"}</p>
-    {writable && <button className="button-secondary" disabled={disabled || (!!s.sketchVersionId && !read)} onClick={() => setEditing(true)}>{s.sketchVersionId ? "Editar croquis" : "Dibujar croquis"}</button>}
-    {editing && <SketchEditor feedback={feedback} drawing={read?.drawing ?? emptyDrawing()} disabled={disabled} viewSide={s.technical?.viewSide} onDirty={() => onDirty(`sketch:${s.id}`, true)} onCancel={() => { setEditing(false); onDirty(`sketch:${s.id}`, false); }} onSave={(drawing, webp) => onCommand({ action: "RecordSketch", structureId: s.id, sketch: { drawing, webp } })} />}
+    {writable && !s.retiredAt && <button className="button-secondary" disabled={!loaded && !draft.dirty} onClick={() => setEditing(true)}>{s.sketchVersionId ? "Editar croquis" : "Dibujar croquis"}</button>}
+    {draft.dirty && <p role="status">Croquis en borrador sin guardar. Puedes continuar con las otras secciones.</p>}
+    {editing && writable && !s.retiredAt && <SketchEditor feedback={feedback} drawing={draft.value} disabled={disabled || !loaded} onDraftChange={draft.setValue} onPause={() => setEditing(false)} viewSide={s.technical?.viewSide} onDirty={() => {}} onCancel={() => { setEditing(false); draft.discard(); }} onSave={(drawing, webp) => onCommand({ action: "RecordSketch", structureId: s.id, sketch: { drawing, webp } })} />}
   </div>;
 }

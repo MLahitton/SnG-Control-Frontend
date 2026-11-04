@@ -27,7 +27,12 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
   const [uploads, setUploads] = useState<DocumentUpload[]>([]);
   const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
   const drawings = useMeasurementImages(projectId, data?.structures ?? []);
-  function dirtyChanged(id: string, dirty: boolean) { setDirtyIds(previous => { const next = new Set(previous); if (dirty) next.add(id); else next.delete(id); return next; }); }
+  const dirtyChanged = useCallback((id: string, dirty: boolean) => { setDirtyIds(previous => { if (previous.has(id) === dirty) return previous; const next = new Set(previous); if (dirty) next.add(id); else next.delete(id); return next; }); }, []);
+  useEffect(() => {
+    if (!dirtyIds.size) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn);
+  }, [dirtyIds.size]);
   const uploadKey = useRef<string | null>(null);
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), [projectId, activeRole]);
@@ -45,15 +50,18 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
         if (!controller.signal.aborted) { setUploads([]); uploadKey.current = null; }
       } else { setPending(action); await api.post<void>(`${path}/commands`, action, { signal: controller.signal }); }
       if (controller.signal.aborted) return;
-      setPending(null); setConfirmation(null);
       resource.update(await load(controller.signal));
-      if (typeof action !== "string" && "structureId" in action) dirtyChanged(`${action.action === "RecordTechnical" ? "technical:" : action.action === "RecordSketch" ? "sketch:" : ""}${action.structureId}`, false);
+      setPending(null); setConfirmation(null);
+      if (typeof action !== "string" && action.action === "Retire") for (const prefix of ["", "technical:", "sketch:"]) dirtyChanged(`${prefix}${action.structureId}`, false);
       if (controller.signal.aborted) return;
       setNotice("Operación guardada."); await onRefresh(controller.signal);
     } catch (failure) {
       if (controller.signal.aborted) return;
       setError(failure);
-      if (failure instanceof ApiError && failure.status >= 400 && failure.status < 500) { setPending(null); setConfirmation(null); setDirtyIds(new Set()); resource.refresh(); }
+      if (failure instanceof ApiError && failure.status >= 400 && failure.status < 500) {
+        setPending(null); setConfirmation(null);
+        try { resource.update(await load(controller.signal)); } catch { /* Keep mounted drafts and the original error if reread fails. */ }
+      }
       // Unknown transport outcome: retry the exact command with the same key and revision.
     } finally { if (!controller.signal.aborted) { operation.current = null; setBusy(false); } }
   }
@@ -69,7 +77,6 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
     finally { if (!controller.signal.aborted) { operation.current = null; setBusy(false); } }
   }
   if (!data) return <><p role="status">Consultando toma de medidas…</p><ErrorNotice error={resource.error} retry={resource.refresh} /></>;
-  const detailRevisions = new Map(data.history.filter(e => e.action === "RecordActual").map(e => [e.structureId, e.revision]));
   const current = data.documents.filter(d => d.isCurrent);
 
   const labels: Record<string, string> = { Initialize: "Checklist iniciado", Add: "Estructura agregada", Retire: "Estructura retirada", Measure: "Marcada como medida", Unmeasure: "Medición desmarcada", Submit: "Medidas radicadas", RecordTechnical: "Ficha técnica guardada", RecordSketch: "Croquis guardado", RecordActual: "Medidas de obra guardadas" };
@@ -86,7 +93,7 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
       <p>Iniciales: {data.summary.initial} · Vigentes: {data.summary.active} · Medidas: {data.summary.measured} · Pendientes: {data.summary.pending} · Agregadas: {data.summary.added} · Retiradas: {data.summary.retired}</p>
       <label>Avance: {data.summary.progress}% <progress aria-label="Avance de medición" max={100} value={data.summary.progress} /></label>
       <div className={styles.cards}>{data.structures.filter(s => !s.retiredAt).map(s => <StructureCard
-        key={`${s.id}:${s.actualWidth}:${s.actualHeight}:${s.actualSystemText}:${detailRevisions.get(s.id)}:${JSON.stringify(s.technical)}:${s.sketchVersionId}`} structure={s} projectId={projectId} writable={writable} disabled={disabled}
+        key={s.id} structure={s} projectId={projectId} writable={writable} disabled={disabled}
         saving={busy && pending?.action === "RecordActual" && pending.structureId === s.id}
         image={s.imageCatalogItemId ? drawings.images[s.imageCatalogItemId] : undefined} retryImage={drawings.retry}
         sketchFeedback={<>{error instanceof ApiError && error.code && messages[error.code] ? <p role="alert">{messages[error.code]}</p> : <ErrorNotice error={error} />}{pending && error && <button type="button" disabled={busy} onClick={() => void run(pending)}>Reintentar guardado de croquis</button>}</>}
@@ -111,7 +118,7 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
       {writable && <button className="button-primary" disabled={disabled || dirtyIds.size > 0 || data.summary.active === 0 || data.summary.pending > 0 || !current.length} onClick={() => setConfirmation({ action: "Submit", documentIds: current.map(d => d.id) })}>Radicar medidas</button>}
       {data.submissionId && <p role="status">Medidas radicadas · {formatDate(data.submittedAt!)} · {data.submissionId}. Checklist y documentos congelados para su consulta por Ingeniería.</p>}
     </>}
-    {confirmation && <MeasurementConfirmation action={confirmation} data={data} onCancel={() => setConfirmation(null)} onConfirm={() => { setConfirmation(null); command(confirmation); }} />}
+    {confirmation && <MeasurementConfirmation hasDrafts={confirmation.action === "Retire" && ["", "technical:", "sketch:"].some(prefix => dirtyIds.has(`${prefix}${confirmation.structureId}`))} action={confirmation} data={data} onCancel={() => setConfirmation(null)} onConfirm={() => { setConfirmation(null); command(confirmation); }} />}
     {data.structures.some(s => s.retiredAt) && <details><summary>Estructuras retiradas</summary><ul>{data.structures.filter(s => s.retiredAt).map(s => <li key={s.id}>
       {s.itemId ? `Ítem ${s.itemNumber ?? ""} · Unidad ${s.unitOrdinal}/${s.unitCount}` : "Agregada en obra"} · {s.id} · {s.description} {s.location} · Retirada {formatDate(s.retiredAt!)}
     </li>)}</ul></details>}
@@ -119,7 +126,7 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
   </section>;
 }
 
-function MeasurementConfirmation({ action, data, onCancel, onConfirm }: { action: MeasurementAction; data: MeasurementState; onCancel: () => void; onConfirm: () => void }) {
+function MeasurementConfirmation({ action, data, hasDrafts, onCancel, onConfirm }: { hasDrafts: boolean; action: MeasurementAction; data: MeasurementState; onCancel: () => void; onConfirm: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null); const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const element = dialog.current!; const previous = document.activeElement;
@@ -131,6 +138,7 @@ function MeasurementConfirmation({ action, data, onCancel, onConfirm }: { action
     <h3 id="measurement-confirmation-title">{action.action === "Retire" ? "Confirmar retiro" : "Confirmar radicación"}</h3>
     {structure && <p>{structure.itemId ? `Ítem ${structure.itemNumber ?? ""} · Unidad ${structure.unitOrdinal}/${structure.unitCount}` : "Agregada en obra"}<br />{structure.id}<br />{structure.description} {structure.location}</p>}
     <p>{action.action === "Retire" ? "La estructura se excluirá del total vigente y conservará su historial. ¿Confirmas el retiro?" : "Se congelarán el checklist y los documentos vigentes y se completará la tarea. ¿Confirmas la radicación?"}</p>
+    {hasDrafts && <p role="alert">Retirar esta estructura descartará sus borradores sin guardar. Cancela para conservarlos y guardarlos primero.</p>}
     <button type="button" className="button-primary" onClick={onConfirm}>Confirmar</button>
     <button ref={cancel} type="button" className="button-secondary" onClick={onCancel}>Cancelar</button>
   </dialog>;
