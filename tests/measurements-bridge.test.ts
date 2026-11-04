@@ -34,3 +34,15 @@ it("allows only authenticated versioned sketch reads and WEBP images", async () 
  fetch.mockImplementation(async () => new Response("svg", { headers: { "Content-Type": "image/svg+xml" } }));
  expect((await forwardBackend(new Request("https://frontend.test", { headers }), path)).status).toBe(502);
 });
+
+it("serves only authenticated scoped report PDFs with no-store and attachment", async () => {
+ const fetch = vi.fn(async () => new Response("%PDF", { headers: { "Content-Type": "application/pdf" } })); vi.stubGlobal("fetch", fetch);
+ const path = ["projects", id, "measurements", "submissions", id, "report"];
+ const response = await forwardBackend(new Request("https://frontend.test", { headers }), path);
+ expect(response.status).toBe(200); expect(response.headers.get("Content-Type")).toBe("application/pdf"); expect(response.headers.get("Content-Disposition")).toContain("attachment"); expect(response.headers.get("Cache-Control")).toBe("no-store");
+ expect((await forwardBackend(new Request("https://frontend.test", { method: "POST", headers }), path)).status).toBe(405);
+ expect((await forwardBackend(new Request("https://frontend.test", { headers }), [...path.slice(0, 4), "..", "report"])).status).toBe(405);
+ expect((await forwardBackend(new Request("https://frontend.test"), path)).status).toBe(401);
+ fetch.mockImplementation(async () => new Response("html", { headers: { "Content-Type": "text/html" } }));
+ expect((await forwardBackend(new Request("https://frontend.test", { headers }), path)).status).toBe(502);
+});

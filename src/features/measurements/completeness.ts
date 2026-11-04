@@ -7,6 +7,8 @@ export function technicalKey(t: TechnicalDetails) {
 }
 export function missingMeasurementFields(s: Structure): string[] {
  const missing: string[] = [], t = s.technical;
+ if (!s.measurementType) missing.push("Tipo de medida");
+ if (!s.actualLocation?.trim()) missing.push("Ubicación real");
  if (!(s.actualWidth != null && s.actualWidth > 0)) missing.push("Ancho real");
  if (!(s.actualHeight != null && s.actualHeight > 0)) missing.push("Alto real");
  if (!s.actualSystemText?.trim()) missing.push("Sistema en obra");
@@ -18,5 +20,13 @@ export function missingMeasurementFields(s: Structure): string[] {
  if (t?.openingType === "HingedDoor" && !t.openingHand) missing.push("Lado de bisagras");
  if (t?.hasAlfajia == null) missing.push("Presencia o ausencia de alfajía");
  else if (t.hasAlfajia && !(t.alfajiaMeasurementMm != null && t.alfajiaMeasurementMm > 0 && t.alfajiaMeasurementMm <= 10000)) missing.push("Medida de alfajía válida (mm)");
+ if (!s.comparisonCurrent) missing.push("Revisión explícita de comparabilidad dimensional");
+ if (s.comparisonStatus === "OverThreshold" && !s.modification) missing.push("Modificación formal y croquis asociado");
+ if (s.modification && !s.modificationComplete) {
+  if (!s.modification.reason?.trim()) missing.push("Motivo de modificación");
+  if (!s.modification.description?.trim()) missing.push("Descripción de modificación");
+  if (!s.modification.sketchVersionId) missing.push("Croquis asociado a la modificación");
+  missing.push("Confirmar modificación sobre la ficha vigente");
+ }
  return missing;
 }

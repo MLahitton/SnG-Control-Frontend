@@ -19,18 +19,18 @@ const ready: MeasurementState = {
  structures: [1, 2].map(n => ({ id: `${n}2222222-2222-4222-8222-222222222222`, itemId: id, itemNumber: "V1", unitOrdinal: n, unitCount: 2, description: "Ventana", location: "Sala", width: 1.2, height: 2, note: null, createdAt: date, measuredAt: null, retiredAt: null })),
  documents: [], history: [], submissionId: null, submittedAt: null,
 };
-const completeReady = (): MeasurementState => ({ ...structuredClone(ready), structures: ready.structures.map(s => ({ ...s, actualWidth: 1.2, actualHeight: 2, actualSystemText: "Libre", technicalComplete: true, technical: { handleStatus: "NotApplicable", handleHeightMm: null, viewSide: "Outside", openingType: "NotApplicable", openingDirection: null, openingHand: null, hasAlfajia: false, alfajiaMeasurementMm: null } })) });
+const completeReady = (): MeasurementState => ({ ...structuredClone(ready), structures: ready.structures.map(s => ({ ...s, actualWidth: 1.2, actualHeight: 2, actualSystemText: "Libre", comparisonCurrent: true, measurementType: "Agreed", actualLocation: "Room", technicalComplete: true, technical: { handleStatus: "NotApplicable", handleHeightMm: null, viewSide: "Outside", openingType: "NotApplicable", openingDirection: null, openingHand: null, hasAlfajia: false, alfajiaMeasurementMm: null } })) });
 const doc = { id, originalFileName: "medidas.pdf", contentType: "application/pdf", sizeBytes: 3, uploadedAt: date, uploadedBy: { name: "Installer", email: null }, uploadBatchId: id, isCurrent: true, replacedAt: null, replacedByDocumentId: null, inInitialHandoff: false };
 it("keeps independent checks and presents official progress after save and reload", async () => {
  let state = completeReady();
  const fetch = mockBackend((_, init) => { if (init.method === "POST") { const body = JSON.parse(init.body as string); expect(body.expectedRevision).toBe(0); expect(body.action).toBe("Measure"); state = { ...state, revision: 1, structures: state.structures.map(s => s.id === body.structureId ? { ...s, measuredAt: date } : s), summary: { ...state.summary, measured: 1, pending: 1, progress: 50 } }; return new Response(null, { status: 204 }); } return state; });
  const view = renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
- const checks = await screen.findAllByRole("checkbox"); expect(checks).toHaveLength(2);
+ const checks = await screen.findAllByRole("checkbox", { name: /^Medido / }); expect(checks).toHaveLength(2);
  fireEvent.click(checks[0]); fireEvent.click(checks[0]);
- await screen.findByText(/Avance: 50%/); expect(screen.getAllByRole("checkbox")[0]).toBeChecked(); expect(screen.getAllByRole("checkbox")[1]).not.toBeChecked();
+ await screen.findByText(/Avance: 50%/); expect(screen.getAllByRole("checkbox", { name: /^Medido / })[0]).toBeChecked(); expect(screen.getAllByRole("checkbox", { name: /^Medido / })[1]).not.toBeChecked();
  expect(fetch.mock.calls.filter(([, init]) => init.method === "POST")).toHaveLength(1);
  view.unmount(); renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
- expect((await screen.findAllByRole("checkbox"))[0]).toBeChecked();
+ expect((await screen.findAllByRole("checkbox", { name: /^Medido / }))[0]).toBeChecked();
 });
 it("requires retirement confirmation and cancellation does not write", async () => {
  const fetch = mockBackend(() => ready); renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
@@ -41,13 +41,13 @@ it("retries the same command after unknown transport failure", async () => {
  const bodies: string[] = [];
  mockBackend((_, init) => { if (init.method === "POST") { bodies.push(init.body as string); if (bodies.length === 1) throw new TypeError("network"); return new Response(null, { status: 204 }); } return completeReady(); });
  renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
- fireEvent.click((await screen.findAllByRole("checkbox"))[0]);
+ fireEvent.click((await screen.findAllByRole("checkbox", { name: /^Medido / }))[0]);
  await userEvent.click(await screen.findByRole("button", { name: "Reintentar operación pendiente" }));
  await waitFor(() => expect(bodies).toHaveLength(2)); expect(bodies[0]).toBe(bodies[1]);
 });
 it.each(["Management", "Accounting", "CommercialAdvisor"] as const)("denies UI writes for %s even with the same subject and server flag", async role => {
  mockBackend(() => ready); renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, { ...user, roles: [role], isManagement: role === "Management" });
- for (const check of await screen.findAllByRole("checkbox")) expect(check).toBeDisabled();
+ for (const check of await screen.findAllByRole("checkbox", { name: /^Medido / })) expect(check).toBeDisabled();
  expect(screen.queryByRole("button", { name: "Agregar estructura" })).not.toBeInTheDocument();
 });
 it("confirms exact documents once and freezes the final state", async () => {
@@ -75,7 +75,7 @@ it("mounts one measurement checklist in the Installation project workspace", asy
  });
  renderOperational(<ProjectDetailPage id={id} />, installer);
  await screen.findByRole("heading", { name: "Toma de medidas", level: 2 });
- expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+ expect(screen.getAllByRole("checkbox", { name: /^Medido / })).toHaveLength(2);
  expect(screen.getAllByRole("heading", { name: "Toma de medidas", level: 2 })).toHaveLength(1);
 });
 
@@ -109,12 +109,12 @@ it("retires only the confirmed unit, recovers server counts on reopen and retain
  await userEvent.click((await screen.findAllByRole("button", { name: /Retirar estructura/ }))[1]);
  const confirm = screen.getByRole("button", { name: "Confirmar" }); fireEvent.click(confirm); fireEvent.click(confirm);
  await screen.findByText(/Vigentes: 1/);
- expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+ expect(screen.getAllByRole("checkbox", { name: /^Medido / })).toHaveLength(1);
  expect(screen.queryByRole("button", { name: `Retirar estructura ${target.id.slice(0, 8)}` })).not.toBeInTheDocument();
  expect(fetch.mock.calls.filter(([, init]) => init.method === "POST")).toHaveLength(1);
  view.unmount(); renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
  await screen.findByText(/Vigentes: 1/);
- expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+ expect(screen.getAllByRole("checkbox", { name: /^Medido / })).toHaveLength(1);
  await userEvent.click(screen.getByText("Estructuras retiradas")); expect(screen.getByText(new RegExp(target.id))).toBeVisible();
  await userEvent.click(screen.getByText("Historial de cambios")); expect(screen.getByText(/Estructura retirada.*Installer/)).toBeVisible();
 });
@@ -131,7 +131,7 @@ it("saves actual dimensions and free system text per unit without changing quota
  const fetch = mockBackend((_, init) => {
    if (init.method === "POST") {
      const body = JSON.parse(init.body as string);
-     expect(body).toEqual({ action: "RecordActual", structureId: target.id, actualWidth: 1.2345, actualHeight: 2.3456, actualSystemText: "Sistema libre en obra", requestKey: expect.any(String), expectedRevision: 0 });
+     expect(body).toEqual({ action: "RecordActual", structureId: target.id, actualWidth: 1.2345, actualHeight: 2.3456, actualSystemText: "Sistema libre en obra", measurementType: null, actualLocation: null, installationObservations: null, requestKey: expect.any(String), expectedRevision: 0 });
      state = { ...state, revision: 1, structures: state.structures.map(s => s.id === target.id ? { ...s, actualWidth: body.actualWidth, actualHeight: body.actualHeight, actualSystemText: body.actualSystemText } : s) };
      return new Response(null, { status: 204 });
    }

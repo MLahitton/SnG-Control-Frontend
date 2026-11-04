@@ -7,7 +7,7 @@ import { SketchPanel } from "@/features/measurements/SketchPanel";
 import { renderOperational, mockBackend } from "./operationalFixtures";
 import { user } from "./fixtures";
 import type { Structure } from "@/features/measurements/contracts";
-const ctx = { fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), fillStyle: "", strokeStyle: "", lineWidth: 0, lineCap: "", lineJoin: "" };
+const ctx = { measureText: vi.fn(() => ({ width: 180 })), fillText: vi.fn(), fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), fillStyle: "", strokeStyle: "", lineWidth: 0, lineCap: "", lineJoin: "" };
 beforeEach(() => {
  Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value() { this.setAttribute("open", ""); } });
  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => ctx as unknown as CanvasRenderingContext2D);
@@ -62,4 +62,22 @@ it("reloads persisted per-unit strokes and WEBP; read-only state has no editor",
 it("shows save errors and the exact-command retry inside the modal", async () => {
  const retry = vi.fn(); render(<SketchEditor drawing={emptyDrawing()} disabled feedback={<><p role="alert">Guardado incierto</p><button onClick={retry}>Reintentar guardado de croquis</button></>} onSave={vi.fn()} onCancel={vi.fn()} onDirty={vi.fn()} />);
  expect(screen.getByRole("alert")).toHaveTextContent("Guardado incierto"); await userEvent.click(screen.getByText("Reintentar guardado de croquis")); expect(retry).toHaveBeenCalledOnce(); expect(screen.getByText("Cancelar croquis")).toBeDisabled();
+});
+
+it.each(["mouse", "touch", "pen"])("creates, edits, moves and deletes text with %s and undo/redo", async kind => {
+ const save = vi.fn(); render(<SketchEditor drawing={emptyDrawing()} disabled={false} onSave={save} onCancel={vi.fn()} onDirty={vi.fn()} />);
+ const canvas = screen.getByLabelText("Lienzo de croquis para mouse, dedo o lápiz");
+ await userEvent.click(screen.getByText("Texto")); pointer(canvas, "pointerdown", kind, 70, 65);
+ await userEvent.type(screen.getByLabelText("Contenido del texto"), "2000 mm"); await userEvent.click(screen.getByText("Confirmar texto"));
+ const id = (screen.getByLabelText("Anotación") as HTMLSelectElement).options[1].value;
+ await userEvent.selectOptions(screen.getByLabelText("Anotación"), id);
+ fireEvent.change(screen.getByLabelText("Contenido del texto"), { target: { value: "2400 mm" } });
+ pointer(canvas, "pointerdown", kind, 310, 245); await userEvent.click(screen.getByText("Confirmar texto"));
+ await userEvent.click(screen.getByText("Guardar croquis")); await waitFor(() => expect(save).toHaveBeenCalledOnce());
+ expect(save.mock.calls[0][0]).toMatchObject({ version: 2, annotations: [{ id, content: "2400 mm", x: .5, y: .5, size: 24, color: "#111111", order: 0 }] });
+ expect(ctx.fillText).toHaveBeenCalledWith("2400 mm", 600, 450, 1200);
+ await userEvent.selectOptions(screen.getByLabelText("Anotación"), id); await userEvent.click(screen.getByText("Eliminar texto"));
+ expect(screen.queryByLabelText("Anotación")).not.toBeInTheDocument();
+ await userEvent.click(screen.getByText("Deshacer")); expect(screen.getByRole("option", { name: "2400 mm" })).toBeInTheDocument();
+ await userEvent.click(screen.getByText("Rehacer")); expect(screen.queryByLabelText("Anotación")).not.toBeInTheDocument();
 });

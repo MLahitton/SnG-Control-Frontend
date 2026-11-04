@@ -846,8 +846,33 @@ borradores y la edición posterior al envío. El editor permite «Volver a ficha
 Cancelar croquis descarta únicamente ese borrador. No hay guardado automático ni almacenamiento
 local permanente. Al recargar/cerrar el navegador se advierte si quedan cambios sin guardar.
 Medido muestra los campos obligatorios pendientes y exige los datos persistidos validados por
-Backend; el croquis ausente no lo bloquea. Cualquier borrador pendiente debe guardarse o descartarse
+Backend; el croquis ausente no lo bloquea si no existe modificación. Cualquier borrador pendiente debe guardarse o descartarse
 antes de Medido/radicación. Los checks históricos se conservan; se permite desmarcar sin descartar borradores para corregir
 una ficha incompleta. Retirar con borradores requiere
 confirmación explícita de su descarte. La altura de manija se valida contra el alto real guardado;
 si falta, se indica guardar primero Medidas, sin bloquear la edición de otros campos.
+
+
+La ficha incluye tipo del par de medidas (acordada/producción/vano), ubicación real y observaciones
+opcionales, separados de los valores cotizados. Alfajía permite 114, 160 u Otro; No limpia el valor.
+Las estructuras retiradas muestran su responsable y admiten reintegración confirmada antes de
+radicar, conservando ID/datos/orden y requiriendo confirmar nuevamente Medido.
+
+Revisar comparación registra una resolución motivada de la Instalación asignada sobre dimensiones
+y tipo persistidos. La referencia comercial no se presume equivalente. Solo una resolución
+Comparable calcula diferencias absolutas en mm y exige modificación cuando alguna es >100 mm.
+NotComparable sigue visible como comparación pendiente, con revisión registrada; no significa
+Sin modificación. Cambios en dimensiones/tipo requieren volver a revisar.
+
+Modificar estructura guarda una versión auditada con tipo, motivo, descripción y selección explícita
+del croquis que documenta el cambio. Se permiten borradores, pero Medido requiere la modificación
+completa vinculada a la ficha vigente. Las secciones mantienen borradores independientes. El editor
+Texto permite insertar, seleccionar, editar, mover mediante nueva posición, eliminar y deshacer/
+rehacer anotaciones; se guardan con coordenadas normalizadas en Drawing v2 y WEBP. V1 sigue legible.
+
+La radicación ofrece Descargar reporte PDF de Instalación si existe Snapshot.Report. La descarga
+usa GET projects/{id}/measurements/submissions/{submissionId}/report, el BFF cerrado, rol activo,
+no-store y attachment. Backend genera y conserva el PDF con el snapshot oficial; no hay captura
+HTML ni generación de reportes en el navegador. Expedientes históricos sin reporte no se reconstruyen.
+No se crean tareas de Ingeniería. Las migraciones de Backend requieren despliegue coordinado y no
+se aplican desde Frontend.

@@ -4,7 +4,7 @@ export function isBackendPath(segments: string[]): boolean {
   if (segments[0] === "projects" && segments[2] === "measurements") {
     return /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(segments[1]) &&
       (segments.length === 3 || (segments.length === 4 && ["initialize", "commands"].includes(segments[3])) ||
-       (segments.length === 5 && segments[3] === "documents" && segments[4] === "batch") || isMeasurementSketchPath(segments));
+       (segments.length === 5 && segments[3] === "documents" && segments[4] === "batch") || isMeasurementSketchPath(segments) || isMeasurementReportPath(segments));
   }
   if (segments[0] === "projects" && segments[2] === "deposit-verifications") {
     const guid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
@@ -65,4 +65,9 @@ export function isQuotationImagePath(segments: string[]): boolean {
 export function isMeasurementSketchPath(segments: string[]): boolean {
  const guid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
  return (segments.length === 7 || (segments.length === 8 && segments[7] === "image")) && segments[0] === "projects" && guid.test(segments[1]) && segments[2] === "measurements" && segments[3] === "structures" && guid.test(segments[4]) && segments[5] === "sketches" && guid.test(segments[6]);
+}
+
+export function isMeasurementReportPath(segments: string[]): boolean {
+ const guid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+ return segments.length === 6 && segments[0] === "projects" && guid.test(segments[1]) && segments[2] === "measurements" && segments[3] === "submissions" && guid.test(segments[4]) && segments[5] === "report";
 }

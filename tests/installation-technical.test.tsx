@@ -37,3 +37,24 @@ it("rejects a handle taller than the actual structure and keeps read-only fields
  rerender(<TechnicalFields structure={structure} writable={false} disabled={false} onCommand={vi.fn()} onDirty={vi.fn()} />);
  expect(screen.getByLabelText("Manija")).toBeDisabled(); expect(screen.queryByText("Guardar detalles técnicos")).not.toBeInTheDocument();
 });
+
+it("preserves historical custom sill and saves presets, Other and No", async () => {
+ const save = vi.fn(); render(<TechnicalFields structure={{ ...structure, technical: { handleStatus: null, handleHeightMm: null, viewSide: null, openingType: null, openingDirection: null, openingHand: null, hasAlfajia: true, alfajiaMeasurementMm: 123 } }} writable disabled={false} onCommand={save} onDirty={vi.fn()} />);
+ await userEvent.click(screen.getByText("Detalles técnicos"));
+ expect(screen.getByLabelText("Medida de alfajía")).toHaveValue("Other"); expect(screen.getByLabelText("Medida de alfajía (mm)")).toHaveValue(123);
+ for (const n of [114, 160]) {
+  await userEvent.selectOptions(screen.getByLabelText("Medida de alfajía"), String(n));
+  expect(screen.queryByLabelText("Medida de alfajía (mm)")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByText("Guardar detalles técnicos"));
+  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ technical: expect.objectContaining({ alfajiaMeasurementMm: n }) }));
+ }
+ await userEvent.selectOptions(screen.getByLabelText("Medida de alfajía"), "Other");
+ fireEvent.change(screen.getByLabelText("Medida de alfajía (mm)"), { target: { value: "10001" } });
+ expect(screen.getByText("Guardar detalles técnicos")).toBeDisabled();
+ fireEvent.change(screen.getByLabelText("Medida de alfajía (mm)"), { target: { value: "130" } });
+ await userEvent.click(screen.getByText("Guardar detalles técnicos"));
+ expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ technical: expect.objectContaining({ alfajiaMeasurementMm: 130 }) }));
+ await userEvent.selectOptions(screen.getByLabelText("Alfajía"), "false");
+ await userEvent.click(screen.getByText("Guardar detalles técnicos"));
+ expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ technical: expect.objectContaining({ hasAlfajia: false, alfajiaMeasurementMm: null }) }));
+});

@@ -10,7 +10,7 @@ const id = "11111111-1111-4111-8111-111111111111", unit = "22222222-2222-4222-82
 const date = "2026-11-04T12:00:00Z";
 const installer = { ...user, roles: ["Installation" as const], isManagement: false };
 const complete: TechnicalDetails = { handleStatus: "NotApplicable", handleHeightMm: null, viewSide: "Outside", openingType: "NotApplicable", openingDirection: null, openingHand: null, hasAlfajia: false, alfajiaMeasurementMm: null };
-function initial(): MeasurementState { return { projectId: id, taskId: id, taskStatus: "InProgress", responsibleSubject: user.subject, canModify: true, checklistId: id, revision: 0, summary: { initial: 1, added: 0, retired: 0, active: 1, measured: 0, pending: 1, progress: 0 }, structures: [{ id: unit, itemId: id, itemNumber: "V1", unitOrdinal: 1, unitCount: 1, description: "Original", location: null, width: 1, height: 2.4, actualWidth: 1, actualHeight: 2.4, actualSystemText: "Libre", technical: complete, technicalComplete: true, createdAt: date, measuredAt: null, retiredAt: null }], documents: [], history: [], submissionId: null, submittedAt: null }; }
+function initial(): MeasurementState { return { projectId: id, taskId: id, taskStatus: "InProgress", responsibleSubject: user.subject, canModify: true, checklistId: id, revision: 0, summary: { initial: 1, added: 0, retired: 0, active: 1, measured: 0, pending: 1, progress: 0 }, structures: [{ id: unit, itemId: id, itemNumber: "V1", unitOrdinal: 1, unitCount: 1, description: "Original", location: null, width: 1, height: 2.4, actualWidth: 1, actualHeight: 2.4, actualSystemText: "Libre", technical: complete, comparisonCurrent: true, measurementType: "Agreed", actualLocation: "Room", technicalComplete: true, createdAt: date, measuredAt: null, retiredAt: null }], documents: [], history: [], submissionId: null, submittedAt: null }; }
 const ctx = { fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), fillStyle: "", strokeStyle: "", lineWidth: 0, lineCap: "", lineJoin: "" };
 beforeEach(() => {
  Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value() { this.setAttribute("open", ""); } });
@@ -29,7 +29,7 @@ function backend() {
   if (init.method === "POST") {
    const command = JSON.parse(init.body as string) as MeasurementCommand; expect(command.expectedRevision).toBe(state.revision); commands.push(command);
    state = { ...state, revision: state.revision + 1, structures: state.structures.map(s => {
-    if (command.action === "RecordActual") return { ...s, actualWidth: command.actualWidth, actualHeight: command.actualHeight, actualSystemText: command.actualSystemText };
+    if (command.action === "RecordActual") return { ...s, actualWidth: command.actualWidth, actualHeight: command.actualHeight, actualSystemText: command.actualSystemText, measurementType: command.measurementType, actualLocation: command.actualLocation, installationObservations: command.installationObservations };
     if (command.action === "RecordTechnical") return { ...s, technical: command.technical };
     if (command.action === "RecordSketch") { drawing = command.sketch.drawing; return { ...s, sketchVersionId: version }; }
     if (command.action === "Measure") return { ...s, measuredAt: date };
@@ -194,4 +194,40 @@ it("explains when persisted handle details must be saved before reducing actual 
  expect(screen.getByText(/Guarda primero la corrección de manija/)).toBeInTheDocument(); expect(screen.getByText("Guardar medidas")).toBeDisabled();
  await userEvent.click(screen.getByText("Detalles técnicos")); expect(screen.getByLabelText(/Altura de manija/)).toBeEnabled();
  fireEvent.change(screen.getByLabelText(/Altura de manija/), { target: { value: "900" } }); expect(screen.getByText("Guardar detalles técnicos")).toBeEnabled(); expect(height).toBeEnabled();
+});
+
+it("persists measure type, separate site location and optional observations across reload", async () => {
+ const b = backend(); const view = renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ await screen.findByLabelText(`Ancho en obra ${unit}`);
+ await userEvent.selectOptions(screen.getByLabelText("Tipo de medida"), "Opening");
+ fireEvent.change(screen.getByLabelText("Ubicación real"), { target: { value: "Room north" } });
+ fireEvent.change(screen.getByLabelText("Observaciones de Instalación"), { target: { value: "Verify access" } });
+ await userEvent.click(screen.getByText("Guardar medidas")); await screen.findByText("Operación guardada.");
+ expect(b.read().structures[0]).toMatchObject({ measurementType: "Opening", actualLocation: "Room north", installationObservations: "Verify access", width: 1, location: null });
+ view.unmount(); renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ expect(await screen.findByLabelText("Ubicación real")).toHaveValue("Room north"); expect(screen.getByLabelText("Tipo de medida")).toHaveValue("Opening"); expect(screen.getByLabelText("Observaciones de Instalación")).toHaveValue("Verify access");
+ fireEvent.change(screen.getByLabelText("Observaciones de Instalación"), { target: { value: "" } });
+ await userEvent.click(screen.getByText("Guardar medidas")); await screen.findByText("Operación guardada."); expect(b.read().structures[0].installationObservations).toBeNull();
+});
+it("records explicit comparison and formal modification without silently selecting an old sketch", async () => {
+ let state = initial(); state.structures[0] = { ...state.structures[0], comparisonCurrent: false, comparisonStatus: "PendingReview", sketchVersionId: version };
+ const commands: MeasurementCommand[] = [];
+ mockBackend((path, init) => {
+  if (init.method === "POST") { const c = JSON.parse(init.body as string) as MeasurementCommand; commands.push(c); state = { ...state, revision: state.revision + 1 }; return new Response(null, { status: 204 }); }
+  if (path.endsWith("/image")) return new Response(new Blob(["webp"], { type: "image/webp" }), { headers: { "Content-Type": "image/webp" } });
+  if (path.includes("/sketches/")) return { id: version, structureId: unit, revision: 0, drawing: { version: 1, width: 1200, height: 900, strokes: [] } };
+  return state;
+ });
+ renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ expect(await screen.findByLabelText(`Medido ${unit}`)).toBeDisabled();
+ await userEvent.click(screen.getByText("Revisar comparación")); await userEvent.type(screen.getByLabelText("Motivo de revisión"), "Reference confirmed");
+ await userEvent.selectOptions(screen.getByLabelText("Referencia dimensional"), "Comparable");
+ await userEvent.click(screen.getByText("Modificar estructura")); await userEvent.type(screen.getByLabelText("Motivo de modificación"), "System change");
+ expect(screen.getByLabelText(/Confirmo que el croquis/)).not.toBeChecked();
+ await userEvent.click(screen.getByText("Confirmar revisión dimensional")); await screen.findByText("Operación guardada.");
+ expect(commands[0]).toMatchObject({ action: "ResolveComparison", comparison: { resolution: "Comparable", reason: "Reference confirmed" } });
+ expect(screen.getByLabelText("Motivo de modificación")).toHaveValue("System change");
+ await userEvent.type(screen.getByLabelText("Descripción de modificación"), "New site configuration"); await userEvent.click(screen.getByLabelText(/Confirmo que el croquis/));
+ await userEvent.click(screen.getByText("Guardar modificación")); await waitFor(() => expect(commands).toHaveLength(2));
+ expect(commands[1]).toMatchObject({ action: "RecordModification", expectedRevision: 1, modification: { reason: "System change", description: "New site configuration", sketchVersionId: version } });
 });

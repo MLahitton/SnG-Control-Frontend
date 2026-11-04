@@ -1,7 +1,7 @@
 import { ACTIVE_ROLE_HEADER, isSystemRole } from "@/features/auth/types/auth";
 import "server-only";
 import { getApiBaseUrl } from "@/lib/config/server-env";
-import { isMeasurementSketchPath, isQuotationImagePath, isBackendPath, isBudgetQuotationPath, isCommercialQuotationPath, isSendToCommercialPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
+import { isMeasurementReportPath, isMeasurementSketchPath, isQuotationImagePath, isBackendPath, isBudgetQuotationPath, isCommercialQuotationPath, isSendToCommercialPath, isDocumentFilePath, isDocumentRemovalPath, isLargeDocumentTransfer } from "./backendPath";
 import { budgetQuotationProblem } from "./budgetQuotationProblem";
 import { safeProblem } from "./apiError";
 import { downloadFilename } from "./contentDisposition";
@@ -56,7 +56,7 @@ async function hasPayload(body: ReadableStream<Uint8Array>, signal: AbortSignal)
 }
 
 export async function forwardBackend(request: Request, segments: string[]): Promise<Response> {
-  if (segments[2] === "measurements" && request.method !== (segments.length === 3 || isMeasurementSketchPath(segments) ? "GET" : "POST")) return problem(405);
+  if (segments[2] === "measurements" && request.method !== (segments.length === 3 || isMeasurementSketchPath(segments) || isMeasurementReportPath(segments) ? "GET" : "POST")) return problem(405);
   if (segments[2] === "deposit-verifications" && !(segments.length === 3 ? ["GET", "POST"] : ["POST"]).includes(request.method)) return problem(405);
   if (segments[2] === "client-quotation-decision" && !["GET", "POST"].includes(request.method)) return problem(405, undefined, new Headers({ Allow: "GET, POST" }));
   if (segments[2] === "initial-deposit" && !["GET", "POST"].includes(request.method)) return problem(405);
@@ -133,6 +133,12 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
     const contentType = response.headers.get("Content-Type") ?? "";
     const mediaType = contentType.split(";")[0].trim().toLowerCase();
     const documentFile = request.method === "GET" && isDocumentFilePath(segments);
+    if (isMeasurementReportPath(segments)) {
+      if (mediaType !== "application/pdf") return problem(502);
+      responseHeaders.set("Content-Type", "application/pdf"); responseHeaders.set("X-Content-Type-Options", "nosniff");
+      responseHeaders.set("Content-Disposition", `attachment; filename="toma-medidas-${segments[4]}.pdf"`);
+      return new Response(response.body, { status: response.status, headers: responseHeaders });
+    }
     if (isMeasurementSketchPath(segments) && segments[7] === "image") {
       if (mediaType !== "image/webp") return problem(502);
       responseHeaders.set("Content-Type", "image/webp"); responseHeaders.set("X-Content-Type-Options", "nosniff");

@@ -3,10 +3,11 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
 import { quotationViewService } from "@/features/quotationViews/service";
 import { formatDate } from "@/lib/formatDate";
-import type { MeasurementAction, Structure } from "./contracts";
+import type { MeasurementAction, MeasurementType, Structure } from "./contracts";
 import { metresToMm, mmToMetres } from "./units";
 import { useSectionDraft } from "./useSectionDraft";
 import { missingMeasurementFields } from "./completeness";
+import { AssessmentFields } from "./AssessmentFields";
 import { TechnicalFields } from "./TechnicalFields";
 import { SketchPanel } from "./SketchPanel";
 import styles from "./MeasurementPanel.module.css";
@@ -34,22 +35,23 @@ export function useMeasurementImages(projectId: string, structures: Structure[])
   return { images: result?.key === key ? result.images : {}, retry: () => setAttempt(value => value + 1) };
 }
 
-type ActualDraft = { width: string; height: string; system: string };
-const actualKey = (value: ActualDraft) => JSON.stringify({ width: value.width.trim() === "" ? "" : Number(value.width), height: value.height.trim() === "" ? "" : Number(value.height), system: value.system.trim() });
+type ActualDraft = { width: string; height: string; system: string; measurementType: MeasurementType | ""; location: string; observations: string };
+const actualKey = (value: ActualDraft) => JSON.stringify({ width: value.width.trim() === "" ? "" : Number(value.width), height: value.height.trim() === "" ? "" : Number(value.height), system: value.system.trim(), measurementType: value.measurementType, location: value.location.trim(), observations: value.observations.trim() });
 export function StructureCard({ structure: s, projectId, sketchFeedback, writable, disabled, saving, image, retryImage, onCommand, onRetire, onDirty }: {
   sketchFeedback?: ReactNode; projectId: string; structure: Structure; writable: boolean; disabled: boolean; saving: boolean; image?: ImageState; retryImage: () => void;
   onCommand: (action: MeasurementAction) => void; onRetire: () => void; onDirty: (id: string, dirty: boolean) => void;
 }) {
+  const [assessmentDirty, setAssessmentDirty] = useState<Record<string, boolean>>({});
   const [technicalDirty, setTechnicalDirty] = useState(false);
   const [sketchDirty, setSketchDirty] = useState(false);
   const sectionChanged = useCallback((id: string, changed: boolean) => {
-    if (id.startsWith("technical:")) setTechnicalDirty(changed); else setSketchDirty(changed);
+    if (id.startsWith("technical:")) setTechnicalDirty(changed); else if (id.startsWith("sketch:")) setSketchDirty(changed); else setAssessmentDirty(previous => ({ ...previous, [id]: changed }));
     onDirty(id, changed);
   }, [onDirty]);
-  const actual = useSectionDraft({ width: s.actualWidth == null ? "" : metresToMm(s.actualWidth).toString(), height: s.actualHeight == null ? "" : metresToMm(s.actualHeight).toString(), system: s.actualSystemText ?? "" }, actualKey, s.id, onDirty);
-  const { width, height, system } = actual.value;
+  const actual = useSectionDraft({ width: s.actualWidth == null ? "" : metresToMm(s.actualWidth).toString(), height: s.actualHeight == null ? "" : metresToMm(s.actualHeight).toString(), system: s.actualSystemText ?? "", measurementType: s.measurementType ?? "", location: s.actualLocation ?? "", observations: s.installationObservations ?? "" }, actualKey, s.id, onDirty);
+  const { width, height, system, measurementType, location, observations } = actual.value;
   const dirty = actual.dirty;
-  const hasDrafts = dirty || technicalDirty || sketchDirty;
+  const hasDrafts = dirty || technicalDirty || sketchDirty || Object.values(assessmentDirty).some(Boolean);
   const canEdit = writable && !s.retiredAt;
   const missing = missingMeasurementFields(s);
   function change(field: keyof ActualDraft, value: string) { actual.setValue({ ...actual.value, [field]: value }); }
@@ -59,7 +61,7 @@ export function StructureCard({ structure: s, projectId, sketchFeedback, writabl
     <strong>{s.itemId ? `Ítem ${s.itemNumber ?? ""} · ${s.unitOrdinal}/${s.unitCount}` : "Agregada en obra"} · {s.id.slice(0, 8)}</strong>
     {s.location && <p>{s.location}</p>}
     <p className="metadata">{s.itemId ? "Cotizado" : "Registro inicial"}: {s.description || "Sin sistema"} · {metresToMm(s.width)} × {metresToMm(s.height)} mm</p>
-    <form className="stack" onSubmit={event => { event.preventDefault(); if (canEdit && !disabled && dirty && valid && !handleConflict) onCommand({ action: "RecordActual", structureId: s.id, actualWidth: mmToMetres(Number(width)), actualHeight: mmToMetres(Number(height)), actualSystemText: system.trim() }); }}>
+    <form className="stack" onSubmit={event => { event.preventDefault(); if (canEdit && !disabled && dirty && valid && !handleConflict) onCommand({ action: "RecordActual", structureId: s.id, actualWidth: mmToMetres(Number(width)), actualHeight: mmToMetres(Number(height)), actualSystemText: system.trim(), measurementType: measurementType || null, actualLocation: location.trim() || null, installationObservations: observations.trim() || null }); }}>
       <div className={styles.drawing}>
         <div className={styles.picture}>
           {image?.url ? <>
@@ -73,6 +75,10 @@ export function StructureCard({ structure: s, projectId, sketchFeedback, writabl
         <label className={styles.height}>Alto en obra (mm)<input aria-label={`Alto en obra ${s.id}`} className="form-control" type="number" inputMode="decimal" min="0" step="any" required value={height} disabled={!canEdit} onChange={e => change("height", e.target.value)} /></label>
       </div>
       <label>Sistema en obra<input aria-label={`Sistema en obra ${s.id}`} className="form-control" type="text" required maxLength={2000} value={system} disabled={!canEdit} onChange={e => change("system", e.target.value)} /></label>
+      <label>Tipo de medida<select className="form-control" value={measurementType} disabled={!canEdit} onChange={e => change("measurementType", e.target.value)}><option value="">Sin clasificar</option><option value="Agreed">Medida acordada</option><option value="Production">Medida de producción</option><option value="Opening">Medida de vano</option></select></label>
+      <label>Ubicación real<input className="form-control" maxLength={500} value={location} disabled={!canEdit} onChange={e => change("location", e.target.value)} /></label>
+      {s.location && <p className="metadata">Ubicación cotizada: {s.location}</p>}
+      <label>Observaciones de Instalación<textarea className="form-control" maxLength={4000} value={observations} disabled={!canEdit} onChange={e => change("observations", e.target.value)} /></label>
       {canEdit && <button className="button-primary" disabled={disabled || !dirty || !valid || handleConflict}>{saving ? "Guardando medidas…" : "Guardar medidas"}</button>}
       {dirty && <p role="status">Cambios sin guardar en esta estructura.</p>}
       {handleConflict && <p role="status">El alto propuesto es menor que la altura de manija guardada. Guarda primero la corrección de manija en Detalles técnicos; puedes seguir editando la ficha.</p>}
@@ -80,7 +86,8 @@ export function StructureCard({ structure: s, projectId, sketchFeedback, writabl
     <TechnicalFields structure={s} disabled={disabled} writable={canEdit} onCommand={onCommand} onDirty={sectionChanged} />
     <p>Vista guardada: {s.technical?.viewSide === "Inside" ? "Por dentro" : s.technical?.viewSide === "Outside" ? "Por fuera" : "Sin registrar"} · Apertura: {s.technical?.openingType ? ({ NotApplicable: "No aplica", HingedDoor: "Puerta batiente", HingedWindow: "Ventana batiente", Other: "Otro" })[s.technical.openingType] : "Sin registrar"}</p>
     <SketchPanel feedback={sketchFeedback} projectId={projectId} structure={s} disabled={disabled} writable={canEdit} onCommand={onCommand} onDirty={sectionChanged} />
-    {hasDrafts && <p role="status">Antes de marcar Medido, guarda los cambios pendientes de { [dirty && "Medidas en obra", technicalDirty && "Detalles técnicos", sketchDirty && "Croquis"].filter(Boolean).join(", ") }.</p>}
+    <AssessmentFields structure={s} writable={canEdit} disabled={disabled} onCommand={onCommand} onDirty={sectionChanged} />
+    {hasDrafts && <p role="status">Antes de marcar Medido, guarda los cambios pendientes de { [dirty && "Medidas en obra", technicalDirty && "Detalles técnicos", sketchDirty && "Croquis", Object.values(assessmentDirty).some(Boolean) && "Revisión/modificación"].filter(Boolean).join(", ") }.</p>}
     {!s.measuredAt && missing.length > 0 && <div className="metadata"><p>Pendiente de guardar o validar:</p><ul>{missing.map(field => <li key={field}>{field}</li>)}</ul></div>}
     {s.measuredAt && !s.technicalComplete && <p className="metadata">Medición histórica conservada. Si la desmarcas, deberás completar la ficha para volver a marcarla.</p>}
     <label className={styles.measured}><input type="checkbox" aria-label={`Medido ${s.id}`} checked={!!s.measuredAt} disabled={!canEdit || disabled || (!s.measuredAt && (hasDrafts || missing.length > 0 || s.technicalComplete === false))} onChange={e => onCommand({ action: "Measure", structureId: s.id, measured: e.target.checked })} />Medido</label>

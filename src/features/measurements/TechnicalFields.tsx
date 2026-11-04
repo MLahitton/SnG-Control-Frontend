@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useSectionDraft } from "./useSectionDraft";
 import { emptyTechnical, technicalKey } from "./completeness";
 import type { MeasurementAction, Structure, TechnicalDetails } from "./contracts";
@@ -6,6 +7,7 @@ import { metresToMm } from "./units";
 export function TechnicalFields({ structure: s, disabled, writable, onCommand, onDirty }: { structure: Structure; disabled: boolean; writable: boolean; onCommand: (a: MeasurementAction) => void; onDirty: (id: string, dirty: boolean) => void }) {
   const draft = useSectionDraft(s.technical ?? emptyTechnical, technicalKey, `technical:${s.id}`, onDirty);
   const { value, dirty } = draft;
+  const [otherSill, setOtherSill] = useState(false);
   function change(patch: Partial<TechnicalDetails>) { draft.setValue({ ...value, ...patch }); }
   const hinged = value.openingType === "HingedDoor" || value.openingType === "HingedWindow";
   const invalid = (value.handleHeightMm !== null && (value.handleHeightMm <= 0 || value.handleHeightMm > 5000 || !s.actualHeight || value.handleHeightMm > metresToMm(s.actualHeight))) || (value.alfajiaMeasurementMm !== null && (value.alfajiaMeasurementMm <= 0 || value.alfajiaMeasurementMm > 10000));
@@ -19,7 +21,7 @@ export function TechnicalFields({ structure: s, disabled, writable, onCommand, o
       {value.openingType === "HingedDoor" && <label>Lado de bisagras desde la vista seleccionada<select className="form-control" value={value.openingHand ?? ""} onChange={e => change({ openingHand: (e.target.value || null) as TechnicalDetails["openingHand"] })}><option value="">Sin registrar</option><option value="Left">Izquierda · bisagras ◀</option><option value="Right">Derecha · bisagras ▶</option></select></label>}
       <p>Izquierda/derecha indica el lado de las bisagras observado desde la vista seleccionada. Cambiar la vista no invierte el lado guardado.</p>
       <label>Alfajía<select className="form-control" value={value.hasAlfajia === null ? "" : String(value.hasAlfajia)} onChange={e => change({ hasAlfajia: e.target.value === "" ? null : e.target.value === "true", alfajiaMeasurementMm: null })}><option value="">Sin registrar</option><option value="true">Sí</option><option value="false">No</option></select></label>
-      {value.hasAlfajia === true && <label>Medida de alfajía (mm)<input className="form-control" type="number" inputMode="decimal" min="0" max="10000" step="any" value={value.alfajiaMeasurementMm ?? ""} onChange={e => change({ alfajiaMeasurementMm: e.target.value === "" ? null : Number(e.target.value) })} /></label>}
+      {value.hasAlfajia === true && <><label>Medida de alfajía<select className="form-control" disabled={!writable} value={!otherSill && (value.alfajiaMeasurementMm === 114 || value.alfajiaMeasurementMm === 160) ? String(value.alfajiaMeasurementMm) : "Other"} onChange={e => { setOtherSill(e.target.value === "Other"); change({ alfajiaMeasurementMm: e.target.value === "Other" ? null : Number(e.target.value) }); }}><option value="114">114 mm</option><option value="160">160 mm</option><option value="Other">Otro</option></select></label>{(otherSill || (value.alfajiaMeasurementMm !== 114 && value.alfajiaMeasurementMm !== 160)) && <label>Medida de alfajía (mm)<input className="form-control" type="number" inputMode="decimal" min="0" max="10000" step="any" value={value.alfajiaMeasurementMm ?? ""} onChange={e => change({ alfajiaMeasurementMm: e.target.value === "" ? null : Number(e.target.value) })} /></label>}</>}
     </fieldset>
     {value.handleHeightMm != null && (!s.actualHeight || value.handleHeightMm > metresToMm(s.actualHeight)) && <p role="status">Guarda primero el alto real en Medidas en obra para validar esta altura de manija. Puedes seguir editando todos los campos.</p>}
     {invalid && <p role="alert">Revisa las medidas: manija positiva, máximo 5000 mm y no superior al alto real; alfajía positiva, máximo 10000 mm.</p>}
