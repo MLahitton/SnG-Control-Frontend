@@ -402,8 +402,17 @@ La radicación exige estructuras vigentes, todas medidas, y documentos vigentes;
 y completa la tarea sin SLA. Después se conserva el estado final al recargar. No implementa Acta
 de Vanos ni habilita una tarea de Ingeniería. Rutas BFF cerradas bajo
 `projects/{id}/measurements`: GET, POST initialize, POST commands y POST documents/batch.
-Las medidas documentales no se extraen ni modifican precios o la cotización original.
+Los documentos no se interpretan automáticamente ni modifican precios o la cotización original.
 
 El retiro abre una confirmación modal centrada que identifica ítem, unidad e ID y recibe el foco.
 Cancelar o Escape no envían cambios. Tras confirmar, la unidad sale de las vigentes y permanece
 en Estructuras retiradas y en el historial; conteos y progreso se recuperan del Backend.
+
+Las tarjetas de Instalación muestran el dibujo persistido del ítem y ancho/alto de obra
+visualmente asociados. Sistema es texto libre; no se solicitan ni muestran notas de estructura.
+Los datos cotizados se muestran separados como referencia. Guardar medidas persiste la captura
+por unidad mediante RecordActual; no marca automáticamente Medido. Antes de radicar deben
+guardarse las tarjetas editadas. Tras radicar, la captura queda en el snapshot y solo se consulta.
+El layout muestra tres tarjetas por fila desde 1200 px, dos desde 760 px y una en pantallas menores,
+con controles táctiles. Las imágenes usan blobs autenticados compartidos por ítem y se revocan
+al desmontar la vista. Las estructuras agregadas o ítems sin imagen muestran su ausencia explícita.

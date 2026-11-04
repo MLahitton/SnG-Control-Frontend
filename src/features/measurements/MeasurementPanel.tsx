@@ -9,6 +9,7 @@ import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { ApiError } from "@/lib/api/apiError";
 import { saveDownload } from "@/lib/api/saveDownload";
 import { formatDate } from "@/lib/formatDate";
+import { StructureCard, useMeasurementImages } from "./StructureCard";
 import styles from "./MeasurementPanel.module.css";
 import type { MeasurementAction, MeasurementCommand, MeasurementState } from "./contracts";
 
@@ -20,8 +21,11 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
   const [busy, setBusy] = useState(false); const [error, setError] = useState<unknown>(); const [notice, setNotice] = useState("");
   const [confirmation, setConfirmation] = useState<MeasurementAction | null>(null);
   const [pending, setPending] = useState<MeasurementCommand | null>(null);
-  const [description, setDescription] = useState(""); const [width, setWidth] = useState(""); const [height, setHeight] = useState(""); const [note, setNote] = useState("");
+  const [description, setDescription] = useState(""); const [width, setWidth] = useState(""); const [height, setHeight] = useState("");
   const [uploads, setUploads] = useState<DocumentUpload[]>([]);
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
+  const drawings = useMeasurementImages(projectId, data?.structures ?? []);
+  function dirtyChanged(id: string, dirty: boolean) { setDirtyIds(previous => { const next = new Set(previous); if (dirty) next.add(id); else next.delete(id); return next; }); }
   const uploadKey = useRef<string | null>(null);
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), [projectId, activeRole]);
@@ -41,12 +45,13 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
       if (controller.signal.aborted) return;
       setPending(null); setConfirmation(null);
       resource.update(await load(controller.signal));
+      if (typeof action !== "string" && action.action === "RecordActual") dirtyChanged(action.structureId, false);
       if (controller.signal.aborted) return;
       setNotice("Operación guardada."); await onRefresh(controller.signal);
     } catch (failure) {
       if (controller.signal.aborted) return;
       setError(failure);
-      if (failure instanceof ApiError && failure.status >= 400 && failure.status < 500) { setPending(null); setConfirmation(null); resource.refresh(); }
+      if (failure instanceof ApiError && failure.status >= 400 && failure.status < 500) { setPending(null); setConfirmation(null); setDirtyIds(new Set()); resource.refresh(); }
       // Unknown transport outcome: retry the exact command with the same key and revision.
     } finally { if (!controller.signal.aborted) { operation.current = null; setBusy(false); } }
   }
@@ -62,14 +67,15 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
     finally { if (!controller.signal.aborted) { operation.current = null; setBusy(false); } }
   }
   if (!data) return <><p role="status">Consultando toma de medidas…</p><ErrorNotice error={resource.error} retry={resource.refresh} /></>;
+  const detailRevisions = new Map(data.history.filter(e => e.action === "RecordActual").map(e => [e.structureId, e.revision]));
   const current = data.documents.filter(d => d.isCurrent);
-  const groups = Map.groupBy(data.structures.filter(s => !s.retiredAt), s => s.itemId ?? "added");
-  const labels: Record<string, string> = { Initialize: "Checklist iniciado", Add: "Estructura agregada", Retire: "Estructura retirada", Measure: "Marcada como medida", Unmeasure: "Medición desmarcada", Submit: "Medidas radicadas" };
+
+  const labels: Record<string, string> = { Initialize: "Checklist iniciado", Add: "Estructura agregada", Retire: "Estructura retirada", Measure: "Marcada como medida", Unmeasure: "Medición desmarcada", Submit: "Medidas radicadas", RecordActual: "Medidas de obra guardadas" };
   const messages: Record<string, string> = { MeasurementRevisionConflict: "El checklist cambió en otra sesión. Revisa el estado actualizado antes de continuar.", MeasurementsLocked: "La toma de medidas ya no admite cambios.", MeasurementDocumentsChanged: "Los documentos cambiaron. Revisa los archivos antes de radicar.", MeasurementsIncomplete: "Debe existir al menos una estructura vigente y todas deben estar medidas.", MeasurementRequestConflict: "El reintento no coincide con la operación original." };
   return <section className="panel stack" aria-labelledby="measurements-title">
     <h2 id="measurements-title" className="section-title">Toma de medidas</h2>
     <p>Responsable: {user?.subject === data.responsibleSubject ? user.name ?? "Cuenta de Instalación asignada" : "Cuenta de Instalación asignada"} · {data.taskStatus === "Completed" ? "Completada" : data.taskStatus === "Pending" ? "Pendiente" : "En curso"}</p>
-    <p>El checklist indica qué espacios se midieron. Las medidas reales oficiales se encuentran en los documentos radicados.</p>
+    <p>Registra ancho, alto y sistema en obra y guarda cada tarjeta. El check Medido y los documentos completan la toma de medidas.</p>
     <ErrorNotice error={resource.error} />
     {error instanceof ApiError && error.code && messages[error.code] ? <p role="alert">{messages[error.code]}</p> : <ErrorNotice error={error} />}
     {busy && <p role="status">Guardando…</p>}{notice && <p role="status">{notice}</p>}
@@ -77,24 +83,18 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
     {!data.checklistId ? <>{writable && <button className="button-primary" disabled={busy} onClick={() => void run("initialize")}>Iniciar toma de medidas</button>}<p>El checklist aún no ha sido iniciado.</p></> : <>
       <p>Iniciales: {data.summary.initial} · Vigentes: {data.summary.active} · Medidas: {data.summary.measured} · Pendientes: {data.summary.pending} · Agregadas: {data.summary.added} · Retiradas: {data.summary.retired}</p>
       <label>Avance: {data.summary.progress}% <progress aria-label="Avance de medición" max={100} value={data.summary.progress} /></label>
-      {Array.from(groups, ([key, structures]) => <fieldset key={key} className="stack"><legend>{key === "added" ? "Agregadas en obra" : `Ítem ${structures[0].itemNumber ?? ""}`}</legend>
-        {structures.map(s => <div key={s.id} className="panel stack">
-          <strong>{s.itemId ? `${s.unitOrdinal}/${s.unitCount}` : "Agregada en obra"} · {s.id.slice(0, 8)}</strong>
-          {s.description && <p>{s.description}</p>}{s.location && <p>{s.location}</p>}
-          <p>{s.itemId ? "Dimensiones cotizadas (consulta)" : "Dimensiones registradas en obra"}: {s.width} × {s.height} m</p>{s.note && <p>{s.note}</p>}
-          {s.retiredAt ? <p>Retirada · {formatDate(s.retiredAt)}</p> : <>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.75rem", minHeight: 44 }}><input style={{ width: 24, height: 24 }} type="checkbox" aria-label={`Medido ${s.id}`} checked={!!s.measuredAt} disabled={!writable || disabled} onChange={e => command({ action: "Measure", structureId: s.id, measured: e.target.checked })} />Medido</label>
-            {s.measuredAt && <p className="metadata">{formatDate(s.measuredAt)}</p>}
-            {writable && <button className="button-secondary" disabled={disabled} onClick={() => setConfirmation({ action: "Retire", structureId: s.id })}>Retirar estructura {s.id.slice(0, 8)}</button>}
-          </>}
-        </div>)}
-      </fieldset>)}
-      {writable && <form className="stack" onSubmit={e => { e.preventDefault(); if (description.trim() && Number(width) > 0 && Number(height) > 0) command({ action: "Add", description: description.trim(), width: Number(width), height: Number(height), note: note.trim() || null }); }}>
+      <div className={styles.cards}>{data.structures.filter(s => !s.retiredAt).map(s => <StructureCard
+        key={`${s.id}:${s.actualWidth}:${s.actualHeight}:${s.actualSystemText}:${detailRevisions.get(s.id)}`} structure={s} writable={writable} disabled={disabled}
+        saving={busy && pending?.action === "RecordActual" && pending.structureId === s.id}
+        image={s.imageCatalogItemId ? drawings.images[s.imageCatalogItemId] : undefined} retryImage={drawings.retry}
+        onCommand={command} onRetire={() => setConfirmation({ action: "Retire", structureId: s.id })} onDirty={dirtyChanged}
+      />)}</div>
+      {dirtyIds.size > 0 && <p role="status">Guarda las tarjetas editadas antes de radicar medidas.</p>}
+      {writable && <form className="stack" onSubmit={e => { e.preventDefault(); if (description.trim() && Number(width) > 0 && Number(height) > 0) command({ action: "Add", description: description.trim(), width: Number(width), height: Number(height) }); }}>
         <h3>Agregar estructura</h3>
-        <label>Tipo o descripción<input className="form-control" required maxLength={2000} value={description} disabled={disabled} onChange={e => setDescription(e.target.value)} /></label>
+        <label>Sistema de la nueva estructura<input className="form-control" required maxLength={2000} value={description} disabled={disabled} onChange={e => setDescription(e.target.value)} /></label>
         <label>Ancho (m)<input className="form-control" required type="number" min="0" step="any" value={width} disabled={disabled} onChange={e => setWidth(e.target.value)} /></label>
         <label>Alto (m)<input className="form-control" required type="number" min="0" step="any" value={height} disabled={disabled} onChange={e => setHeight(e.target.value)} /></label>
-        <label>Observación<textarea className="form-control" maxLength={4000} value={note} disabled={disabled} onChange={e => setNote(e.target.value)} /></label>
         <button className="button-secondary" disabled={disabled}>Agregar estructura</button>
       </form>}
       <h3>Documentos de medidas</h3>
@@ -105,14 +105,14 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
         <button className="button-secondary" disabled={disabled || !uploads.length} onClick={() => void run("upload")}>Cargar documentos de medidas</button>
       </div>}
       <ul>{data.documents.map(d => <li key={d.id}><button className="text-link" disabled={busy} onClick={() => void download(d)}>{d.originalFileName}</button> · {d.contentType ?? "Archivo"} · {d.sizeBytes} bytes · {d.isCurrent ? "Vigente" : "Sustituido"}</li>)}</ul>
-      {writable && <button className="button-primary" disabled={disabled || data.summary.active === 0 || data.summary.pending > 0 || !current.length} onClick={() => setConfirmation({ action: "Submit", documentIds: current.map(d => d.id) })}>Radicar medidas</button>}
+      {writable && <button className="button-primary" disabled={disabled || dirtyIds.size > 0 || data.summary.active === 0 || data.summary.pending > 0 || !current.length} onClick={() => setConfirmation({ action: "Submit", documentIds: current.map(d => d.id) })}>Radicar medidas</button>}
       {data.submissionId && <p role="status">Medidas radicadas · {formatDate(data.submittedAt!)} · {data.submissionId}. Checklist y documentos congelados para su consulta por Ingeniería.</p>}
     </>}
     {confirmation && <MeasurementConfirmation action={confirmation} data={data} onCancel={() => setConfirmation(null)} onConfirm={() => { setConfirmation(null); command(confirmation); }} />}
     {data.structures.some(s => s.retiredAt) && <details><summary>Estructuras retiradas</summary><ul>{data.structures.filter(s => s.retiredAt).map(s => <li key={s.id}>
       {s.itemId ? `Ítem ${s.itemNumber ?? ""} · Unidad ${s.unitOrdinal}/${s.unitCount}` : "Agregada en obra"} · {s.id} · {s.description} {s.location} · Retirada {formatDate(s.retiredAt!)}
     </li>)}</ul></details>}
-    <details><summary>Historial de cambios</summary><ol>{data.history.map(event => <li key={event.id}>{labels[event.action] ?? event.action} {event.structureId?.slice(0, 8)} · {event.actor.name ?? event.actor.email ?? "Cuenta de Instalación"} · {formatDate(event.at)}</li>)}</ol></details>
+    <details><summary>Historial de cambios</summary><ol>{data.history.map(event => <li key={event.id}>{labels[event.action] ?? event.action} {event.structureId?.slice(0, 8)} · {event.actor.name ?? event.actor.email ?? "Cuenta de Instalación"} · {formatDate(event.at)}{event.details && <p>Anterior: {event.details.before.width ?? "—"} × {event.details.before.height ?? "—"} m · {event.details.before.systemText ?? "Sin registrar"}. Guardado: {event.details.after.width} × {event.details.after.height} m · {event.details.after.systemText}</p>}</li>)}</ol></details>
   </section>;
 }
 

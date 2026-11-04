@@ -124,3 +124,59 @@ it("Escape cancels retirement without sending a command", async () => {
  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
  expect(fetch.mock.calls.filter(([, init]) => init.method === "POST")).toHaveLength(0);
 });
+
+it("saves actual dimensions and free system text per unit without changing quotation values, then restores on reopen", async () => {
+ let state = structuredClone(ready); const target = ready.structures[0];
+ const fetch = mockBackend((_, init) => {
+   if (init.method === "POST") {
+     const body = JSON.parse(init.body as string);
+     expect(body).toEqual({ action: "RecordActual", structureId: target.id, actualWidth: 1.2345, actualHeight: 2.3456, actualSystemText: "Sistema libre en obra", requestKey: expect.any(String), expectedRevision: 0 });
+     state = { ...state, revision: 1, structures: state.structures.map(s => s.id === target.id ? { ...s, actualWidth: body.actualWidth, actualHeight: body.actualHeight, actualSystemText: body.actualSystemText } : s) };
+     return new Response(null, { status: 204 });
+   }
+   return state;
+ });
+ const view = renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ const card = await screen.findByRole("article", { name: `Estructura ${target.id}` });
+ expect(within(card).getByLabelText(`Ancho en obra ${target.id}`)).toHaveValue(null);
+ fireEvent.change(within(card).getByLabelText(`Ancho en obra ${target.id}`), { target: { value: "1.2345" } });
+ fireEvent.change(within(card).getByLabelText(`Alto en obra ${target.id}`), { target: { value: "2.3456" } });
+ await userEvent.type(within(card).getByRole("textbox", { name: `Sistema en obra ${target.id}` }), "Sistema libre en obra");
+ expect(within(card).queryByRole("combobox")).not.toBeInTheDocument();
+ expect(screen.queryByLabelText("Observación")).not.toBeInTheDocument();
+ expect(screen.getByRole("button", { name: "Radicar medidas" })).toBeDisabled();
+ await userEvent.click(within(card).getByRole("button", { name: "Guardar medidas" }));
+ await screen.findByText("Operación guardada.");
+ expect(state.structures[0].width).toBe(1.2); expect(state.structures[0].height).toBe(2); expect(state.structures[0].description).toBe("Ventana");
+ expect(state.summary.measured).toBe(0);
+ expect(fetch.mock.calls.filter(([, init]) => init.method === "POST")).toHaveLength(1);
+ view.unmount(); renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ expect(await screen.findByLabelText(`Ancho en obra ${target.id}`)).toHaveValue(1.2345);
+ expect(screen.getByLabelText(`Alto en obra ${target.id}`)).toHaveValue(2.3456);
+ expect(screen.getByLabelText(`Sistema en obra ${target.id}`)).toHaveValue("Sistema libre en obra");
+ expect(screen.getByLabelText(`Ancho en obra ${ready.structures[1].id}`)).toHaveValue(null);
+});
+it("shares the persisted item image across units and revokes its authenticated blob on unmount", async () => {
+ const create = vi.fn(() => "blob:synthetic-drawing"); const revoke = vi.fn();
+ vi.stubGlobal("URL", class extends URL { static createObjectURL = create; static revokeObjectURL = revoke; });
+ const fetch = mockBackend((path) => path.endsWith("/image") ? new Response(new Blob(["synthetic raster"], { type: "image/png" }), { headers: { "Content-Type": "image/png" } }) : { ...ready, structures: ready.structures.map(s => ({ ...s, imageCatalogItemId: id })) });
+ const view = renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ await waitFor(() => expect(screen.getAllByAltText("Dibujo del ítem V1")).toHaveLength(2));
+ expect(fetch.mock.calls.filter(([url]) => url.endsWith("/image"))).toHaveLength(1);
+ expect(create).toHaveBeenCalledOnce(); view.unmount(); expect(revoke).toHaveBeenCalledWith("blob:synthetic-drawing");
+});
+it.each(["Management", "Accounting", "CommercialAdvisor"] as const)("keeps actual capture read-only for %s", async role => {
+ mockBackend(() => ({ ...ready, structures: ready.structures.map(s => ({ ...s, actualWidth: 1.1, actualHeight: 2.2, actualSystemText: "Guardado" })) }));
+ renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, { ...user, roles: [role], isManagement: role === "Management" });
+ expect(await screen.findByLabelText(`Ancho en obra ${ready.structures[0].id}`)).toBeDisabled();
+ expect(screen.getByLabelText(`Sistema en obra ${ready.structures[0].id}`)).toHaveValue("Guardado");
+ expect(screen.queryByRole("button", { name: "Guardar medidas" })).not.toBeInTheDocument();
+});
+it("keeps submitted actual capture immutable and hides historical notes", async () => {
+ mockBackend(() => ({ ...ready, canModify: false, submissionId: id, submittedAt: date, taskStatus: "Completed", structures: ready.structures.map(s => ({ ...s, note: "Historic note", actualWidth: 1.1, actualHeight: 2.2, actualSystemText: "Final" })) }));
+ renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ expect(await screen.findByLabelText(`Alto en obra ${ready.structures[0].id}`)).toHaveValue(2.2);
+ expect(screen.getByLabelText(`Alto en obra ${ready.structures[0].id}`)).toBeDisabled();
+ expect(screen.queryByText("Historic note")).not.toBeInTheDocument();
+ expect(screen.queryByRole("button", { name: "Guardar medidas" })).not.toBeInTheDocument();
+});
