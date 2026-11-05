@@ -1,3 +1,4 @@
+import { renderOperational } from "./operationalFixtures";
 import { CommercialQuotationPreview } from "@/features/commercialQuotation/CommercialQuotationPreview";
 import { commercialPreview } from "./commercialQuotationFixtures";
 import { expect, it } from "vitest";
@@ -35,9 +36,9 @@ it("uses normalized formatting in the actual commercial preview without changing
  const item = commercialPreview.items[0];
  const preview = { ...commercialPreview, items: [{ ...item, values: { ...item.values, width: 2.0019999999999998, squareMeters: 5.845839999999999 } }] };
  const snapshot = JSON.stringify(preview);
- render(<CommercialQuotationPreview preview={preview} />);
- expect(screen.getByText("2,002")).toBeInTheDocument();
- expect(screen.getByText("5,84584")).toBeInTheDocument();
+ renderOperational(<CommercialQuotationPreview preview={preview} />);
+ expect(screen.getByText("2.002 mm")).toBeInTheDocument();
+ expect(screen.getAllByText("5,85 m²")).toHaveLength(2); // Item total and proposal total.
  expect(screen.getByText("Cambios frente a Presupuestos")).toBeInTheDocument();
  expect(JSON.stringify(preview)).toBe(snapshot);
 });

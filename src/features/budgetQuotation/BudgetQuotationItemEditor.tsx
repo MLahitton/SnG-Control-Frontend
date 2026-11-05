@@ -1,15 +1,19 @@
+import { useState } from "react";
+import { metresToMm, mmToMetres } from "@/features/measurements/units";
+import { ItemSurface, ItemPrices } from "@/features/quotationViews/ProposalSummary";
 import type { ItemDraft, ItemValues, PreviewItem } from "./types";
 import styles from "./BudgetQuotation.module.css";
 
 const labels: Record<keyof ItemValues, string> = {
   itemNumber: "Número de ítem", location: "Ubicación", system: "Sistema", glass: "Cristal", aluminumFinish: "Acabado de aluminio",
-  lockType: "Cerradura", observations: "Observaciones", width: "Ancho (m)", height: "Alto (m)", squareMeters: "Superficie (m²)", quantity: "Cantidad",
+  lockType: "Cerradura", observations: "Observaciones", width: "Ancho (mm)", height: "Alto (mm)", squareMeters: "Superficie total del ítem (m²)", quantity: "Cantidad",
 };
 const textFields = ["itemNumber", "location", "system", "glass", "aluminumFinish", "lockType", "observations"] as const;
 const numericFields = ["width", "height", "squareMeters", "quantity"] as const;
 export function BudgetQuotationItemEditor({ item, draft, ambiguous, disabled, onChange }: {
   item: PreviewItem; draft: ItemDraft; ambiguous: boolean; disabled: boolean; onChange: (field: keyof ItemDraft, value: string) => void;
 }) {
+  const [editingSurface, setEditingSurface] = useState(false);
   return <fieldset className={styles.item} disabled={disabled}>
     <legend>Ítem {item.itemNumber}</legend>
     <div className={styles.itemLayout}>
@@ -26,8 +30,12 @@ export function BudgetQuotationItemEditor({ item, draft, ambiguous, disabled, on
         </label>)}
         <div className={styles.measures}>{numericFields.map((field) => <label key={field} className="field-label">{labels[field]}
           <input className="form-control" type="number" step={field === "quantity" ? "1" : "any"} min={field === "quantity" ? "1" : "0"} required
-            value={draft[field]} onChange={(e) => onChange(field, e.target.value)} />
+            value={(field === "width" || field === "height") && draft[field] !== "" ? metresToMm(Number(draft[field])) : field === "squareMeters" && !editingSurface && draft[field] !== "" ? Number(draft[field]).toFixed(2) : draft[field]}
+            onFocus={() => { if (field === "squareMeters") setEditingSurface(true); }}
+            onBlur={() => { if (field === "squareMeters") setEditingSurface(false); }}
+            onChange={(e) => onChange(field, (field === "width" || field === "height") && e.target.value !== "" ? String(mmToMetres(Number(e.target.value))) : e.target.value)} />
         </label>)}</div>
+        <ItemSurface squareMeters={draft.squareMeters.trim() ? Number(draft.squareMeters) : NaN} quantity={Number(draft.quantity)} /><ItemPrices />
       </div>
     </div>
   </fieldset>;

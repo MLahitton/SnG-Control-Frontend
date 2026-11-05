@@ -38,7 +38,7 @@ const posts = (fetchMock: ReturnType<typeof mockBackend>) => fetchMock.mock.call
 async function preview(file = xlsx()) {
   await userEvent.upload(await screen.findByLabelText("Seleccionar XLSX comercial"), file);
   await userEvent.click(panel().getByRole("button", { name: "Generar preview" }));
-  await panel().findByRole("heading", { name: "Preview comercial" });
+  await panel().findByRole("heading", { name: "Resumen de propuesta" });
   return file;
 }
 async function prompt() { await userEvent.click(panel().getByRole("button", { name: "Confirmar cotización comercial" })); }
@@ -84,7 +84,7 @@ describe("commercial readonly preview", () => {
     expect(panel().getByText("Templado 5 mm")).toBeInTheDocument();
     expect(panel().getByText("Sin cambios técnicos frente a Presupuestos.")).toBeInTheDocument();
     expect(panel().queryAllByRole("textbox")).toHaveLength(0); expect(panel().queryAllByRole("spinbutton")).toHaveLength(0);
-    expect(panel().getByRole("region", { name: "Preview comercial" }).querySelectorAll("input,textarea,select")).toHaveLength(0);
+    expect(panel().getByRole("region", { name: "Resumen de propuesta" }).querySelectorAll("input,textarea,select")).toHaveLength(0);
   });
   it.each(["bad.xls", "bad.csv", "bad.xlsm"])("rejects %s before sending", async (name) => {
     const { fetchMock } = backend(); renderOperational(<ProjectDetailPage id="project-1" />, commercialUser);
@@ -95,7 +95,7 @@ describe("commercial readonly preview", () => {
   it("invalidates preview and human confirmation for a different File with the SAME filename", async () => {
     const { fetchMock } = backend(); renderOperational(<ProjectDetailPage id="project-1" />, commercialUser); await preview(); await prompt();
     await userEvent.upload(screen.getByLabelText("Seleccionar XLSX comercial"), xlsx());
-    expect(panel().queryByRole("heading", { name: "Preview comercial" })).not.toBeInTheDocument();
+    expect(panel().queryByRole("heading", { name: "Resumen de propuesta" })).not.toBeInTheDocument();
     expect(panel().queryByRole("button", { name: "Confirmar" })).not.toBeInTheDocument(); expect(posts(fetchMock)).toHaveLength(1);
   });
   it("clears error on file replacement", async () => {
@@ -172,7 +172,7 @@ describe("commercial confirmation", () => {
     const status = code === "Forbidden" ? 403 : 409;
     state.setMutation(() => Response.json({ code, missingItems: [{ section: "Main", sourceRow: 15 }], unexpectedItems: [{ section: "Additional", sourceRow: 120 }], detail: "private", stackTrace: "private" }, { status }));
     await userEvent.click(panel().getByRole("button", { name: "Confirmar" }));
-    expect(await panel().findByRole("alert")).toHaveTextContent(commercialQuotationError(new ApiError(status, { code })));
+    expect(await panel().findByText(commercialQuotationError(new ApiError(status, { code })))).toBeInTheDocument();
     expect(panel().queryByText("Cotización comercial confirmada.")).not.toBeInTheDocument();
     if (code === "StructuralMismatch") { expect(panel().getByText("Principales: fila 15")).toBeInTheDocument(); expect(panel().getByText("Adicionales: fila 120")).toBeInTheDocument(); }
   });
@@ -210,7 +210,7 @@ describe("commercial download and identity cleanup", () => {
     await screen.findByRole("heading", { name: project.name }); expect(screen.queryByRole("region", { name: "Revisión Comercial" })).not.toBeInTheDocument();
     state.setTasks([reviewTask]); rendered.rerender(view(commercialUser));
     expect(await screen.findByLabelText("Seleccionar XLSX comercial")).toHaveValue("");
-    expect(panel().queryByRole("heading", { name: "Preview comercial" })).not.toBeInTheDocument(); expect(panel().queryByRole("button", { name: "Confirmar" })).not.toBeInTheDocument();
+    expect(panel().queryByRole("heading", { name: "Resumen de propuesta" })).not.toBeInTheDocument(); expect(panel().queryByRole("button", { name: "Confirmar" })).not.toBeInTheDocument();
   });
 });
 

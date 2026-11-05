@@ -52,7 +52,7 @@ export function CommercialQuotationPanel({ projectId, reviewStatus, disabled, on
     const { signal } = controller;
     try {
       if (action === "download") {
-        await saveDownload(() => commercialQuotationService.download(api, projectId, completed, signal), completed ? "cotizacion-comercial.xlsx" : "cotizacion.xlsx", signal);
+        await saveDownload(() => commercialQuotationService.download(api, projectId, completed, signal), completed ? "cotizacion-comercial.xlsx" : "cotizacion.xlsx", signal, { serverFilename: true });
       } else if (action === "refresh") { await refresh(signal); }
       else if (action === "preview") {
         setPreview(null); setPrompt(false);
@@ -95,7 +95,7 @@ export function CommercialQuotationPanel({ projectId, reviewStatus, disabled, on
       <p>La propuesta está lista para ser presentada al cliente.</p>
       {confirmed?.commercialFileAvailable !== false && <div><button className="button-secondary" disabled={blocked} onClick={() => void run("download")}>Descargar cotización final</button></div>}
     </> : conflicted ? <p role="status">La revisión ya fue confirmada. Actualiza la actividad para consultar las tareas oficiales.</p> : <>
-      <p>La cotización preparada por Presupuestos está lista para revisión.</p>
+      <p>La cotización preparada por Presupuestos está lista para revisión. La descarga contiene el archivo operativo con los ajustes técnicos confirmados y conserva el nombre de origen.</p>
       <div><button className="button-secondary" disabled={blocked} onClick={() => void run("download")}>Descargar cotización</button></div>
       <p className={styles.muted}>Revisa el archivo en Excel, recalcula completamente y guárdalo antes de subirlo. El preview lee los importes guardados; no recalcula fórmulas.</p>
       <label className="field-label">Seleccionar XLSX comercial<input ref={fileInput} className="form-control" type="file" accept=".xlsx" disabled={blocked} onChange={(e) => select(e.target.files)} /></label>

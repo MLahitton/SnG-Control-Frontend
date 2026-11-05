@@ -37,7 +37,7 @@ const calls = (fetchMock: ReturnType<typeof mockBackend>) => fetchMock.mock.call
 async function openPreview(selected = file()) {
   await userEvent.upload(await screen.findByLabelText("Seleccionar archivo"), selected);
   await userEvent.click(quotation().getByRole("button", { name: "Generar preview" }));
-  await quotation().findByRole("heading", { name: "Preview técnico" });
+  await quotation().findByRole("heading", { name: "Resumen de propuesta" });
   return selected;
 }
 
@@ -69,8 +69,8 @@ describe("quotation preview and editor", () => {
     expect(first.getByRole("img", { name: "Imagen del ítem V-2" })).toHaveAttribute("src", `data:image/png;base64,${quotationPreview.items[0].image!.base64}`);
     expect(quotation().getByRole("complementary", { name: "Advertencias de extracción" })).toHaveTextContent("no impiden confirmar");
     expect(quotation().getByRole("button", { name: "Confirmar cotización" })).toBeEnabled();
-    fireEvent.change(first.getByLabelText("Ancho (m)"), { target: { value: "10" } });
-    expect(first.getByLabelText("Superficie (m²)")).toHaveValue(5.75);
+    fireEvent.change(first.getByLabelText("Ancho (mm)"), { target: { value: "10" } });
+    expect(first.getByLabelText("Superficie total del ítem (m²)")).toHaveValue(5.75);
   });
   it.each(["invalid.xls", "invalid.csv", "invalid.xlsm"])("rejects %s without upload", async (name) => {
     const { fetchMock } = backend(); renderOperational(<ProjectDetailPage id="project-1" />, assignedUser);
@@ -82,7 +82,7 @@ describe("quotation preview and editor", () => {
     backend(); renderOperational(<ProjectDetailPage id="project-1" />, assignedUser); await openPreview();
     fireEvent.change(quotation().getAllByLabelText("Ubicación")[0], { target: { value: "Edited" } });
     await userEvent.upload(screen.getByLabelText("Seleccionar archivo"), new File(["new bytes"], "replacement.xlsx"));
-    expect(quotation().queryByRole("heading", { name: "Preview técnico" })).not.toBeInTheDocument();
+    expect(quotation().queryByRole("heading", { name: "Resumen de propuesta" })).not.toBeInTheDocument();
     expect(quotation().queryByRole("button", { name: "Confirmar cotización" })).not.toBeInTheDocument();
     expect(quotation().queryByText("Edited")).not.toBeInTheDocument();
     expect(quotation().queryByRole("complementary")).not.toBeInTheDocument();
@@ -99,7 +99,7 @@ describe("quotation preview and editor", () => {
     const signal = calls(fetchMock)[0][1].signal!;
     view.unmount(); expect(signal.aborted).toBe(true);
     await act(async () => pending.resolve(quotationPreview));
-    expect(screen.queryByText("Preview técnico")).not.toBeInTheDocument();
+    expect(screen.queryByText("Resumen de propuesta")).not.toBeInTheDocument();
   });
   it.each([[400, "UnsupportedWorkbookFormat", "formato de cotización soportado"], [409, "SgCodeMismatch", "SG de la cotización no coincide"], [403, undefined, "No tienes permiso"], [404, undefined, "No se encontró el proyecto"]] as const)("handles preview %s/%s", async (status, code, message) => {
     const { setMutation } = backend(); setMutation(() => Response.json({ code, detail: "private-path-token" }, { status }));
@@ -140,7 +140,7 @@ describe("quotation confirmation", () => {
     await quotation().findByText("Cotización de Presupuestos confirmada.");
     expect(quotation().queryByText(/ajustado/)).not.toBeInTheDocument();
   });
-  it.each([["Cantidad", "1.5"], ["Ancho (m)", "0"], ["Alto (m)", "-1"], ["Superficie (m²)", "0"], ["Número de ítem", "  "]])("blocks invalid %s=%s", async (label, value) => {
+  it.each([["Cantidad", "1.5"], ["Ancho (mm)", "0"], ["Alto (mm)", "-1"], ["Superficie total del ítem (m²)", "0"], ["Número de ítem", "  "]])("blocks invalid %s=%s", async (label, value) => {
     const { fetchMock } = backend(); renderOperational(<ProjectDetailPage id="project-1" />, assignedUser); await openPreview();
     fireEvent.change(quotation().getAllByLabelText(label)[0], { target: { value } });
     await userEvent.click(quotation().getByRole("button", { name: "Confirmar cotización" }));
@@ -151,7 +151,7 @@ describe("quotation confirmation", () => {
     renderOperational(<ProjectDetailPage id="project-1" />, assignedUser); await openPreview();
     await userEvent.click(quotation().getByRole("button", { name: "Confirmar cotización" }));
     expect(await quotation().findByRole("alert")).toHaveTextContent(message);
-    expect(quotation().getByRole("heading", { name: "Preview técnico" })).toBeInTheDocument();
+    expect(quotation().getByRole("heading", { name: "Resumen de propuesta" })).toBeInTheDocument();
     expect(quotation().queryByText("Cotización de Presupuestos confirmada.")).not.toBeInTheDocument();
   });
 });
@@ -164,7 +164,7 @@ describe("quotation lifecycle", () => {
     backend(); const storage = vi.spyOn(Storage.prototype, "setItem"); const view = render(<Harness />); await openPreview();
     view.rerender(<Harness current={user} />);
     await screen.findByRole("heading", { name: project.name });
-    expect(screen.queryByText("Preview técnico")).not.toBeInTheDocument(); expect(storage).not.toHaveBeenCalled();
+    expect(screen.queryByText("Resumen de propuesta")).not.toBeInTheDocument(); expect(storage).not.toHaveBeenCalled();
   });
   it.each(["identity", "project"])("aborts pending response on %s change and ignores late completion", async (change) => {
     const { fetchMock, setMutation } = backend(); const pending = deferred<unknown>(); setMutation(() => pending.promise);
@@ -175,6 +175,6 @@ describe("quotation lifecycle", () => {
     view.rerender(change === "identity" ? <Harness current={user} /> : <Harness id="project-2" />);
     await waitFor(() => expect(signal.aborted).toBe(true));
     await act(async () => pending.resolve(quotationPreview));
-    expect(screen.queryByText("Preview técnico")).not.toBeInTheDocument();
+    expect(screen.queryByText("Resumen de propuesta")).not.toBeInTheDocument();
   });
 });

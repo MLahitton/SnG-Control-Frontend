@@ -47,3 +47,18 @@ describe("browser document download", () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 });
+
+it("uses the persisted filename even when a native picker exists for quotation downloads", async () => {
+  const picker = vi.fn(); vi.stubGlobal("showSaveFilePicker", picker);
+  vi.stubGlobal("URL", class extends URL { static createObjectURL = vi.fn(() => "blob:quotation"); static revokeObjectURL = vi.fn(); });
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+    expect(this.download).toBe("SG 1004 Cotización.xlsx");
+  });
+  await saveDownload(async () => download("SG 1004 Cotización.xlsx"), "ignored.xlsx", undefined, { serverFilename: true });
+  expect(picker).not.toHaveBeenCalled(); expect(click).toHaveBeenCalledOnce();
+});
+it("rejects missing or unsafe quotation response names instead of silently substituting a generic name", async () => {
+  for (const filename of [null, "../other.xlsx"]) {
+    await expect(saveDownload(async () => download(filename), "ignored.xlsx", undefined, { serverFilename: true })).rejects.toThrow("Nombre de archivo");
+  }
+});

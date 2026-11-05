@@ -1,10 +1,11 @@
-import { formatTechnicalValue } from "@/lib/technicalMeasure";
+import { formatProposalValue as formatTechnicalValue } from "@/features/quotationViews/proposalFormat";
+import { ProposalTotals, ItemSurface, ItemPrices } from "@/features/quotationViews/ProposalSummary";
+import { ItemImage } from "@/features/quotationViews/ItemImage";
 import type { CommercialQuotationPreviewResponse, TechnicalField, TechnicalDifference } from "./types";
-import { formatCop } from "./validation";
 import styles from "./CommercialQuotation.module.css";
 
 const labels: Record<TechnicalField, string> = { ItemNumber: "Número", Location: "Ubicación", System: "Sistema", Glass: "Cristal",
-  AluminumFinish: "Acabado", LockType: "Cerradura", Observations: "Observaciones", Width: "Ancho (m)", Height: "Alto (m)", SquareMeters: "Superficie (m²)", Quantity: "Cantidad" };
+  AluminumFinish: "Acabado", LockType: "Cerradura", Observations: "Observaciones", Width: "Ancho (mm)", Height: "Alto (mm)", SquareMeters: "Superficie total del ítem (m²)", Quantity: "Cantidad" };
 
 function Differences({ differences }: { differences: TechnicalDifference[] }) {
   if (!differences.length) return <p className={styles.muted}>Sin cambios técnicos frente a Presupuestos.</p>;
@@ -17,17 +18,19 @@ function Differences({ differences }: { differences: TechnicalDifference[] }) {
 }
 export function CommercialQuotationPreview({ preview }: { preview: CommercialQuotationPreviewResponse }) {
   return <section aria-labelledby="commercial-preview-title" className={styles.stack}>
-    <h3 id="commercial-preview-title">Preview comercial</h3><p className={styles.muted}>Solo lectura. Para cambiar valores, edita el archivo en Excel y genera un nuevo preview.</p>
-    <dl className={styles.summary}><div><dt>Valor total del proyecto</dt><dd>{formatCop(preview.projectTotal)}</dd></div>
+    <h3 id="commercial-preview-title">Resumen de propuesta</h3><p>Propuesta comercial para revisión · Ronda {preview.quotationRound} · Pendiente de confirmación</p><p className={styles.muted}>Solo lectura. Para cambiar valores, edita el archivo en Excel y genera un nuevo preview.</p>
+    <dl className={styles.summary}>
       <div><dt>Ítems</dt><dd>{preview.items.length}</dd></div><div><dt>Cambios técnicos</dt><dd>{preview.technicalDifferencesCount}</dd></div></dl>
+    <ProposalTotals items={preview.items.map(item => item.values)} projectTotal={preview.projectTotal} />
     <div className={styles.items}>{preview.items.map((item, index) => <article key={`${item.section}:${item.sourceRow}`} aria-labelledby={`commercial-item-${index}`} className={styles.item}>
       <p className={styles.muted}>{item.section === "Main" ? "Principales" : "Adicionales"} · Fila {item.sourceRow}</p>
       <h4 id={`commercial-item-${index}`}>Ítem {item.values.itemNumber}</h4>
-      <dl className={styles.values}>{Object.entries(labels).map(([field, label]) => {
+      <dl className={styles.values}>{Object.entries(labels).filter(([field]) => field !== "SquareMeters").map(([field, label]) => {
         const key = `${field[0].toLowerCase()}${field.slice(1)}` as keyof typeof item.values;
         return <div key={field}><dt>{label}</dt><dd>{item.values[key] === "" ? "Sin valor" : formatTechnicalValue(field, item.values[key])}</dd></div>;
       })}</dl>
-      <dl className={styles.prices}><div><dt>Precio unitario</dt><dd>{formatCop(item.unitPrice)}</dd></div><div><dt>Precio total</dt><dd>{formatCop(item.totalPrice)}</dd></div></dl>
+      <ItemSurface {...item.values} /><ItemPrices unitPrice={item.unitPrice} totalPrice={item.totalPrice} />
+      <ItemImage projectId={preview.projectId} itemId={item.commercialCatalogItemId} number={item.values.itemNumber} />
       <Differences differences={item.technicalDifferences} />
     </article>)}</div>
   </section>;

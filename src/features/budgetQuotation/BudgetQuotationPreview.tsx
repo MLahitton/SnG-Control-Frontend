@@ -1,3 +1,4 @@
+import { ProposalTotals } from "@/features/quotationViews/ProposalSummary";
 import { Fragment } from "react";
 import type { BudgetQuotationPreviewResponse, ItemDraft } from "./types";
 import { BudgetQuotationItemEditor } from "./BudgetQuotationItemEditor";
@@ -10,10 +11,12 @@ export function BudgetQuotationPreview({ preview, draft, disabled, onChange }: {
   const d = preview.document;
   const facts = [["Archivo", d.fileName], ["SG del documento", d.sgCode], ["SG del proyecto", preview.projectSgCode],
     ["Cliente", d.clientName], ["Proyecto", d.projectName], ["Ubicación", d.location], ["Preparado por", d.preparedBy],
-    ["Línea de cliente", d.clientLine], ["Línea de producción", d.productionLine], ["Cantidad de ítems", preview.itemCount], ["Cantidad total", preview.totalQuantity]];
+    ["Línea de cliente", d.clientLine], ["Línea de producción", d.productionLine], ["Cantidad de ítems", preview.itemCount]];
   return <div className={styles.stack}>
-    <h3 className={styles.title}>Preview técnico</h3>
+    <h3 className={styles.title}>Resumen de propuesta</h3><p>Presupuestos · Ronda {preview.quotationRound} · Pendiente de confirmación</p>
     <dl className={styles.summary}>{facts.filter(([, value]) => value !== "").map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    <ProposalTotals items={draft.map(i => ({ squareMeters: i.squareMeters.trim() ? Number(i.squareMeters) : NaN, quantity: Number(i.quantity) }))} />
+    <p className={styles.note}>Precios y total económico no disponibles en esta etapa técnica.</p>
     {!!preview.warnings.length && <aside className={styles.warnings} aria-label="Advertencias de extracción">
       <h4>Advertencias de extracción</h4><p>Estas advertencias no impiden confirmar la cotización.</p>
       <ul>{preview.warnings.map((w, i) => <li key={i}>Ítem {w.itemNumber}: {w.message}</li>)}</ul>

@@ -10,16 +10,17 @@ interface SavePickerWindow extends Window {
 
 // Called directly by the click handler so the picker retains user activation.
 export async function saveDownload(
-  load: () => Promise<ApiStreamDownload>, suggestedName: string, signal?: AbortSignal,
+  load: () => Promise<ApiStreamDownload>, suggestedName: string, signal?: AbortSignal, options?: { serverFilename?: boolean },
 ): Promise<boolean> {
   let download: ApiStreamDownload | undefined;
   try {
     const browser = window as SavePickerWindow;
     const name = safeDownloadFilename(suggestedName) ?? "documento";
-    const handle = browser.showSaveFilePicker ? await browser.showSaveFilePicker({ suggestedName: name }) : undefined;
+    const handle = !options?.serverFilename && browser.showSaveFilePicker ? await browser.showSaveFilePicker({ suggestedName: name }) : undefined;
     signal?.throwIfAborted();
     download = await load();
     signal?.throwIfAborted();
+    if (options?.serverFilename && !safeDownloadFilename(download.filename)) throw new Error("Nombre de archivo no disponible.");
     if (handle) {
       const writable = await handle.createWritable();
       await download.stream.pipeTo(writable, { signal });

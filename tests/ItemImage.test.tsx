@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api/apiError";
 import { StrictMode } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -60,4 +61,11 @@ it("survives StrictMode effect replay and discards responses after unmount", asy
   const other = render(card()); other.unmount();
   await act(async () => resolve(new Blob(["late"])));
   expect(create).toHaveBeenCalledTimes(1);
+});
+
+it("distinguishes a genuinely absent historical image from a network failure", async () => {
+  fetchImage.mockRejectedValueOnce(new ApiError(404));
+  render(card());
+  expect(await screen.findByText("Sin imagen persistida para el ítem a.")).toBeInTheDocument();
+  expect(screen.queryByRole("img")).not.toBeInTheDocument();
 });

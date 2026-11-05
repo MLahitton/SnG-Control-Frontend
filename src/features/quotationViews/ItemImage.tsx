@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
+import { ApiError } from "@/lib/api/apiError";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { quotationViewService } from "./service";
 import styles from "./QuotationReadViews.module.css";
@@ -30,7 +31,7 @@ export function ItemImage({ projectId, itemId, number }: { projectId: string; it
     {/* eslint-disable-next-line @next/next/no-img-element */}
     {state?.url && <img src={state.url} alt={`Imagen confirmada del ítem ${number}`}
       onError={() => setResult({ key, error: new Error("Image decode failed") })} />}
-    {!!state?.error && <><p>No se pudo cargar la imagen del ítem {number}.</p>
+    {state?.error instanceof ApiError && state.error.status === 404 ? <p>Sin imagen persistida para el ítem {number}.</p> : !!state?.error && <><p>No se pudo cargar la imagen del ítem {number}.</p>
       <ErrorNotice error={state.error} retry={() => setAttempt(value => value + 1)} /></>}
   </div>;
 }

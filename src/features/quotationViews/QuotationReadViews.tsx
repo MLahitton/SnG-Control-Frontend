@@ -1,12 +1,12 @@
 "use client";
-import { formatTechnicalValue } from "@/lib/technicalMeasure";
+import { formatProposalValue as formatTechnicalValue } from "./proposalFormat";
+import { ProposalTotals, ItemSurface, ItemPrices } from "./ProposalSummary";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
 import type { ItemValues } from "@/features/budgetQuotation/types";
 import type { TechnicalDifference, TechnicalField } from "@/features/commercialQuotation/types";
 import { commercialQuotationService } from "@/features/commercialQuotation/service";
-import { formatCop } from "@/features/commercialQuotation/validation";
 import { useResource } from "@/lib/api/useResource";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { saveDownload } from "@/lib/api/saveDownload";
@@ -16,9 +16,9 @@ import { quotationViewService } from "./service";
 import styles from "./QuotationReadViews.module.css";
 
 const fields: Record<keyof ItemValues, string> = { itemNumber: "Ítem", location: "Ubicación", system: "Sistema", glass: "Vidrio",
-  aluminumFinish: "Acabado", lockType: "Cerradura", observations: "Observaciones", width: "Ancho (m)", height: "Alto (m)", squareMeters: "Superficie (m²)", quantity: "Cantidad" };
+  aluminumFinish: "Acabado", lockType: "Cerradura", observations: "Observaciones", width: "Ancho (mm)", height: "Alto (mm)", squareMeters: "Superficie total del ítem (m²)", quantity: "Cantidad" };
 function Values({ values }: { values: ItemValues }) {
-  return <dl className={styles.fields}>{Object.entries(fields).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{formatTechnicalValue(key, values[key as keyof ItemValues]) || "Sin valor"}</dd></div>)}</dl>;
+  return <dl className={styles.fields}>{Object.entries(fields).filter(([key]) => key !== "squareMeters").map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{formatTechnicalValue(key, values[key as keyof ItemValues]) || "Sin valor"}</dd></div>)}</dl>;
 }
 function Differences({ differences, budget = false }: { differences: TechnicalDifference[]; budget?: boolean }) {
   if (!differences.length) return null;
@@ -39,13 +39,15 @@ export function BudgetQuotationReadView({ projectId }: { projectId: string }) {
   if (resource.error) return <div className={styles.feedback}><p>Cotización confirmada de Presupuestos</p><ErrorNotice error={resource.error} retry={resource.refresh} /></div>;
   if (!view) return null;
   const d = view.document;
-  return <section aria-labelledby="budget-read-title" className={styles.panel}>
-    <h2 id="budget-read-title">Cotización de Presupuestos confirmada</h2><p className={styles.muted}>Snapshot confirmado · Solo lectura</p>
+  return <section aria-label="Cotización de Presupuestos confirmada" className={styles.panel}>
+    <h2 id="budget-read-title">Resumen de propuesta</h2><p className={styles.muted}>Información técnica confirmada · Presupuestos · Solo lectura</p>
     <dl className={styles.fields}>{[["Versión", view.versionNumber], ["Confirmada", formatDate(view.confirmedAt)], ["SG", d.sgCode], ["Archivo", d.fileName],
       ["Cliente", d.clientName], ["Proyecto", d.projectName], ["Ubicación", d.location], ["Línea de cliente", d.clientLine], ["Línea de producción", d.productionLine], ["Preparada por", d.preparedBy]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || "Sin valor"}</dd></div>)}</dl>
+    <ProposalTotals items={view.items.map(item => item.confirmed)} />
+    <p className={styles.muted}>Importes no disponibles en el catálogo técnico confirmado. No se toman precios de una versión comercial posterior.</p>
     <div className={styles.items}>{view.items.map(item => <article className={styles.item} key={`${item.section}:${item.sourceRow}`}>
       <p className={styles.muted}>{item.section === "Main" ? "Principales" : "Adicionales"} · Fila {item.sourceRow}</p><h3>Ítem {item.confirmed.itemNumber}</h3>
-      <Values values={item.confirmed} /><Differences differences={item.technicalDifferences} budget />
+      <Values values={item.confirmed} /><ItemSurface {...item.confirmed} /><ItemPrices /><Differences differences={item.technicalDifferences} budget />
       {item.hasImage ? <ItemImage projectId={projectId} itemId={item.id} number={item.confirmed.itemNumber} /> : <p className={styles.muted}>{item.imageStatus === "Ambiguous" ? "Imagen ambigua en el archivo original" : "Sin imagen persistida"}</p>}
     </article>)}</div>
   </section>;
@@ -59,7 +61,7 @@ function FinalDownload({ projectId }: { projectId: string }) {
   async function download() {
     if (operation.current) return;
     const controller = new AbortController(); operation.current = controller; setBusy(true); setError(undefined);
-    try { await saveDownload(() => commercialQuotationService.download(api, projectId, true, controller.signal), "cotizacion-comercial.xlsx", controller.signal); }
+    try { await saveDownload(() => commercialQuotationService.download(api, projectId, true, controller.signal), "cotizacion-comercial.xlsx", controller.signal, { serverFilename: true }); }
     catch (failure) { if (!controller.signal.aborted) setError(failure); }
     finally { if (!controller.signal.aborted) { operation.current = null; setBusy(false); } }
   }
@@ -73,14 +75,15 @@ export function CommercialQuotationReadView({ projectId, allowDownload = false }
   if (resource.loading) return <p role="status" className={styles.feedback}>Consultando cotización comercial confirmada…</p>;
   if (resource.error) return <div className={styles.feedback}><p>Cotización comercial confirmada</p><ErrorNotice error={resource.error} retry={resource.refresh} /></div>;
   if (!view) return null;
-  return <section aria-labelledby="commercial-read-title" className={styles.panel}>
-    <h2 id="commercial-read-title">Cotización Comercial confirmada</h2><p>Ronda {view.versionNumber}</p><p className={styles.muted}>Snapshot confirmado · Solo lectura</p>
-    <dl className={styles.fields}><div><dt>Confirmada</dt><dd>{formatDate(view.confirmedAt)}</dd></div><div><dt>Valor total del proyecto</dt><dd>{formatCop(view.projectTotal)}</dd></div></dl>
+  return <section aria-label="Cotización Comercial confirmada" className={styles.panel}>
+    <h2 id="commercial-read-title">Resumen de propuesta</h2><p>Ronda {view.versionNumber}</p><p className={styles.muted}>Propuesta comercial confirmada · Solo lectura</p>
+    <dl className={styles.fields}><div><dt>Confirmada</dt><dd>{formatDate(view.confirmedAt)}</dd></div></dl>
+    <ProposalTotals items={view.items.map(item => item.values)} projectTotal={view.projectTotal} />
     {allowDownload && <FinalDownload projectId={projectId} />}
     <div className={styles.items}>{view.items.map(item => <article className={styles.item} key={`${item.section}:${item.sourceRow}`}>
       <p className={styles.muted}>{item.section === "Main" ? "Principales" : "Adicionales"} · Fila {item.sourceRow}</p><h3>Ítem {item.values.itemNumber}</h3>
       <Values values={item.values} />
-      <dl className={styles.fields}><div><dt>Precio unitario</dt><dd>{formatCop(item.unitPrice)}</dd></div><div><dt>Precio total</dt><dd>{formatCop(item.totalPrice)}</dd></div></dl>
+      <ItemSurface {...item.values} /><ItemPrices unitPrice={item.unitPrice} totalPrice={item.totalPrice} />
       <Differences differences={item.technicalDifferences} />
       {item.hasImage ? <ItemImage projectId={projectId} itemId={item.commercialCatalogItemId} number={item.values.itemNumber} /> : <p className={styles.muted}>{item.imageStatus === "Ambiguous" ? "Imagen ambigua en el archivo original" : "Sin imagen persistida"}</p>}
     </article>)}</div>

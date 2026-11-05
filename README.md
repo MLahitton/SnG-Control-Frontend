@@ -385,6 +385,8 @@ El despliegue requiere la migración de comprobantes del Backend, con autorizaci
 y configurar privadamente los Subjects de Contabilidad e Instalación. La falta de Instalación
 bloquea la aprobación con un mensaje claro. Intelligence permanece independiente.
 
+Presupuestos y Jefe Comercial consultan un **Resumen de propuesta** con imágenes, ubicación, sistema, dimensiones en mm, cantidad y superficies en m² con dos decimales. La superficie del ítem ya incluye todas sus unidades; el resumen muestra también superficie por unidad y totales de unidades/superficie. Comercial presenta los precios y el total de su propia versión; Presupuestos indica la ausencia de importes confirmados en su catálogo técnico. La descarga conserva el nombre del documento correspondiente, saneado para guardarlo de forma segura.
+
 La precisión técnica de comparación es 3 decimales en metros para ancho/alto y 6 decimales
 en m² para superficie. Las mitades se redondean alejándose de cero. Backend decide las
 diferencias; Frontend usa la misma normalización decimal para presentación legible, con coma

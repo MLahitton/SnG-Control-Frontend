@@ -78,7 +78,7 @@ describe("persistent quotation workspace", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Confirmar$/ }));
     await screen.findByRole("region", { name: "Cotización Comercial confirmada" });
     expect(budget()).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Preview comercial" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Resumen de propuesta", level: 3 })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Seleccionar XLSX comercial")).not.toBeInTheDocument();
     view.unmount(); view = renderOperational(<ProjectDetailPage id="project-1" />, account("CommercialHead"));
     await screen.findByRole("region", { name: "Cotización Comercial confirmada" });
@@ -94,7 +94,7 @@ describe("persistent quotation workspace", () => {
     expect(within(budget()).getAllByRole("article")).toHaveLength(3);
     expect(within(commercial()).getAllByRole("article")).toHaveLength(2);
     expect(within(commercial()).getAllByText("Precio unitario")).toHaveLength(2);
-    expect(within(commercial()).getByText("Valor total del proyecto")).toBeInTheDocument();
+    expect(within(commercial()).getByText("Valor total de propuesta (COP)")).toBeInTheDocument();
     expect(within(commercial()).getByText("Cambios técnicos frente a Presupuestos (1)")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Confirmar|Generar preview|Enviar a Comercial|Asignar SG/ })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.every(([, init]) => init.method === "GET")).toBe(true);
