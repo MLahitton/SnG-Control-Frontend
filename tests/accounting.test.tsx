@@ -130,7 +130,7 @@ it("uploads multiple files with explicit replacement without submitting them", a
  renderOperational(<AccountingPanel projectId={id} tasks={[presentation]} onRefresh={vi.fn()} />);
  await userEvent.upload(await screen.findByLabelText("Adjuntar comprobantes"), [new File(["one"], "corrected.pdf"), new File(["two"], "additional.pdf")]);
  await userEvent.selectOptions(screen.getByLabelText("corrected.pdf"), docId);
- await userEvent.click(screen.getByRole("button", { name: "Cargar comprobantes" }));
+ const upload = screen.getByRole("button", { name: "Cargar comprobantes" }); fireEvent.click(upload); fireEvent.click(upload);
  await screen.findByText(/Comprobantes cargados/);
  const form = fetch.mock.calls.find(([, i]) => i.method === "POST")![1].body as FormData;
  const manifest = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(form.get("manifest") as Blob); });
@@ -170,4 +170,54 @@ it("shows receipt correction in the advisor default inbox and links to the proje
  expect(screen.getByRole("link", { name: project.name })).toHaveAttribute("href", `/projects/${id}`);
  expect(screen.getByText(/Corrección de comprobantes sin SLA/)).toBeInTheDocument();
  expect(fetch.mock.calls.some(([url]) => url.includes("area=Commercial") && url.includes("status=InProgress"))).toBe(true);
+});
+
+it.each([1, 2])("separates selecting %i receipts, persisted upload and confirmed submission", async count => {
+ let uploaded = false, sent = false;
+ const docs = Array.from({ length: count }, (_, i) => ({ ...doc, id: i ? reviewId : docId, originalFileName: `receipt-${i}.pdf` }));
+ const fetch = backend((path, init) => {
+  if (init.method === "POST" && path.endsWith("/receipts/batch")) { expect((init.body as FormData).getAll("file-0")).toHaveLength(1); uploaded = true; return {}; }
+  if (init.method === "POST") { expect(uploaded).toBe(true); expect(JSON.parse(init.body as string).documentIds).toEqual(docs.map(d => d.id)); sent = true; return { reviewId }; }
+  return { ...ready, documents: uploaded ? docs : [], canSubmit: uploaded, canManage: !sent, reviews: sent ? [{ ...review, documentIds: docs.map(d => d.id) }] : [] };
+ });
+ const view = renderOperational(<AccountingPanel projectId={id} tasks={[presentation]} onRefresh={vi.fn()} />);
+ const input = await screen.findByLabelText("Adjuntar comprobantes");
+ expect(screen.getByRole("button", { name: "Enviar a Contabilidad" })).toBeDisabled();
+ await userEvent.upload(input, docs.map(d => new File(["receipt"], d.originalFileName, { type: "application/pdf" })));
+ expect(screen.getByText(/todavía sin guardar/)).toHaveTextContent(String(count));
+ expect(fetch.mock.calls.filter(([, i]) => i.method === "POST")).toHaveLength(0);
+ expect(screen.getByRole("button", { name: "Enviar a Contabilidad" })).toBeDisabled();
+ const upload = screen.getByRole("button", { name: "Cargar comprobantes" }); fireEvent.click(upload); fireEvent.click(upload);
+ await screen.findByText("Comprobantes cargados. Falta enviarlos a revisión.");
+ expect(fetch.mock.calls.filter(([, i]) => i.method === "POST")).toHaveLength(1);
+ for (const d of docs) expect(screen.getByRole("checkbox", { name: `Incluir ${d.originalFileName}` })).toBeChecked();
+ view.unmount();
+ renderOperational(<AccountingPanel projectId={id} tasks={[presentation]} onRefresh={vi.fn()} />);
+ await userEvent.click(await screen.findByRole("button", { name: "Enviar a Contabilidad" }));
+ await userEvent.click(screen.getByRole("button", { name: "Confirmar envío a Contabilidad" }));
+ await screen.findByText("Revisión pendiente de Contabilidad.");
+ expect(fetch.mock.calls.filter(([, i]) => i.method === "POST")).toHaveLength(2);
+});
+it("prevents empty receipt uploads and allows removing a selected file", async () => {
+ backend(() => ({ ...ready, documents: [], canSubmit: false }));
+ renderOperational(<AccountingPanel projectId={id} tasks={[presentation]} onRefresh={vi.fn()} />);
+ await userEvent.upload(await screen.findByLabelText("Adjuntar comprobantes"), new File([], "empty.pdf"));
+ expect(await screen.findByRole("alert")).toHaveTextContent("Cada archivo debe tener contenido");
+ expect(screen.getByRole("button", { name: "Cargar comprobantes" })).toBeDisabled();
+ await userEvent.click(screen.getByRole("button", { name: "Quitar empty.pdf" }));
+ expect(screen.queryByText(/todavía sin guardar/)).not.toBeInTheDocument();
+});
+
+it("checks persisted receipts after an uncertain upload instead of repeating the batch", async () => {
+ let persisted = false;
+ const fetch = backend((_, init) => { if (init.method === "POST") { persisted = true; return Response.json({}, { status: 503 }); } return { ...ready, documents: persisted ? [doc] : [] }; });
+ renderOperational(<AccountingPanel projectId={id} tasks={[presentation]} onRefresh={vi.fn()} />);
+ await userEvent.upload(await screen.findByLabelText("Adjuntar comprobantes"), new File(["receipt"], "receipt.pdf"));
+ await userEvent.click(screen.getByRole("button", { name: "Cargar comprobantes" }));
+ await screen.findByText(/No se pudo confirmar el resultado/);
+ expect(screen.getByRole("button", { name: "Cargar comprobantes" })).toBeDisabled();
+ await userEvent.click(screen.getByRole("button", { name: "Verificar carga en el servidor" }));
+ await screen.findByRole("checkbox", { name: "Incluir receipt.pdf" });
+ expect(fetch.mock.calls.filter(([, init]) => init.method === "POST")).toHaveLength(1);
+ expect(screen.queryByText(/todavía sin guardar/)).not.toBeInTheDocument();
 });

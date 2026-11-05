@@ -483,3 +483,8 @@ no-store y attachment. Backend genera y conserva el PDF con el snapshot oficial;
 HTML ni generación de reportes en el navegador. Expedientes históricos sin reporte no se reconstruyen.
 No se crean tareas de Ingeniería. Las migraciones de Backend requieren despliegue coordinado y no
 se aplican desde Frontend.
+
+
+La verificación del anticipo distingue archivos seleccionados (sin guardar), comprobantes guardados y envío confirmado a Contabilidad. El asesor carga, verifica y luego envía; ante rechazo puede sustituir evidencia y reenviar conservando el historial. Un envío pendiente de archivos locales queda deshabilitado. La carga con resultado incierto exige consultar primero los archivos del servidor; no se repite automáticamente. El envío conserva su clave idempotente durante el reintento.
+
+El expediente prioriza anticipo para Asesor/Contabilidad/Gerencia, propuesta técnica para Presupuestos y revisión comercial para Jefe Comercial. Instalación prioriza su tarea y expediente técnico, conservando documentos y responsable comercial como contacto disponible; no se inventan teléfonos o direcciones ausentes del contrato. Actividad/tareas generales y contexto comercial-contable quedan como consulta secundaria desplegable. Gerencia conserva la visión transversal. Esta organización no restringe ni amplía permisos: los endpoints mantienen el ámbito de lectura y las autorizaciones por rol activo, Subject y asignación.

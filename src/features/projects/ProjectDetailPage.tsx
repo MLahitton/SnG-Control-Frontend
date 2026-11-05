@@ -79,6 +79,10 @@ function ProjectDetailContent({ id }: { id: string }) {
   const advisorOwner = activeRole === "CommercialAdvisor" && user?.subject === data?.project.createdBy?.subject;
   const canReadBudget = advisorOwner || isPreparationAssignee || canReview || activeRole === "Management";
   const canReadCommercial = advisorOwner || canReview || activeRole === "Management" || activeRole === "Accounting";
+  const [contextOpen, setContextOpen] = useState(false);
+  const installationView = activeRole === "Installation";
+  const showAccounting = ["CommercialAdvisor", "Accounting", "Management"].includes(activeRole ?? "");
+  const showNegotiation = ["CommercialAdvisor", "CommercialHead", "Management"].includes(activeRole ?? "");
   const pendingSg = preparation?.status === "Pending" && data?.project.sgCode === null;
   const canAssign = isPreparationAssignee && pendingSg;
   const canCorrect = isPreparationAssignee && preparation?.status === "InProgress" && !!data?.project.sgCode;
@@ -161,11 +165,19 @@ function ProjectDetailContent({ id }: { id: string }) {
     </div>
     {data && <>
       <ProjectHeader project={data.project} clientName={data.client.name} />
-      <ProjectStatusStrip tasks={data.tasks} />
+      <ProjectStatusStrip tasks={installationView ? data.tasks.filter(t => t.type === "TakeMeasurements") : data.tasks} />
       {(activeRole === "Installation" || activeRole === "Management") && data.tasks.some(t => t.type === "TakeMeasurements") && <div className={styles.documents}><MeasurementPanel key={`${id}:${activeRole}`} projectId={id} onRefresh={refreshQuotationRelated} /></div>}
-      {data.tasks.some(t => t.type === "PresentQuotationToClient" || t.type === "RegisterInitialDeposit") && <div className={styles.documents}><AccountingPanel key={`accounting:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
-      {preparation && <div className={styles.documents}><QuotationRoundsPanel key={`history:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
-      {data.tasks.some(t => t.type === "PresentQuotationToClient") && <div className={styles.documents}><ClientDecisionCard key={latestQuotationTask(data.tasks, "PresentQuotationToClient")?.quotationRound} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
+      {showAccounting && data.tasks.some(t => t.type === "PresentQuotationToClient" || t.type === "RegisterInitialDeposit") && <div className={styles.documents}><AccountingPanel key={`accounting:${id}:${activeRole}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
+      {!installationView && activeRole !== "Accounting" && preparation && <div className={styles.documents}><QuotationRoundsPanel key={`history:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
+      {showNegotiation && data.tasks.some(t => t.type === "PresentQuotationToClient") && <div className={styles.documents}><ClientDecisionCard key={latestQuotationTask(data.tasks, "PresentQuotationToClient")?.quotationRound} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
+      {activeRole !== "Management" && (!showAccounting || !showNegotiation || installationView || activeRole === "Accounting") && <details className={styles.documents} onToggle={e => setContextOpen(e.currentTarget.open)}>
+        <summary>Contexto de otras áreas · Consulta complementaria</summary>
+        {contextOpen && <>
+          {!showAccounting && data.tasks.some(t => t.type === "PresentQuotationToClient" || t.type === "RegisterInitialDeposit") && <AccountingPanel projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} />}
+          {(installationView || activeRole === "Accounting") && preparation && <QuotationRoundsPanel projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} />}
+          {!showNegotiation && data.tasks.some(t => t.type === "PresentQuotationToClient") && <ClientDecisionCard projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} />}
+        </>}
+      </details>}
       {pendingSg && !isPreparationAssignee && <p role="status" className={styles.waiting}>Pendiente de asignación de SG por Presupuestos.</p>}
       <div className={styles.workspace}>
       <div className={styles.documents}><DocumentsPanel projectId={id} resource={documents} hasPreparation={!!preparation} disabled={busy || quotationBusy || commercialBusy}
@@ -204,8 +216,8 @@ function ProjectDetailContent({ id }: { id: string }) {
           disabled={busy || documentBusy || quotationBusy} onBusyChange={setCommercialBusy} onRefreshRelated={refreshQuotationRelated}
           onTasksUpdated={(tasks) => { setQuotationRevision(value => value + 1); resource.update({ ...data, tasks: [...data.tasks.filter((current) => !tasks.some((task) => task.id === current.id)), ...tasks] }); }} />}
       </div>}
-      <section aria-labelledby="project-notifications-title" className={styles.activity}><h2 id="project-notifications-title" className={styles.sectionLabel}>Actividad del proyecto</h2><NotificationList notifications={data.notifications} variant="activity" /></section>
-      <section aria-labelledby="project-tasks-title" className={styles.tasks}><h2 id="project-tasks-title" className={styles.sectionLabel}>Tareas del proyecto</h2><TaskList tasks={data.tasks} compact /></section>
+      <details open={!installationView} className={styles.activity}><summary>Actividad y trazabilidad del proyecto</summary><section aria-labelledby="project-notifications-title" className={styles.activity}><h2 id="project-notifications-title" className={styles.sectionLabel}>Actividad del proyecto</h2><NotificationList notifications={data.notifications} variant="activity" /></section></details>
+      <section aria-labelledby="project-tasks-title" className={styles.tasks}><h2 id="project-tasks-title" className={styles.sectionLabel}>Tareas del proyecto</h2><TaskList tasks={installationView ? data.tasks.filter(t => t.type === "TakeMeasurements") : data.tasks} compact />{installationView && <details><summary>Consultar tareas de otras áreas</summary><TaskList tasks={data.tasks.filter(t => t.type !== "TakeMeasurements")} compact /></details>}</section>
       </div>
       <p className={styles.footer}>Fechas y horas de Colombia (America/Bogota).</p>
     </>}
