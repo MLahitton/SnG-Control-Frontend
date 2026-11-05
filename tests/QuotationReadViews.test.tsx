@@ -126,14 +126,13 @@ describe("persistent quotation workspace", () => {
     expect(screen.queryByRole("region", { name: "Cotización Comercial confirmada" })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.every(([, init]) => new Headers(init.headers).get("X-SnG-Active-Role") === "Budgets")).toBe(true);
   });
-  it("loads an image only on demand and revokes its blob URL when leaving", async () => {
+  it("loads an authenticated image automatically and revokes its blob URL when leaving", async () => {
     const id = "00000000-0000-0000-0000-000000000001", itemId = "00000000-0000-0000-0000-000000000002";
     const create = vi.fn(() => "blob:synthetic"), revoke = vi.fn();
     vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
     const fetchMock = mockBackend(() => new Response(new Uint8Array([1, 2]), { headers: { "Content-Type": "image/png" } }),
       () => ({ ...budgetRead, projectId: id, items: [{ ...budgetRead.items[0], id: itemId }] }));
     const view = renderOperational(<BudgetQuotationReadView projectId={id} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Ver imagen del ítem V-2" }));
     expect(await screen.findByAltText("Imagen confirmada del ítem V-2")).toHaveAttribute("src", "blob:synthetic");
     expect(fetchMock.mock.calls.filter(([path]) => path.endsWith("/image"))).toHaveLength(1);
     view.unmount(); expect(revoke).toHaveBeenCalledWith("blob:synthetic");

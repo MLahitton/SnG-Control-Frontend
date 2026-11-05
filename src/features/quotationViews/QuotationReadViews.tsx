@@ -11,6 +11,7 @@ import { useResource } from "@/lib/api/useResource";
 import { ErrorNotice } from "@/lib/api/ErrorNotice";
 import { saveDownload } from "@/lib/api/saveDownload";
 import { formatDate } from "@/lib/formatDate";
+import { ItemImage } from "./ItemImage";
 import { quotationViewService } from "./service";
 import styles from "./QuotationReadViews.module.css";
 
@@ -28,31 +29,6 @@ function Differences({ differences, budget = false }: { differences: TechnicalDi
       <div><dt>{budget ? "Confirmado" : "Comercial"}</dt><dd>{formatTechnicalValue(d.field, d.currentValue) || "Sin valor"}</dd></div>
     </dl></div>)}
   </details>;
-}
-function ItemImage({ projectId, itemId, number }: { projectId: string; itemId: string; number: string }) {
-  const api = useApiClient();
-  const [url, setUrl] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<unknown>();
-  const operation = useRef<AbortController | null>(null);
-  const objectUrl = useRef<string | null>(null);
-  useEffect(() => () => { operation.current?.abort(); if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); }, []);
-  async function load() {
-    if (operation.current || url) return;
-    const controller = new AbortController(); operation.current = controller; setBusy(true); setError(undefined);
-    try {
-      const blob = await quotationViewService.image(api, projectId, itemId, controller.signal);
-      if (controller.signal.aborted) return;
-      objectUrl.current = URL.createObjectURL(blob); setUrl(objectUrl.current);
-    } catch (failure) { if (!controller.signal.aborted) setError(failure); }
-    finally { if (!controller.signal.aborted) { setBusy(false); operation.current = null; } }
-  }
-  return <div className={styles.image}>
-    {/* Authenticated blob URLs must not go through the public Next image optimizer. */}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    {url ? <img src={url} alt={`Imagen confirmada del ítem ${number}`} /> : <button className="button-secondary" disabled={busy} onClick={() => void load()}>{busy ? "Cargando imagen…" : `Ver imagen del ítem ${number}`}</button>}
-    <ErrorNotice error={error} />
-  </div>;
 }
 export function BudgetQuotationReadView({ projectId }: { projectId: string }) {
   const api = useApiClient();
