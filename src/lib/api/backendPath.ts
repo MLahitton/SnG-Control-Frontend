@@ -1,6 +1,7 @@
 export const backendRoots = ["clients", "projects", "project-tasks", "notifications"] as const;
 
 export function isBackendPath(segments: string[]): boolean {
+  if (segments[2] === "opening-records") return openingRecordMethod(segments) !== null;
   if (segments[0] === "projects" && segments[2] === "engineering") return engineeringMethod(segments) !== null;
   if (segments[0] === "projects" && segments[2] === "measurements") {
     return /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(segments[1]) &&
@@ -82,4 +83,14 @@ export function engineeringMethod(s: string[]): "GET" | "PUT" | "POST" | null {
   if (s.length === 6 && s[3] === "acta" && guid.test(s[4]) && s[5] === "download") return "GET";
   if (s.length === 8 && s[3] === "structures" && guid.test(s[4]) && s[5] === "sketches" && guid.test(s[6]) && s[7] === "image") return "GET";
   return null;
+}
+
+export function openingRecordMethod(s:string[]): "GET" | "POST" | null {
+ const guid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+ if(s[0]!=="projects"||!guid.test(s[1])||s[2]!=="opening-records")return null;
+ if(s.length===3)return "GET";
+ if(s.length===4&&s[3]==="initialize-historical")return "POST";
+ if(s.length===6&&s[3]==="rounds"&&guid.test(s[4])&&["commands","documents"].includes(s[5]))return "POST";
+ if(s.length===6&&s[3]==="documents"&&guid.test(s[4])&&s[5]==="download")return "GET";
+ return null;
 }

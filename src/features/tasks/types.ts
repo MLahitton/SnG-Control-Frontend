@@ -1,6 +1,6 @@
 export type TaskArea = "Commercial" | "Budgets" | "Accounting" | "Installation" | "Engineering";
 export type TaskStatus = "Pending" | "InProgress" | "Completed";
-export type TaskType = "PrepareQuotation" | "ReviewQuotation" | "PresentQuotationToClient" | "RegisterInitialDeposit" | "TakeMeasurements" | "CorrectDepositReceipts" | "PrepareOpeningRecord";
+export type TaskType = "PrepareQuotation" | "ReviewQuotation" | "PresentQuotationToClient" | "RegisterInitialDeposit" | "TakeMeasurements" | "CorrectDepositReceipts" | "PrepareOpeningRecord" | "PresentOpeningRecord" | "ReviewOpeningRecord" | "FileOpeningRecord";
 export type LeadTimeStatus = "NotStarted" | "OnTrack" | "DueSoon" | "DueToday" | "Overdue" | "CompletedOnTime" | "CompletedLate" | "UntrackedLegacy";
 export interface ProjectTask {
   quotationRound: number | null;
@@ -21,6 +21,9 @@ export const taskAreaLabels: Record<TaskArea, string> = { Engineering: "Ingenier
 export const taskStatusLabels: Record<TaskStatus, string> = { Pending: "Pendiente", InProgress: "En curso", Completed: "Completada" };
 export const taskTypeLabels: Record<TaskType, string> = {
   CorrectDepositReceipts: "Corregir comprobantes del anticipo",
+  PresentOpeningRecord: "Presentar Acta de Vanos al cliente",
+  ReviewOpeningRecord: "Revisar cambios del Acta de Vanos",
+  FileOpeningRecord: "Radicación de Vanos",
   PrepareOpeningRecord: "Elaborar Acta de Vanos",
   TakeMeasurements: "Toma de medidas",
   RegisterInitialDeposit: "Registrar anticipo inicial",

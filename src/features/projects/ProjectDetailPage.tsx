@@ -1,4 +1,5 @@
 "use client";
+import { OpeningRecordPanel } from "@/features/engineering/OpeningRecordPanel";
 import { EngineeringPanel } from "@/features/engineering/EngineeringPanel";
 import { MeasurementPanel } from "@/features/measurements/MeasurementPanel";
 import { AccountingPanel } from "@/features/accounting/AccountingPanel";
@@ -167,7 +168,8 @@ function ProjectDetailContent({ id }: { id: string }) {
     </div>
     {data && <>
       <ProjectHeader project={data.project} clientName={data.client.name} />
-      <ProjectStatusStrip tasks={engineeringView ? data.tasks.filter(t => t.type === "PrepareOpeningRecord") : installationView ? data.tasks.filter(t => t.type === "TakeMeasurements") : data.tasks} />
+      <ProjectStatusStrip tasks={engineeringView ? data.tasks.filter(t => ["PrepareOpeningRecord","ReviewOpeningRecord","FileOpeningRecord"].includes(t.type)) : installationView ? data.tasks.filter(t => t.type === "TakeMeasurements") : data.tasks} />
+      {data.tasks.some(t => t.type === "PresentOpeningRecord") && <div className={styles.documents}><OpeningRecordPanel key={`opening:${id}:${activeRole}`} projectId={id} onRefresh={refreshQuotationRelated}/></div>}
       {data.tasks.some(t => t.type === "PrepareOpeningRecord") && <div className={styles.documents}><EngineeringPanel key={`engineering:${id}:${activeRole}`} projectId={id} onRefresh={refreshQuotationRelated} /></div>}
       {(activeRole === "Installation" || activeRole === "Management") && data.tasks.some(t => t.type === "TakeMeasurements") && <div className={styles.documents}><MeasurementPanel key={`${id}:${activeRole}`} projectId={id} onRefresh={refreshQuotationRelated} /></div>}
       {showAccounting && data.tasks.some(t => t.type === "PresentQuotationToClient" || t.type === "RegisterInitialDeposit") && <div className={styles.documents}><AccountingPanel key={`accounting:${id}:${activeRole}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}

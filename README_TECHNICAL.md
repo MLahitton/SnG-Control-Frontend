@@ -903,6 +903,19 @@ Engineering tiene bandeja propia y acceso a proyectos con tarea asignada. El exp
 
 Cada check se confirma con el servidor antes de mostrarse guardado. Ante fallo se recupera el estado persistido y se ofrece reintento con la misma clave; conflictos requieren revisar el estado actualizado. El progreso procede del Backend. Solo el Subject asignado con rol activo Engineering puede escribir; los demás lectores autorizados consultan sin controles de escritura.
 
-La selección de PDF y su carga son operaciones distintas. Se admiten Actas de hasta 25 MiB y se conserva el historial de versiones con descargas autenticadas. La finalización requiere todos los checks, un Acta vigente y confirmación explícita. Tras cerrar, el expediente queda de solo lectura. No hay SLA ni traspaso a Comercial.
+La selección de PDF y su carga son operaciones distintas. Se admiten Actas de hasta 25 MiB y se conserva el historial de versiones con descargas autenticadas. La finalización requiere todos los checks, un Acta vigente y confirmación explícita. Tras cerrar, el expediente queda de solo lectura. No hay SLA. El cierre inicial crea la presentación comercial del Acta.
 
 El BFF permite únicamente los métodos y rutas de Ingeniería declarados, propaga identidad/rol y conserva no-store. La radicación requiere `Authentication:EngineeringAssigneeSubject` en Backend; no se configura un Subject real en Frontend. La migración y la incorporación explícita de expedientes históricos siguen el procedimiento de Backend y no se ejecutan desde esta UI.
+
+
+## Presentación y correcciones del Acta de Vanos
+
+El expediente incorpora Presentación del Acta de Vanos, selección de ronda, documento presentado, estructuras en orden, confirmaciones persistidas y duración de respuesta. Confirmar presentación exige confirmación explícita; el contador parte de timestamps y duración proporcionados por Backend y usa tiempo monotónico solo para refrescar la visualización. No constituye SLA ni crea vencimientos.
+
+El asesor responsable confirma estructuras individualmente o selecciona pendientes para Solicitar cambios con descripción obligatoria por unidad y observaciones generales opcionales. La confirmación avisa que las no seleccionadas quedarán confirmadas respecto a esa versión. Los checks no aparecen guardados hasta que Backend confirma; los fallos recuperan estado y ofrecen reintento con la misma clave. Las aprobaciones heredadas se muestran protegidas.
+
+Ingeniería reutiliza las fichas gráficas de solo lectura y revisa únicamente unidades afectadas. Una declaración explícita permite incluir otras estructuras modificadas; deben completarse sus checks y cargarse un nuevo PDF asociado antes del cierre. El cierre abre otra ronda comercial conservando las confirmaciones no afectadas. El checklist inicial y sus documentos siguen históricos.
+
+El PDF firmado se selecciona y carga por separado. Aceptar exige todas las confirmaciones, documento persistido de la ronda actual, atestación del asesor de firma/correspondencia y confirmación final. El sistema no comprueba criptográficamente firmas ni deduce correspondencia por nombre. Tras aceptar se muestra Radicación de Vanos pendiente; no hay controles para ejecutarla. Detener proyecto está deshabilitado y carece de endpoint.
+
+BFF cerrado: GET `projects/{id}/opening-records`, POST `rounds/{roundId}/commands`, POST `rounds/{roundId}/documents` y GET `documents/{documentId}/download` bajo esa ruta. Conserva Google/rol activo, validación de GUID/método, PDF attachment y no-store. La incorporación histórica explícita sigue el procedimiento documentado en Backend, sin invocación automática en esta UI. No hay cambios financieros, de Instalación o de Intelligence.

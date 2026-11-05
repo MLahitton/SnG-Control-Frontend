@@ -62,7 +62,7 @@ export function EngineeringPanel({ projectId, onRefresh }: { projectId:string; o
  if(!data)return null;
  const disabled=busy||!!pending;
  const label=(r:EngineeringRow)=>`${r.structure.itemId ? "Ítem "+r.structure.itemNumber : "Agregada en obra"} · Unidad ${r.structure.unitOrdinal}/${r.structure.unitCount}`;
- const errors:Record<string,string>={EngineeringRevisionConflict:"El expediente cambió. Revisa el estado actualizado antes de reintentar.",EngineeringLocked:"Ingeniería ya está cerrada; el expediente es de solo lectura.",EngineeringIncomplete:"Completa todas las estructuras antes de finalizar.",EngineeringActaRequired:"Carga y verifica un Acta vigente antes de finalizar.",InvalidEngineeringPdf:"Selecciona un PDF válido, completo y de hasta 25 MiB.",EngineeringActaTooLarge:"El PDF supera 25 MiB.",EngineeringActaIntegrity:"El documento no superó la verificación de integridad.",EngineeringActaUnavailable:"El Acta no está disponible en almacenamiento.",EngineeringRequestConflict:"El reintento no coincide con la operación original."};
+ const errors:Record<string,string>={OpeningAdvisorNotConfigured:"El responsable comercial del proyecto debe tener membresía de Asesor configurada antes de cerrar Ingeniería.",EngineeringRevisionConflict:"El expediente cambió. Revisa el estado actualizado antes de reintentar.",EngineeringLocked:"Ingeniería ya está cerrada; el expediente es de solo lectura.",EngineeringIncomplete:"Completa todas las estructuras antes de finalizar.",EngineeringActaRequired:"Carga y verifica un Acta vigente antes de finalizar.",InvalidEngineeringPdf:"Selecciona un PDF válido, completo y de hasta 25 MiB.",EngineeringActaTooLarge:"El PDF supera 25 MiB.",EngineeringActaIntegrity:"El documento no superó la verificación de integridad.",EngineeringActaUnavailable:"El Acta no está disponible en almacenamiento.",EngineeringRequestConflict:"El reintento no coincide con la operación original."};
  return <section className="panel stack" aria-label="Ingeniería — Acta de Vanos">
  <h2>Ingeniería · Elaborar Acta de Vanos</h2><p>{data.taskStatus==="Completed"?"Completada · Solo lectura":"En curso · Sin plazo formal"} · Responsable: {data.responsibleSubject}</p>
  <p className="metadata">Inicio: {formatDate(data.startedAt)}{data.completedAt&&` · Finalización: ${formatDate(data.completedAt)}`}</p>
@@ -72,14 +72,7 @@ export function EngineeringPanel({ projectId, onRefresh }: { projectId:string; o
  <div className={styles.cards}>{data.structures.map(row=>{const s=row.structure;const image=s.imageCatalogItemId?drawings.images[s.imageCatalogItemId]:undefined;
  return <article className={`stack ${styles.card}`} key={s.id} aria-label={label(row)}>
  <h3>{label(row)}</h3><p>{s.actualLocation??s.location??"Ubicación sin registrar"} · {row.completed?"Completada":"Pendiente"}</p>
- {image?.url? /* eslint-disable-next-line @next/next/no-img-element */
- <img className={styles.picture} src={image.url} alt={`Dibujo cotizado ${s.itemNumber??""}`}/>:<p>{s.imageCatalogItemId?image?.failed?<button onClick={drawings.retry}>Reintentar dibujo</button>:"Cargando dibujo…":"Sin dibujo cotizado"}</p>}
- <p><strong>{s.actualWidth!=null?metresToMm(s.actualWidth):"Sin registrar"} × {s.actualHeight!=null?metresToMm(s.actualHeight):"Sin registrar"} mm</strong></p>
- <p>Tipo de medida: {s.measurementType==="Opening"?"Vano":s.measurementType==="Production"?"Producción":s.measurementType==="Agreed"?"Pactada":"Sin registrar"}</p>
- <p>Sistema en obra: {s.actualSystemText??"Sin registrar"}</p><p>{technicalText(s.technical)}</p>
- {s.installationObservations&&<p>Observaciones: {s.installationObservations}</p>}
- {s.modification&&<div><h4>Modificación radicada</h4><p>{s.modification.type} · {s.modification.reason} · {s.modification.description}</p></div>}
- {[...new Set([s.sketchVersionId,s.modification?.sketchVersionId].filter((v):v is string=>!!v))].map(v=><SketchImage key={v} path={`${path}/structures/${s.id}/sketches/${v}/image`}/>)}
+ <EngineeringStructureDetails structure={s} projectId={projectId} image={image} retryImage={drawings.retry}/>
  <label className={styles.check}><input type="checkbox" checked={row.completed} disabled={!writable||disabled} onChange={e=>void run({kind:"check",id:s.id,requestKey:crypto.randomUUID(),expectedRevision:row.revision,completed:e.target.checked})}/>Estructura trabajada en Acta de Vanos</label>
  {busy&&pending?.kind==="check"&&pending.id===s.id&&<p role="status">Guardando estructura…</p>}
  </article>;})}</div>
@@ -94,4 +87,15 @@ export function EngineeringPanel({ projectId, onRefresh }: { projectId:string; o
  {confirm&&<div role="dialog" aria-label="Confirmar cierre de Ingeniería"><p>Se congelarán los checks y el Acta vigente. No podrás modificarlos después.</p><button className="button-primary" disabled={disabled} onClick={()=>data.currentDocumentId&&void run({kind:"close",requestKey:crypto.randomUUID(),expectedRevision:data.revision,documentId:data.currentDocumentId})}>Finalizar Ingeniería</button><button className="button-secondary" disabled={busy} onClick={()=>setConfirm(false)}>Cancelar</button></div>}</div>}
  <details><summary>Historial de Ingeniería</summary>{data.history.map(h=><p key={h.revision}>{{Initialize:"Inicio",Check:"Estructura completada",Uncheck:"Estructura pendiente",UploadActa:"Acta cargada",Complete:"Finalización"}[h.action]??h.action} · {formatDate(h.at)} · {h.actor.name??h.actor.email??"Responsable registrado"}{h.reason&&` · ${h.reason}`}</p>)}</details>
  </section>;
+}
+
+export function EngineeringStructureDetails({structure:s,projectId,image,retryImage}:{structure:EngineeringRow["structure"];projectId:string;image?:{url?:string;failed?:boolean};retryImage:()=>void}) {
+ return <> {image?.url? /* eslint-disable-next-line @next/next/no-img-element */
+ <img className={styles.picture} src={image.url} alt={`Dibujo cotizado ${s.itemNumber??""}`}/>:<p>{s.imageCatalogItemId?image?.failed?<button onClick={retryImage}>Reintentar dibujo</button>:"Cargando dibujo…":"Sin dibujo cotizado"}</p>}
+ <p><strong>{s.actualWidth!=null?metresToMm(s.actualWidth):"Sin registrar"} × {s.actualHeight!=null?metresToMm(s.actualHeight):"Sin registrar"} mm</strong></p>
+ <p>Tipo de medida: {s.measurementType==="Opening"?"Vano":s.measurementType==="Production"?"Producción":s.measurementType==="Agreed"?"Pactada":"Sin registrar"}</p>
+ <p>Sistema en obra: {s.actualSystemText??"Sin registrar"}</p><p>{technicalText(s.technical)}</p>
+ {s.installationObservations&&<p>Observaciones: {s.installationObservations}</p>}
+ {s.modification&&<div><h4>Modificación radicada</h4><p>{s.modification.type} · {s.modification.reason} · {s.modification.description}</p></div>}
+ {[...new Set([s.sketchVersionId,s.modification?.sketchVersionId].filter((v):v is string=>!!v))].map(v=><SketchImage key={v} path={`projects/${projectId}/engineering/structures/${s.id}/sketches/${v}/image`}/>)}</>;
 }
