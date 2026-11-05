@@ -1,3 +1,4 @@
+import { economicsKeys, parseEconomics } from "./economics";
 import { ApiError } from "@/lib/api/apiError";
 import type { ProjectTask } from "@/features/tasks/types";
 import type { BudgetQuotationPreviewResponse, ConfirmedBudgetQuotationResponse, ItemValues, QuotationDocument, BudgetQuotationStatusResponse, SendToCommercialResponse } from "./types";
@@ -40,7 +41,7 @@ function uniqueRows(items: { sourceRow: number }[], count: number) {
   if (items.length !== count || new Set(items.map((item) => item.sourceRow)).size !== count) invalid();
 }
 export function parsePreview(value: unknown, projectId: string): BudgetQuotationPreviewResponse {
-  const v = object(value, ["quotationRound", "projectId", "projectSgCode", "document", "itemCount", "totalQuantity", "items", "warnings"]);
+  const v = object(value, ["quotationRound", "projectId", "projectSgCode", "document", "itemCount", "totalQuantity", "items", "warnings", ...economicsKeys(value)]);
   if (required(v.projectId) !== projectId) invalid();
   const items = list(v.items, (entry) => {
     const item = object(entry, [...valueFields, "section", "sourceRow", "image"]);
@@ -61,7 +62,7 @@ export function parsePreview(value: unknown, projectId: string): BudgetQuotation
     if (!items.some((item) => item.sourceRow === warning.sourceRow && item.itemNumber === warning.itemNumber)) invalid();
     return warning;
   });
-  return { quotationRound: positive(v.quotationRound, true), projectId, projectSgCode: required(v.projectSgCode), document: document(v.document), itemCount, totalQuantity: positive(v.totalQuantity, true), items, warnings };
+  return { quotationRound: positive(v.quotationRound, true), projectId, projectSgCode: required(v.projectSgCode), document: document(v.document), itemCount, totalQuantity: positive(v.totalQuantity, true), items, warnings, economics: parseEconomics(v.economics, items) };
 }
 function task(value: unknown, projectId: string, type: "PrepareQuotation" | "ReviewQuotation" = "PrepareQuotation"): ProjectTask {
   const v = object(value, ["id", "projectId", "area", "type", "status", "assignedAt", "startedAt", "completedAt", "assignedToGoogleSubject", "deadlineAt", "wasOverdue", "leadTimeStatus", "quotationRound"]);
@@ -104,7 +105,7 @@ export function parseSendToCommercial(value: unknown, projectId: string): SendTo
   return { projectId, budgetTask, commercialTask, quotationVersionId: required(v.quotationVersionId), commercialCatalogId: required(v.commercialCatalogId), commercialFileAvailable: v.commercialFileAvailable };
 }
 export function parseConfirmation(value: unknown, projectId: string): ConfirmedBudgetQuotationResponse {
-  const v = object(value, ["quotationVersionId", "versionNumber", "commercialCatalogId", "projectId", "confirmedAt", "document", "itemCount", "totalQuantity", "items", "prepareQuotationTask"]);
+  const v = object(value, ["quotationVersionId", "versionNumber", "commercialCatalogId", "projectId", "confirmedAt", "document", "itemCount", "totalQuantity", "items", "prepareQuotationTask", ...economicsKeys(value)]);
   if (required(v.projectId) !== projectId) invalid();
   const items = list(v.items, (entry) => {
     const i = object(entry, ["id", "section", "sourceRow", "extracted", "confirmed", "image"]);
@@ -116,7 +117,7 @@ export function parseConfirmation(value: unknown, projectId: string): ConfirmedB
   uniqueRows(items, itemCount);
   if (new Set(items.map((i) => i.id)).size !== itemCount) invalid();
   return { quotationVersionId: required(v.quotationVersionId), commercialCatalogId: required(v.commercialCatalogId), versionNumber: positive(v.versionNumber, true),
-    projectId, confirmedAt: date(v.confirmedAt), document: document(v.document), itemCount, totalQuantity: positive(v.totalQuantity, true), items, prepareQuotationTask: task(v.prepareQuotationTask, projectId) };
+    projectId, confirmedAt: date(v.confirmedAt), document: document(v.document), itemCount, totalQuantity: positive(v.totalQuantity, true), items, economics: parseEconomics(v.economics, items), prepareQuotationTask: task(v.prepareQuotationTask, projectId) };
 }
 
 export function parseItemValues(value: unknown): ItemValues { return values(object(value, valueFields)); }

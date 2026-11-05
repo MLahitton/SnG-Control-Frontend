@@ -1,3 +1,5 @@
+import { BudgetEconomicsNotice } from "@/features/budgetQuotation/BudgetEconomicsNotice";
+import { itemEconomics } from "@/features/budgetQuotation/economics";
 import { ProposalTotals } from "@/features/quotationViews/ProposalSummary";
 import { Fragment } from "react";
 import type { BudgetQuotationPreviewResponse, ItemDraft } from "./types";
@@ -15,8 +17,8 @@ export function BudgetQuotationPreview({ preview, draft, disabled, onChange }: {
   return <div className={styles.stack}>
     <h3 className={styles.title}>Resumen de propuesta</h3><p>Presupuestos · Ronda {preview.quotationRound} · Pendiente de confirmación</p>
     <dl className={styles.summary}>{facts.filter(([, value]) => value !== "").map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-    <ProposalTotals items={draft.map(i => ({ squareMeters: i.squareMeters.trim() ? Number(i.squareMeters) : NaN, quantity: Number(i.quantity) }))} />
-    <p className={styles.note}>Precios y total económico no disponibles en esta etapa técnica.</p>
+    <ProposalTotals items={draft.map(i => ({ squareMeters: i.squareMeters.trim() ? Number(i.squareMeters) : NaN, quantity: Number(i.quantity) }))} projectTotal={preview.economics?.projectTotal} />
+    <BudgetEconomicsNotice economics={preview.economics} />
     {!!preview.warnings.length && <aside className={styles.warnings} aria-label="Advertencias de extracción">
       <h4>Advertencias de extracción</h4><p>Estas advertencias no impiden confirmar la cotización.</p>
       <ul>{preview.warnings.map((w, i) => <li key={i}>Ítem {w.itemNumber}: {w.message}</li>)}</ul>
@@ -24,7 +26,7 @@ export function BudgetQuotationPreview({ preview, draft, disabled, onChange }: {
     <p>Revisa los datos extraídos. Puedes corregir los once campos técnicos; las medidas no se recalculan automáticamente.</p>
     {preview.items.map((item, index) => <Fragment key={`${item.section}:${item.sourceRow}`}>
       {(index === 0 || preview.items[index - 1].section !== item.section) && <h3 className={styles.title}>{item.section === "Main" ? "Principales" : "Adicionales"}</h3>}
-      <BudgetQuotationItemEditor item={item} draft={draft[index]} disabled={disabled}
+      <BudgetQuotationItemEditor prices={itemEconomics(preview.economics, item)} item={item} draft={draft[index]} disabled={disabled}
         ambiguous={preview.warnings.some((w) => w.sourceRow === item.sourceRow && w.code === "AmbiguousImage")}
         onChange={(field, value) => onChange(index, field, value)} />
     </Fragment>)}

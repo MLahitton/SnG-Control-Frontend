@@ -1,4 +1,6 @@
 "use client";
+import { BudgetEconomicsNotice } from "@/features/budgetQuotation/BudgetEconomicsNotice";
+import { itemEconomics } from "@/features/budgetQuotation/economics";
 import { formatProposalValue as formatTechnicalValue } from "./proposalFormat";
 import { ProposalTotals, ItemSurface, ItemPrices } from "./ProposalSummary";
 
@@ -43,11 +45,11 @@ export function BudgetQuotationReadView({ projectId }: { projectId: string }) {
     <h2 id="budget-read-title">Resumen de propuesta</h2><p className={styles.muted}>Información técnica confirmada · Presupuestos · Solo lectura</p>
     <dl className={styles.fields}>{[["Versión", view.versionNumber], ["Confirmada", formatDate(view.confirmedAt)], ["SG", d.sgCode], ["Archivo", d.fileName],
       ["Cliente", d.clientName], ["Proyecto", d.projectName], ["Ubicación", d.location], ["Línea de cliente", d.clientLine], ["Línea de producción", d.productionLine], ["Preparada por", d.preparedBy]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || "Sin valor"}</dd></div>)}</dl>
-    <ProposalTotals items={view.items.map(item => item.confirmed)} />
-    <p className={styles.muted}>Importes no disponibles en el catálogo técnico confirmado. No se toman precios de una versión comercial posterior.</p>
+    <ProposalTotals items={view.items.map(item => item.confirmed)} projectTotal={view.economics?.projectTotal} />
+    <BudgetEconomicsNotice economics={view.economics} />
     <div className={styles.items}>{view.items.map(item => <article className={styles.item} key={`${item.section}:${item.sourceRow}`}>
       <p className={styles.muted}>{item.section === "Main" ? "Principales" : "Adicionales"} · Fila {item.sourceRow}</p><h3>Ítem {item.confirmed.itemNumber}</h3>
-      <Values values={item.confirmed} /><ItemSurface {...item.confirmed} /><ItemPrices /><Differences differences={item.technicalDifferences} budget />
+      <Values values={item.confirmed} /><ItemSurface {...item.confirmed} /><ItemPrices {...itemEconomics(view.economics, item)} /><Differences differences={item.technicalDifferences} budget />
       {item.hasImage ? <ItemImage projectId={projectId} itemId={item.id} number={item.confirmed.itemNumber} /> : <p className={styles.muted}>{item.imageStatus === "Ambiguous" ? "Imagen ambigua en el archivo original" : "Sin imagen persistida"}</p>}
     </article>)}</div>
   </section>;

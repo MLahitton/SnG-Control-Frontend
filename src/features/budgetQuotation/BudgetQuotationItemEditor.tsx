@@ -10,7 +10,8 @@ const labels: Record<keyof ItemValues, string> = {
 };
 const textFields = ["itemNumber", "location", "system", "glass", "aluminumFinish", "lockType", "observations"] as const;
 const numericFields = ["width", "height", "squareMeters", "quantity"] as const;
-export function BudgetQuotationItemEditor({ item, draft, ambiguous, disabled, onChange }: {
+export function BudgetQuotationItemEditor({ item, draft, ambiguous, disabled, onChange, prices }: {
+  prices?: { unitPrice: string; totalPrice: string };
   item: PreviewItem; draft: ItemDraft; ambiguous: boolean; disabled: boolean; onChange: (field: keyof ItemDraft, value: string) => void;
 }) {
   const [editingSurface, setEditingSurface] = useState(false);
@@ -35,7 +36,7 @@ export function BudgetQuotationItemEditor({ item, draft, ambiguous, disabled, on
             onBlur={() => { if (field === "squareMeters") setEditingSurface(false); }}
             onChange={(e) => onChange(field, (field === "width" || field === "height") && e.target.value !== "" ? String(mmToMetres(Number(e.target.value))) : e.target.value)} />
         </label>)}</div>
-        <ItemSurface squareMeters={draft.squareMeters.trim() ? Number(draft.squareMeters) : NaN} quantity={Number(draft.quantity)} /><ItemPrices />
+        <ItemSurface squareMeters={draft.squareMeters.trim() ? Number(draft.squareMeters) : NaN} quantity={Number(draft.quantity)} /><ItemPrices {...prices} />
       </div>
     </div>
   </fieldset>;

@@ -88,7 +88,7 @@ Si cambió el SG después de confirmar, se muestran ambos SG y el bloqueo sin co
 
 La información confirmada permanece dentro del proyecto después de F5, handoffs, cambio de área o nueva sesión. Las vistas de Presupuestos y Comercial consultan Backend y muestran los snapshots persistidos, separadas de los previews temporales y de las acciones actuales.
 
-Presupuestos conserva metadata documental, SG histórico, todos los ítems, valores técnicos confirmados, ajustes frente a la extracción e imágenes bajo demanda. Comercial conserva valores técnicos, precios unitarios, totales por ítem, total del proyecto y diferencias frente a Presupuestos. No se recalcula economía ni se reprocesan archivos para mostrar estos datos.
+Presupuestos conserva metadata documental, SG histórico, todos los ítems, valores técnicos confirmados, ajustes frente a la extracción e imágenes bajo demanda. Comercial conserva valores técnicos, precios unitarios, totales por ítem, total del proyecto y diferencias frente a Presupuestos. Presupuestos muestra además los precios unitarios, subtotales y total originales del Excel de esa versión, en COP y solo lectura. Backend recupera esos importes del original conservado; no se recalcula economía ni se usan precios comerciales posteriores.
 
 El asesor original y Gerencia consultan ambas vistas. Presupuestos consulta su snapshot con tarea asignada. El Jefe Comercial consulta ambas con ReviewQuotation asignada y puede revisar el contenido de Presupuestos antes de descargar el archivo operativo. Las acciones siguen limitadas al área activa y al workflow; las vistas son de solo lectura. Las descargas existentes se conservan. Si no hay cotización confirmada, no se muestra una sección vacía.
 

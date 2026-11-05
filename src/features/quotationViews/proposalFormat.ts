@@ -4,8 +4,10 @@ const area = new Intl.NumberFormat("es-CO", { minimumFractionDigits: 2, maximumF
 const length = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 6 });
 export const formatSurface = (value: number | null | undefined) =>
   value == null || !Number.isFinite(value) ? "No disponible" : `${area.format(value)} m²`;
-export const formatProposalMoney = (value: number | null | undefined) =>
-  value == null ? "No disponible en esta etapa" : formatCop(value);
+export const formatProposalMoney = (value: number | string | null | undefined) =>
+  value == null ? "No disponible en esta etapa" : typeof value === "string"
+    ? `COP $ ${value.split(".")[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${value.split(".")[1]}`
+    : formatCop(value);
 export function formatProposalValue(field: string, value: string | number): string {
   const key = field.toLowerCase();
   if (key === "squaremeters") return formatSurface(Number(value));

@@ -1,3 +1,4 @@
+import type { BudgetEconomics } from "./economics";
 import type { ProjectTask } from "@/features/tasks/types";
 
 export interface ItemValues {
@@ -25,6 +26,7 @@ export interface QuotationWarning {
   code: "MissingImage" | "AmbiguousImage"; itemNumber: string; sourceRow: number; message: string;
 }
 export interface BudgetQuotationPreviewResponse {
+  economics?: BudgetEconomics;
   quotationRound: number;
   projectId: string; projectSgCode: string; document: QuotationDocument;
   itemCount: number; totalQuantity: number; items: PreviewItem[]; warnings: QuotationWarning[];
@@ -34,6 +36,7 @@ export interface ConfirmedItem extends ItemKey {
   image: { status: "Stored" | "Missing" | "Ambiguous"; contentType: string | null };
 }
 export interface ConfirmedBudgetQuotationResponse {
+  economics?: BudgetEconomics;
   quotationVersionId: string; versionNumber: number; commercialCatalogId: string;
   projectId: string; confirmedAt: string; document: QuotationDocument;
   itemCount: number; totalQuantity: number; items: ConfirmedItem[]; prepareQuotationTask: ProjectTask;

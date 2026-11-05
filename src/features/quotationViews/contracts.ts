@@ -1,3 +1,4 @@
+import { economicsKeys, parseEconomics, type BudgetEconomics } from "@/features/budgetQuotation/economics";
 import { ApiError } from "@/lib/api/apiError";
 import { parseItemValues, parseQuotationDocument } from "@/features/budgetQuotation/parser";
 import type { ItemValues, ItemKey, QuotationDocument } from "@/features/budgetQuotation/types";
@@ -8,6 +9,7 @@ export interface BudgetReadItem extends ItemKey {
   imageStatus: "Stored" | "Missing" | "Ambiguous" | null; hasImage: boolean; technicalDifferences: TechnicalDifference[];
 }
 export interface BudgetReadView {
+  economics?: BudgetEconomics;
   projectId: string; quotationVersionId: string; versionNumber: number; confirmedAt: string;
   document: QuotationDocument; items: BudgetReadItem[];
 }
@@ -44,7 +46,7 @@ function unique(items: ItemKey[], ids: string[]) {
   if (!items.length || new Set(items.map(i => `${i.section}:${i.sourceRow}`)).size !== items.length || new Set(ids).size !== ids.length) invalid();
 }
 export function parseBudgetView(value: unknown, projectId: string): BudgetReadView {
-  const v = object(value, ["projectId", "quotationVersionId", "versionNumber", "confirmedAt", "document", "items"]);
+  const v = object(value, ["projectId", "quotationVersionId", "versionNumber", "confirmedAt", "document", "items", ...economicsKeys(value)]);
   if (v.projectId !== projectId) invalid();
   const items = list<BudgetReadItem>(v.items, entry => {
     const i = object(entry, ["id", "section", "sourceRow", "confirmed", "extracted", "imageStatus", "hasImage", "technicalDifferences"]);
@@ -55,7 +57,7 @@ export function parseBudgetView(value: unknown, projectId: string): BudgetReadVi
       imageStatus, hasImage: i.hasImage, technicalDifferences: differences(i.technicalDifferences) };
   });
   unique(items, items.map(i => i.id));
-  return { projectId, quotationVersionId: id(v.quotationVersionId), versionNumber: number(v.versionNumber, true), confirmedAt: date(v.confirmedAt), document: parseQuotationDocument(v.document), items };
+  return { projectId, quotationVersionId: id(v.quotationVersionId), versionNumber: number(v.versionNumber, true), confirmedAt: date(v.confirmedAt), document: parseQuotationDocument(v.document), items, economics: parseEconomics(v.economics, items) };
 }
 export function parseCommercialView(value: unknown, projectId: string): CommercialReadView {
   const v = object(value, ["versionNumber", "currencyCode", "projectId", "commercialQuotationId", "confirmedAt", "projectTotal", "items"]);
