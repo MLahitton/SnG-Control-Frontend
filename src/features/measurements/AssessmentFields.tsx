@@ -9,9 +9,7 @@ export function AssessmentFields({ structure: s, writable, disabled, onCommand, 
  return <div className="stack"><strong>{label}</strong>
  {s.modificationComplete && <p>Modificación documentada.</p>}
  {s.comparisonCurrent && s.comparison?.resolution === "Comparable" && <p>Comparación confirmada.</p>}
- {s.widthDifferenceMm != null && <p>Diferencia absoluta: ancho {s.modificationComplete && <p>Modificación documentada.</p>}
- {s.comparisonCurrent && s.comparison?.resolution === "Comparable" && <p>Comparación confirmada.</p>}
- {s.widthDifferenceMm} mm · alto {s.heightDifferenceMm} mm.</p>}
+ {s.widthDifferenceMm != null && <p>Diferencia absoluta: ancho {s.widthDifferenceMm} mm · alto {s.heightDifferenceMm} mm.</p>}
  {s.comparisonCurrent && s.comparison?.resolution === "NotComparable" && <p>Referencia no comparable: revisión registrada. No equivale a ausencia de modificación.</p>}
  <details open={!s.comparisonCurrent}><summary>Revisar comparación</summary><p>Confirma la equivalencia técnica de la referencia cotizada. No se aplican ajustes de fabricación.</p>
  <fieldset disabled={!writable}><label>Referencia dimensional<select value={comparison.value.resolution} onChange={e => comparison.setValue({ ...comparison.value, resolution: e.target.value as "Comparable" | "NotComparable" })}><option value="NotComparable">No comparable · revisión explícita</option>{s.itemId && <option value="Comparable">Comparable con el tipo registrado</option>}</select></label>
