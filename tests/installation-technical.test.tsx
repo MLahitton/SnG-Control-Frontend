@@ -8,7 +8,7 @@ const structure: Structure = { id: "unit-1", itemId: null, unitOrdinal: 1, unitC
 it("uses centralized explicit mm conversions", () => { expect(mmToMetres(2000)).toBe(2); expect(mmToMetres(2400)).toBe(2.4); expect(metresToMm(2)).toBe(2000); expect(metresToMm(2.4)).toBe(2400); expect(metresToMm(1.2345)).toBe(1234.5); });
 it("keeps 1100 a suggestion until explicit confirmation; clears conditional values", async () => {
  const save = vi.fn(); render(<TechnicalFields structure={structure} writable disabled={false} onCommand={save} onDirty={vi.fn()} />);
- await userEvent.click(screen.getByText("Detalles técnicos"));
+ if (!screen.getByText("Detalles técnicos").closest("details")?.open) await userEvent.click(screen.getByText("Detalles técnicos"));
  expect(screen.queryByLabelText("Altura de manija (mm)")).not.toBeInTheDocument();
  await userEvent.selectOptions(screen.getByLabelText("Manija"), "Confirmed");
  expect(screen.getByLabelText(/Altura de manija/)).toHaveValue(null); expect(save).not.toHaveBeenCalled();
@@ -31,7 +31,7 @@ it("keeps 1100 a suggestion until explicit confirmation; clears conditional valu
 });
 it("rejects a handle taller than the actual structure and keeps read-only fields disabled", async () => {
  const { rerender } = render(<TechnicalFields structure={structure} writable disabled={false} onCommand={vi.fn()} onDirty={vi.fn()} />);
- await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Manija"), "Confirmed");
+ if (!screen.getByText("Detalles técnicos").closest("details")?.open) await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Manija"), "Confirmed");
  fireEvent.change(screen.getByLabelText(/Altura de manija/), { target: { value: "2401" } });
  expect(screen.getByRole("alert")).toBeInTheDocument(); expect(screen.getByText("Guardar detalles técnicos")).toBeDisabled();
  rerender(<TechnicalFields structure={structure} writable={false} disabled={false} onCommand={vi.fn()} onDirty={vi.fn()} />);
@@ -40,7 +40,7 @@ it("rejects a handle taller than the actual structure and keeps read-only fields
 
 it("preserves historical custom sill and saves presets, Other and No", async () => {
  const save = vi.fn(); render(<TechnicalFields structure={{ ...structure, technical: { handleStatus: null, handleHeightMm: null, viewSide: null, openingType: null, openingDirection: null, openingHand: null, hasAlfajia: true, alfajiaMeasurementMm: 123 } }} writable disabled={false} onCommand={save} onDirty={vi.fn()} />);
- await userEvent.click(screen.getByText("Detalles técnicos"));
+ if (!screen.getByText("Detalles técnicos").closest("details")?.open) await userEvent.click(screen.getByText("Detalles técnicos"));
  expect(screen.getByLabelText("Medida de alfajía")).toHaveValue("Other"); expect(screen.getByLabelText("Medida de alfajía (mm)")).toHaveValue(123);
  for (const n of [114, 160]) {
   await userEvent.selectOptions(screen.getByLabelText("Medida de alfajía"), String(n));

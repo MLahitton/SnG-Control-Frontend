@@ -13,7 +13,7 @@ import { StructureCard, useMeasurementImages } from "./StructureCard";
 import { metresToMm, mmToMetres } from "./units";
 import { technicalText } from "./technicalText";
 import styles from "./MeasurementPanel.module.css";
-import type { MeasurementAction, MeasurementCommand, MeasurementState } from "./contracts";
+import type { MeasurementAction, MeasurementCommand, MeasurementState, SketchDrawing } from "./contracts";
 
 export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; onRefresh: (signal: AbortSignal) => Promise<void> }) {
   const api = useApiClient(); const { activeRole, user } = useAuth();
@@ -22,6 +22,8 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
   const resource = useResource(load); const data = resource.data;
   const [busy, setBusy] = useState(false); const [error, setError] = useState<unknown>(); const [notice, setNotice] = useState("");
   const [confirmation, setConfirmation] = useState<MeasurementAction | null>(null);
+  const [savedSketch, setSavedSketch] = useState<{ structureId: string; versionId: string; drawing: SketchDrawing }>();
+  const [target, setTarget] = useState<{ action: string; structureId?: string }>();
   const [pending, setPending] = useState<MeasurementCommand | null>(null);
   const [description, setDescription] = useState(""); const [width, setWidth] = useState(""); const [height, setHeight] = useState("");
   const [uploads, setUploads] = useState<DocumentUpload[]>([]);
@@ -41,6 +43,7 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
   async function run(action: "initialize" | "upload" | MeasurementCommand) {
     if (!writable || operation.current) return;
     const controller = new AbortController(); operation.current = controller; setBusy(true); setError(undefined); setNotice("");
+    if (typeof action !== "string") setTarget(action); else setTarget(undefined);
     try {
       if (action === "initialize") await api.post<void>(`${path}/initialize`, {}, { signal: controller.signal });
       else if (action === "upload") {
@@ -50,7 +53,13 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
         if (!controller.signal.aborted) { setUploads([]); uploadKey.current = null; }
       } else { setPending(action); await api.post<void>(`${path}/commands`, action, { signal: controller.signal }); }
       if (controller.signal.aborted) return;
-      resource.update(await load(controller.signal));
+      const refreshed = await load(controller.signal);
+      if (controller.signal.aborted) return;
+      resource.update(refreshed);
+      if (typeof action !== "string" && action.action === "RecordSketch" && action.sketch) {
+        const versionId = refreshed.structures.find(s => s.id === action.structureId)?.sketchVersionId;
+        if (versionId) setSavedSketch({ structureId: action.structureId!, versionId, drawing: action.sketch.drawing });
+      }
       setPending(null); setConfirmation(null);
       if (typeof action !== "string" && action.action === "Retire") for (const prefix of ["", "technical:", "sketch:", "comparison:", "modification:"]) dirtyChanged(`${prefix}${action.structureId}`, false);
       if (controller.signal.aborted) return;
@@ -79,7 +88,7 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
   async function downloadReport() {
     if (operation.current || !data?.submissionId) return;
     const controller = new AbortController(); operation.current = controller; setBusy(true); setError(undefined);
-    try { await saveDownload(() => api.downloadStream(`${path}/submissions/${data.submissionId}/report`, { signal: controller.signal }), "toma-medidas.pdf", controller.signal); }
+    try { await saveDownload(() => api.downloadStream(`${path}/submissions/${data.submissionId}/report`, { signal: controller.signal }), "Radicacion de medidas.pdf", controller.signal, { serverFilename: true }); }
     catch (failure) { if (!controller.signal.aborted) setError(failure); }
     finally { if (!controller.signal.aborted) { operation.current = null; setBusy(false); } }
   }
@@ -103,7 +112,10 @@ export function MeasurementPanel({ projectId, onRefresh }: { projectId: string; 
         key={s.id} structure={s} projectId={projectId} writable={writable} disabled={disabled}
         saving={busy && pending?.action === "RecordActual" && pending.structureId === s.id}
         image={s.imageCatalogItemId ? drawings.images[s.imageCatalogItemId] : undefined} retryImage={drawings.retry}
-        sketchFeedback={<>{error instanceof ApiError && error.code && messages[error.code] ? <p role="alert">{messages[error.code]}</p> : <ErrorNotice error={error} />}{pending && error && <button type="button" disabled={busy} onClick={() => void run(pending)}>Reintentar guardado de croquis</button>}</>}
+        savedSketch={savedSketch?.structureId === s.id ? savedSketch : undefined}
+        sectionAction={target?.structureId === s.id ? target.action : undefined}
+        sectionFeedback={target?.structureId === s.id && <>{busy ? <p role="status">Guardando esta sección…</p> : notice ? <p role="status">{labels[target.action] ?? "Sección guardada"}.</p> : error instanceof ApiError && error.code && messages[error.code] ? <p role="alert">{messages[error.code]}</p> : <ErrorNotice error={error} />}</>}
+        sketchFeedback={target?.structureId === s.id && target.action === "RecordSketch" && <>{error instanceof ApiError && error.code && messages[error.code] ? <p role="alert">{messages[error.code]}</p> : <ErrorNotice error={error} />}{pending && error && <button type="button" disabled={busy} onClick={() => void run(pending)}>Reintentar guardado de croquis</button>}</>}
         onCommand={command} onRetire={() => setConfirmation({ action: "Retire", structureId: s.id })} onDirty={dirtyChanged}
       />)}</div>
       {dirtyIds.size > 0 && <p role="status">Guarda las tarjetas editadas antes de radicar medidas.</p>}

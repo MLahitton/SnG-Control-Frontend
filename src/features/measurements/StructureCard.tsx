@@ -3,7 +3,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useApiClient } from "@/features/auth/hooks/useApiClient";
 import { quotationViewService } from "@/features/quotationViews/service";
 import { formatDate } from "@/lib/formatDate";
-import type { MeasurementAction, MeasurementType, Structure } from "./contracts";
+import type { MeasurementAction, MeasurementType, SketchDrawing, Structure } from "./contracts";
 import { metresToMm, mmToMetres } from "./units";
 import { useSectionDraft } from "./useSectionDraft";
 import { missingMeasurementFields } from "./completeness";
@@ -37,8 +37,8 @@ export function useMeasurementImages(projectId: string, structures: Structure[])
 
 type ActualDraft = { width: string; height: string; system: string; measurementType: MeasurementType | ""; location: string; observations: string };
 const actualKey = (value: ActualDraft) => JSON.stringify({ width: value.width.trim() === "" ? "" : Number(value.width), height: value.height.trim() === "" ? "" : Number(value.height), system: value.system.trim(), measurementType: value.measurementType, location: value.location.trim(), observations: value.observations.trim() });
-export function StructureCard({ structure: s, projectId, sketchFeedback, writable, disabled, saving, image, retryImage, onCommand, onRetire, onDirty }: {
-  sketchFeedback?: ReactNode; projectId: string; structure: Structure; writable: boolean; disabled: boolean; saving: boolean; image?: ImageState; retryImage: () => void;
+export function StructureCard({ structure: s, projectId, savedSketch, sectionAction, sectionFeedback, sketchFeedback, writable, disabled, saving, image, retryImage, onCommand, onRetire, onDirty }: {
+  savedSketch?: { versionId: string; drawing: SketchDrawing }; sectionAction?: string; sectionFeedback?: ReactNode; sketchFeedback?: ReactNode; projectId: string; structure: Structure; writable: boolean; disabled: boolean; saving: boolean; image?: ImageState; retryImage: () => void;
   onCommand: (action: MeasurementAction) => void; onRetire: () => void; onDirty: (id: string, dirty: boolean) => void;
 }) {
   const [assessmentDirty, setAssessmentDirty] = useState<Record<string, boolean>>({});
@@ -58,11 +58,10 @@ export function StructureCard({ structure: s, projectId, sketchFeedback, writabl
   const handleConflict = s.technical?.handleHeightMm != null && Number(height) > 0 && Number(height) < s.technical.handleHeightMm;
   const valid = Number.isFinite(Number(width)) && Number(width) > 0 && Number.isFinite(Number(height)) && Number(height) > 0 && !!system.trim() && system.length <= 2000;
   return <article className={`panel stack ${styles.card}`} aria-label={`Estructura ${s.id}`}>
+    <section className={`stack ${styles.cardSection}`}><h3>1. Referencia de cotización</h3>
     <strong>{s.itemId ? `Ítem ${s.itemNumber ?? ""} · ${s.unitOrdinal}/${s.unitCount}` : "Agregada en obra"} · {s.id.slice(0, 8)}</strong>
     {s.location && <p>{s.location}</p>}
     <p className="metadata">{s.itemId ? "Cotizado" : "Registro inicial"}: {s.description || "Sin sistema"} · {metresToMm(s.width)} × {metresToMm(s.height)} mm</p>
-    <form className="stack" onSubmit={event => { event.preventDefault(); if (canEdit && !disabled && dirty && valid && !handleConflict) onCommand({ action: "RecordActual", structureId: s.id, actualWidth: mmToMetres(Number(width)), actualHeight: mmToMetres(Number(height)), actualSystemText: system.trim(), measurementType: measurementType || null, actualLocation: location.trim() || null, installationObservations: observations.trim() || null }); }}>
-      <div className={styles.drawing}>
         <div className={styles.picture}>
           {image?.url ? <>
             {/* Private authenticated blobs must never use the public image optimizer. */}
@@ -71,6 +70,10 @@ export function StructureCard({ structure: s, projectId, sketchFeedback, writabl
           </> : <p>{s.imageCatalogItemId ? image?.failed ? "No se pudo cargar el dibujo." : "Cargando dibujo…" : "Sin imagen persistida"}</p>}
           {image?.failed && <button type="button" className="text-link" onClick={retryImage}>Reintentar imagen</button>}
         </div>
+    </section>
+    <section className={`stack ${styles.cardSection}`}><h3>2. Medidas en obra</h3>
+    <form className="stack" onSubmit={event => { event.preventDefault(); if (canEdit && !disabled && dirty && valid && !handleConflict) onCommand({ action: "RecordActual", structureId: s.id, actualWidth: mmToMetres(Number(width)), actualHeight: mmToMetres(Number(height)), actualSystemText: system.trim(), measurementType: measurementType || null, actualLocation: location.trim() || null, installationObservations: observations.trim() || null }); }}>
+      <div className={styles.dimensions}>
         <label className={styles.width}>Ancho en obra (mm)<input aria-label={`Ancho en obra ${s.id}`} className="form-control" type="number" inputMode="decimal" min="0" step="any" required value={width} disabled={!canEdit} onChange={e => change("width", e.target.value)} /></label>
         <label className={styles.height}>Alto en obra (mm)<input aria-label={`Alto en obra ${s.id}`} className="form-control" type="number" inputMode="decimal" min="0" step="any" required value={height} disabled={!canEdit} onChange={e => change("height", e.target.value)} /></label>
       </div>
@@ -83,15 +86,26 @@ export function StructureCard({ structure: s, projectId, sketchFeedback, writabl
       {dirty && <p role="status">Cambios sin guardar en esta estructura.</p>}
       {handleConflict && <p role="status">El alto propuesto es menor que la altura de manija guardada. Guarda primero la corrección de manija en Detalles técnicos; puedes seguir editando la ficha.</p>}
     </form>
+    {sectionAction === "RecordActual" && sectionFeedback}</section>
+    <section className={`stack ${styles.cardSection}`}><h3>3. Detalles técnicos</h3>
     <TechnicalFields structure={s} disabled={disabled} writable={canEdit} onCommand={onCommand} onDirty={sectionChanged} />
     <p>Vista guardada: {s.technical?.viewSide === "Inside" ? "Por dentro" : s.technical?.viewSide === "Outside" ? "Por fuera" : "Sin registrar"} · Apertura: {s.technical?.openingType ? ({ NotApplicable: "No aplica", HingedDoor: "Puerta batiente", HingedWindow: "Ventana batiente", Other: "Otro" })[s.technical.openingType] : "Sin registrar"}</p>
-    <SketchPanel feedback={sketchFeedback} projectId={projectId} structure={s} disabled={disabled} writable={canEdit} onCommand={onCommand} onDirty={sectionChanged} />
+    {sectionAction === "RecordTechnical" && sectionFeedback}</section>
+    <section className={`stack ${styles.cardSection}`}><h3>4. Croquis</h3>
+    <SketchPanel savedSketch={savedSketch} feedback={sketchFeedback} projectId={projectId} structure={s} disabled={disabled} writable={canEdit} onCommand={onCommand} onDirty={sectionChanged} />
+    {sectionAction === "RecordSketch" && sectionFeedback}</section>
+    <section className={`stack ${styles.cardSection}`}><h3>5. Revisión y modificaciones</h3>
     <AssessmentFields structure={s} writable={canEdit} disabled={disabled} onCommand={onCommand} onDirty={sectionChanged} />
+    {(sectionAction === "ResolveComparison" || sectionAction === "RecordModification") && sectionFeedback}</section>
+    <section className={`stack ${styles.cardSection}`}><h3>6. Confirmación</h3>
     {hasDrafts && <p role="status">Antes de marcar Medido, guarda los cambios pendientes de { [dirty && "Medidas en obra", technicalDirty && "Detalles técnicos", sketchDirty && "Croquis", Object.values(assessmentDirty).some(Boolean) && "Revisión/modificación"].filter(Boolean).join(", ") }.</p>}
     {!s.measuredAt && missing.length > 0 && <div className="metadata"><p>Pendiente de guardar o validar:</p><ul>{missing.map(field => <li key={field}>{field}</li>)}</ul></div>}
     {s.measuredAt && !s.technicalComplete && <p className="metadata">Medición histórica conservada. Si la desmarcas, deberás completar la ficha para volver a marcarla.</p>}
-    <label className={styles.measured}><input type="checkbox" aria-label={`Medido ${s.id}`} checked={!!s.measuredAt} disabled={!canEdit || disabled || (!s.measuredAt && (hasDrafts || missing.length > 0 || s.technicalComplete === false))} onChange={e => onCommand({ action: "Measure", structureId: s.id, measured: e.target.checked })} />Medido</label>
+    <label className={styles.measured}><input type="checkbox" aria-label={`Medido ${s.id}`} checked={!!s.measuredAt} disabled={!canEdit || disabled || (!s.measuredAt && (hasDrafts || missing.length > 0 || s.technicalComplete === false))} onChange={e => onCommand({ action: "Measure", structureId: s.id, measured: e.target.checked })} />{s.measuredAt ? "Medido" : "Marcar como medido"}</label>
+    {sectionAction === "Measure" && sectionFeedback}
+    {!s.measuredAt && !hasDrafts && missing.length === 0 && s.technicalComplete !== false && <p>Ficha completa y guardada. Lista para confirmar.</p>}
     {s.measuredAt && <p className="metadata">{formatDate(s.measuredAt)}</p>}
     {canEdit && <button className="button-secondary" disabled={disabled} onClick={onRetire}>Retirar estructura {s.id.slice(0, 8)}</button>}
+    </section>
   </article>;
 }

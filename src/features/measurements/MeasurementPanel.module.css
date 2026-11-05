@@ -27,3 +27,16 @@
 .canvas { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border: 1px solid #64748b; touch-action: none; }
 .tools { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
 .tools button, .tools select { min-height: 44px; padding: .5rem; }
+
+.cardSection { border-top: 1px solid var(--border); padding-top: 1rem; gap: .75rem; }
+.cardSection:first-child { border-top: 0; padding-top: 0; }
+.cardSection h3 { font-size: 1rem; font-weight: 700; color: #164e63; }
+.cardSection fieldset { min-width: 0; }
+.cardSection textarea { width: 100%; min-height: 5rem; }
+.cardSection summary { cursor: pointer; padding-block: .75rem; }
+.dimensions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.dimensions .width, .dimensions .height { grid-area: auto; border: 0; border-top: 2px solid #0891b2; padding: .5rem 0 0; }
+.measured { padding: .75rem; border: 2px solid #0891b2; border-radius: .5rem; font-weight: 700; }
+.canvasStage { position: relative; }
+.inlineText { position: absolute; z-index: 1; width: min(18rem, 50%); background: #fff; color: #111827; border: 2px solid #0066cc; border-radius: .5rem; padding: .75rem; box-shadow: 0 4px 16px #0003; display: grid; gap: .5rem; max-height: 90%; overflow: auto; }
+.inlineText input, .inlineText select, .inlineText button { width: 100%; min-height: 44px; }

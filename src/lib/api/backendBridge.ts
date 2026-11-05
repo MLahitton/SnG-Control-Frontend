@@ -136,7 +136,9 @@ export async function forwardBackend(request: Request, segments: string[]): Prom
     if (isMeasurementReportPath(segments)) {
       if (mediaType !== "application/pdf") return problem(502);
       responseHeaders.set("Content-Type", "application/pdf"); responseHeaders.set("X-Content-Type-Options", "nosniff");
-      responseHeaders.set("Content-Disposition", `attachment; filename="toma-medidas-${segments[4]}.pdf"`);
+      const filename = downloadFilename(response.headers.get("Content-Disposition"));
+      if (!filename || !filename.toLowerCase().endsWith(".pdf") || forbidden.some(text => filename.toLowerCase().includes(text.toLowerCase()))) return problem(502);
+      responseHeaders.set("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename).replace(/['()*]/g, c => `%${c.charCodeAt(0).toString(16)}`)}`);
       return new Response(response.body, { status: response.status, headers: responseHeaders });
     }
     if (isMeasurementSketchPath(segments) && segments[7] === "image") {

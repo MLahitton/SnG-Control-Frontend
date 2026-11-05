@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -68,7 +69,11 @@ it.each(["mouse", "touch", "pen"])("creates, edits, moves and deletes text with 
  const save = vi.fn(); render(<SketchEditor drawing={emptyDrawing()} disabled={false} onSave={save} onCancel={vi.fn()} onDirty={vi.fn()} />);
  const canvas = screen.getByLabelText("Lienzo de croquis para mouse, dedo o lápiz");
  await userEvent.click(screen.getByText("Texto")); pointer(canvas, "pointerdown", kind, 70, 65);
- await userEvent.type(screen.getByLabelText("Contenido del texto"), "2000 mm"); await userEvent.click(screen.getByText("Confirmar texto"));
+ expect(screen.getByLabelText("Contenido del texto")).toHaveFocus();
+ const inline = screen.getByLabelText("Contenido del texto").closest("fieldset")!;
+ expect(inline).toHaveStyle({ left: "10%", top: "10%" });
+ expect(inline.parentElement).toBe(canvas.parentElement);
+ await userEvent.type(screen.getByLabelText("Contenido del texto"), "2000 mm{Enter}");
  const id = (screen.getByLabelText("Anotación") as HTMLSelectElement).options[1].value;
  await userEvent.selectOptions(screen.getByLabelText("Anotación"), id);
  fireEvent.change(screen.getByLabelText("Contenido del texto"), { target: { value: "2400 mm" } });
@@ -76,8 +81,27 @@ it.each(["mouse", "touch", "pen"])("creates, edits, moves and deletes text with 
  await userEvent.click(screen.getByText("Guardar croquis")); await waitFor(() => expect(save).toHaveBeenCalledOnce());
  expect(save.mock.calls[0][0]).toMatchObject({ version: 2, annotations: [{ id, content: "2400 mm", x: .5, y: .5, size: 24, color: "#111111", order: 0 }] });
  expect(ctx.fillText).toHaveBeenCalledWith("2400 mm", 600, 450, 1200);
- await userEvent.selectOptions(screen.getByLabelText("Anotación"), id); await userEvent.click(screen.getByText("Eliminar texto"));
+ await userEvent.selectOptions(screen.getByLabelText("Anotación"), id); screen.getByText("Eliminar texto").focus(); await userEvent.keyboard("{Enter}");
  expect(screen.queryByLabelText("Anotación")).not.toBeInTheDocument();
  await userEvent.click(screen.getByText("Deshacer")); expect(screen.getByRole("option", { name: "2400 mm" })).toBeInTheDocument();
  await userEvent.click(screen.getByText("Rehacer")); expect(screen.queryByLabelText("Anotación")).not.toBeInTheDocument();
+});
+
+it("keeps a successfully closed editor closed when another structure replaces the save receipt", async () => {
+ const id = "11111111-1111-4111-8111-111111111111";
+ let saved = emptyDrawing();
+ vi.stubGlobal("URL", class extends URL { static createObjectURL = vi.fn(() => "blob:sketch"); static revokeObjectURL = vi.fn(); });
+ mockBackend(path => path.endsWith("/image") ? new Response(new Blob(["webp"], { type: "image/webp" }), { headers: { "Content-Type": "image/webp" } }) : { id, structureId: id, revision: 1, drawing: saved });
+ function Harness() {
+  const [receipt, setReceipt] = useState<{ versionId: string; drawing: typeof saved }>();
+  const [version, setVersion] = useState<string>();
+  const structure: Structure = { id, itemId: id, unitOrdinal: 1, unitCount: 1, itemNumber: "V1", width: 1, height: 2, description: "Synthetic", location: null, createdAt: "", measuredAt: null, retiredAt: null, sketchVersionId: version };
+  return <><button onClick={() => setReceipt(undefined)}>Otra estructura guardada</button><SketchPanel savedSketch={receipt} projectId={id} structure={structure} writable disabled={false} onDirty={() => {}} onCommand={a => { if (a.action === "RecordSketch") { saved = a.sketch.drawing; setVersion(id); setReceipt({ versionId: id, drawing: saved }); } }} /></>;
+ }
+ renderOperational(<Harness />, { ...user, roles: ["Installation"], isManagement: false });
+ await userEvent.click(screen.getByText("Dibujar croquis")); const canvas = screen.getByLabelText("Lienzo de croquis para mouse, dedo o lápiz");
+ pointer(canvas, "pointerdown", "mouse", 70, 65); pointer(canvas, "pointerup", "mouse", 70, 65);
+ await userEvent.click(screen.getByText("Guardar croquis")); await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+ await userEvent.click(screen.getByText("Otra estructura guardada")); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+ await userEvent.click(screen.getByText("Editar croquis")); expect(screen.getByText(/1\/200 trazos/)).toBeInTheDocument();
 });

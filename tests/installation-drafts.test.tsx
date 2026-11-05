@@ -49,7 +49,7 @@ it.each([
  const b = backend(); const view = renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
  const width = await screen.findByLabelText(`Ancho en obra ${unit}`);
  fireEvent.change(width, { target: { value: "2000" } });
- await userEvent.click(screen.getByText("Detalles técnicos")); expect(screen.getByLabelText("Referencia de vista")).toBeEnabled();
+ if (!screen.getByText("Detalles técnicos").closest("details")?.open) await userEvent.click(screen.getByText("Detalles técnicos")); expect(screen.getByLabelText("Referencia de vista")).toBeEnabled();
  await userEvent.selectOptions(screen.getByLabelText("Referencia de vista"), "Inside"); expect(width).toBeEnabled();
  await pauseSketch(); expect(width).toBeEnabled();
  fireEvent.change(width, { target: { value: "2100" } });
@@ -61,7 +61,7 @@ it.each([
   await waitFor(() => expect(b.commands).toHaveLength(saved.size + 1));
   await waitFor(() => expect(screen.queryByText("Guardando…", { selector: "p" })).not.toBeInTheDocument());
   saved.add(action);
-  if (action === "RecordSketch") { await screen.findByText(/Guardado · revisión/); await userEvent.click(screen.getByText("Volver a ficha · conservar borrador")); }
+  if (action === "RecordSketch") { await screen.findByText(/Guardado · revisión/); await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument()); }
   expect(screen.getByLabelText(`Ancho en obra ${unit}`)).toHaveValue(2100); expect(screen.getByLabelText("Referencia de vista")).toHaveValue("Inside");
   if (!saved.has("RecordActual")) expect(screen.getByText("Cambios sin guardar en esta estructura.")).toBeInTheDocument();
   if (!saved.has("RecordTechnical")) expect(screen.getByText("Detalles técnicos sin guardar.")).toBeInTheDocument();
@@ -108,7 +108,7 @@ it("keeps inputs editable during a write and preserves newer local edits on its 
  fireEvent.change(width, { target: { value: "2000" } }); await userEvent.click(screen.getByText("Guardar medidas"));
  await waitFor(() => expect(commands).toHaveLength(1)); expect(width).toBeEnabled();
  fireEvent.change(width, { target: { value: "3000" } });
- await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Referencia de vista"), "Inside");
+ if (!screen.getByText("Detalles técnicos").closest("details")?.open) await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Referencia de vista"), "Inside");
  expect(screen.getByText("Guardar detalles técnicos")).toBeDisabled(); expect(screen.getByText("Dibujar croquis")).toBeEnabled();
  gate.resolve(); await screen.findByText("Operación guardada.");
  expect(width).toHaveValue(3000); expect(state.structures[0].actualWidth).toBe(2);
@@ -144,7 +144,7 @@ it("a conflict reread preserves all drafts and the next command uses the fresh r
  });
  renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
  const width = await screen.findByLabelText(`Ancho en obra ${unit}`); fireEvent.change(width, { target: { value: "2000" } });
- await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Referencia de vista"), "Inside"); await pauseSketch();
+ if (!screen.getByText("Detalles técnicos").closest("details")?.open) await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Referencia de vista"), "Inside"); await pauseSketch();
  await userEvent.click(screen.getByText("Guardar medidas"));
  await waitFor(() => expect(screen.getByText("Guardar medidas")).toBeEnabled());
  expect(width).toHaveValue(2000); expect(screen.getByLabelText("Referencia de vista")).toHaveValue("Inside"); expect(screen.getByText(/Croquis en borrador sin guardar/)).toBeInTheDocument();
@@ -155,7 +155,7 @@ it("explains a persisted-height dependency without disabling local technical or 
  const state = initial(); state.structures[0] = { ...state.structures[0], actualHeight: null, technical: null, technicalComplete: false };
  mockBackend(() => state); renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
  const height = await screen.findByLabelText(`Alto en obra ${unit}`); fireEvent.change(height, { target: { value: "2400" } });
- await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Manija"), "Confirmed");
+ if (!screen.getByText("Detalles técnicos").closest("details")?.open) await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Manija"), "Confirmed");
  await userEvent.click(screen.getByText("Confirmar 1100 mm"));
  expect(screen.getByText(/Guarda primero el alto real/)).toBeInTheDocument(); expect(height).toBeEnabled(); expect(screen.getByLabelText("Referencia de vista")).toBeEnabled(); expect(screen.getByText("Dibujar croquis")).toBeEnabled();
  expect(screen.getByText("Guardar detalles técnicos")).toBeDisabled();
@@ -179,7 +179,7 @@ it("can unmark an already measured structure without discarding its incomplete t
  });
  renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
  await screen.findByLabelText(`Medido ${unit}`);
- await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Referencia de vista"), "");
+ if (!screen.getByText("Detalles técnicos").closest("details")?.open) await userEvent.click(screen.getByText("Detalles técnicos")); await userEvent.selectOptions(screen.getByLabelText("Referencia de vista"), "");
  expect(screen.getByLabelText(`Medido ${unit}`)).toBeEnabled();
  await userEvent.click(screen.getByLabelText(`Medido ${unit}`)); await screen.findByText("Operación guardada.");
  expect(screen.getByLabelText("Referencia de vista")).toHaveValue(""); expect(screen.getByText("Detalles técnicos sin guardar.")).toBeInTheDocument();
@@ -192,7 +192,7 @@ it("explains when persisted handle details must be saved before reducing actual 
  mockBackend(() => state); renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
  const height = await screen.findByLabelText(`Alto en obra ${unit}`); fireEvent.change(height, { target: { value: "1000" } });
  expect(screen.getByText(/Guarda primero la corrección de manija/)).toBeInTheDocument(); expect(screen.getByText("Guardar medidas")).toBeDisabled();
- await userEvent.click(screen.getByText("Detalles técnicos")); expect(screen.getByLabelText(/Altura de manija/)).toBeEnabled();
+ if (!screen.getByText("Detalles técnicos").closest("details")?.open) await userEvent.click(screen.getByText("Detalles técnicos")); expect(screen.getByLabelText(/Altura de manija/)).toBeEnabled();
  fireEvent.change(screen.getByLabelText(/Altura de manija/), { target: { value: "900" } }); expect(screen.getByText("Guardar detalles técnicos")).toBeEnabled(); expect(height).toBeEnabled();
 });
 
@@ -230,4 +230,48 @@ it("records explicit comparison and formal modification without silently selecti
  await userEvent.type(screen.getByLabelText("Descripción de modificación"), "New site configuration"); await userEvent.click(screen.getByLabelText(/Confirmo que el croquis/));
  await userEvent.click(screen.getByText("Guardar modificación")); await waitFor(() => expect(commands).toHaveLength(2));
  expect(commands[1]).toMatchObject({ action: "RecordModification", expectedRevision: 1, modification: { reason: "System change", description: "New site configuration", sketchVersionId: version } });
+});
+
+it("organizes six visible sections and distinguishes documented non-comparability", async () => {
+ const state = initial(); state.structures[0] = { ...state.structures[0], comparisonStatus: "PendingReview", comparison: { resolution: "NotComparable", reason: "Vano distinto de referencia", measurementType: "Agreed", width: 1, height: 2.4 } };
+ mockBackend(() => state); renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ await screen.findByLabelText(`Medido ${unit}`);
+ for (const name of ["1. Referencia de cotización", "2. Medidas en obra", "3. Detalles técnicos", "4. Croquis", "5. Revisión y modificaciones", "6. Confirmación"]) expect(screen.getByRole("heading", { name })).toBeVisible();
+ expect(screen.getByText("Referencia no comparable — documentada")).toBeVisible();
+ expect(screen.queryByText("Comparación pendiente de revisión")).not.toBeInTheDocument();
+ expect(screen.getByText("Guardar detalles técnicos")).toBeVisible(); expect(screen.getByText("Dibujar croquis")).toBeVisible();
+});
+it.each(["stroke", "unconfirmed text", "concurrent version"])("retains %s entered while a sketch save response is pending", async kind => {
+ let state = initial(); let drawing: SketchDrawing = { version: 1, width: 1200, height: 900, strokes: [] }; const response = deferred<Response>();
+ mockBackend((path, init) => {
+  if (init.method === "POST") { const c = JSON.parse(init.body as string); drawing = structuredClone(c.sketch.drawing); state = { ...state, revision: 1, structures: state.structures.map(s => ({ ...s, sketchVersionId: version })) }; return response.promise; }
+  if (path.endsWith("/image")) return new Response(new Blob(["webp"], { type: "image/webp" }), { headers: { "Content-Type": "image/webp" } });
+  if (path.includes("/sketches/")) return { id: version, structureId: unit, revision: 1, drawing: kind === "concurrent version" ? { ...drawing, strokes: [] } : drawing };
+  return state;
+ });
+ renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ await userEvent.click(await screen.findByText("Dibujar croquis")); draw();
+ await userEvent.click(screen.getByText("Guardar croquis"));
+ await waitFor(() => expect(screen.getByText("Cancelar croquis")).toBeDisabled());
+ if (kind === "stroke") draw();
+ else if (kind === "unconfirmed text") {
+  await userEvent.click(screen.getByText("Texto"));
+  const canvas = screen.getByLabelText("Lienzo de croquis para mouse, dedo o lápiz"); const event = new Event("pointerdown", { bubbles: true });
+  Object.assign(event, { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, clientX: 150, clientY: 150 }); fireEvent(canvas, event);
+  await userEvent.type(screen.getByLabelText("Contenido del texto"), "Borrador posterior");
+ }
+ response.resolve(new Response(null, { status: 204 })); await screen.findByText(/Guardado · revisión/);
+ expect(screen.getByRole("dialog")).toBeInTheDocument(); expect(drawing.strokes).toHaveLength(1);
+ if (kind === "stroke") expect(screen.getByText(/2\/200 trazos/)).toBeInTheDocument();
+ else if (kind === "unconfirmed text") expect(screen.getByLabelText("Contenido del texto")).toHaveValue("Borrador posterior");
+ else expect(screen.getByText(/1\/200 trazos/)).toBeInTheDocument();
+ expect(screen.getByLabelText(`Medido ${unit}`)).toBeDisabled();
+ if (kind === "unconfirmed text") { await userEvent.click(screen.getByText("Cancelar croquis")); await waitFor(() => expect(screen.getByLabelText(`Medido ${unit}`)).toBeEnabled()); }
+});
+it.each([400, 409, 503])("keeps sketch drafts and the editor open after HTTP %s", async status => {
+ mockBackend((_, init) => init.method === "POST" ? Response.json({ status, extensions: { code: status === 409 ? "MeasurementRevisionConflict" : "InvalidMeasurementSketch" } }, { status }) : initial());
+ renderOperational(<MeasurementPanel projectId={id} onRefresh={vi.fn()} />, installer);
+ await userEvent.click(await screen.findByText("Dibujar croquis")); draw(); await userEvent.click(screen.getByText("Guardar croquis"));
+ await waitFor(() => expect(within(screen.getByRole("dialog")).getByRole("alert")).toBeInTheDocument());
+ expect(screen.getByText(/1\/200 trazos/)).toBeInTheDocument(); expect(screen.queryByText("Croquis guardado correctamente.")).not.toBeInTheDocument();
 });

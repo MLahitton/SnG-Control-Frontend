@@ -851,6 +851,8 @@ El almacenamiento en metros es compatibilidad técnica, no una regla operativa; 
 se guardan directamente en mm. Superficies m² y valores monetarios conservan sus unidades.
 No hay migración global de unidades ni cambios de contratos en Cotizador, Presupuestos o Comercial.
 
+Cada tarjeta distingue seis secciones: referencia cotizada, medidas en obra, detalles técnicos, croquis, revisión/modificaciones y confirmación. Mantiene tres columnas en escritorio y adaptación a tablet, con controles táctiles y resultados junto a la sección guardada.
+
 Medidas, detalles técnicos y croquis mantienen borradores independientes por estructura. Se pueden
 editar en cualquier orden; solo los botones de escritura se serializan mientras hay una petición.
 Guardar una sección no envía ni descarta las otras, y los refrescos/conflictos conservan los
@@ -873,18 +875,18 @@ radicar, conservando ID/datos/orden y requiriendo confirmar nuevamente Medido.
 Revisar comparación registra una resolución motivada de la Instalación asignada sobre dimensiones
 y tipo persistidos. La referencia comercial no se presume equivalente. Solo una resolución
 Comparable calcula diferencias absolutas en mm y exige modificación cuando alguna es >100 mm.
-NotComparable sigue visible como comparación pendiente, con revisión registrada; no significa
-Sin modificación. Cambios en dimensiones/tipo requieren volver a revisar.
+NotComparable vigente se muestra como «Referencia no comparable — documentada»; no significa
+Sin modificación. La revisión sin resolver se abre directamente. No se infiere equivalencia: el ítem cotizado no conserva un tipo de medida equivalente. Cambios en dimensiones/tipo requieren volver a revisar.
 
 Modificar estructura guarda una versión auditada con tipo, motivo, descripción y selección explícita
 del croquis que documenta el cambio. Se permiten borradores, pero Medido requiere la modificación
 completa vinculada a la ficha vigente. Las secciones mantienen borradores independientes. El editor
 Texto permite insertar, seleccionar, editar, mover mediante nueva posición, eliminar y deshacer/
-rehacer anotaciones; se guardan con coordenadas normalizadas en Drawing v2 y WEBP. V1 sigue legible.
+rehacer anotaciones; el campo aparece sobre el punto tocado y recibe foco, con Enter o Confirmar texto para aplicarlo. Se guardan con coordenadas normalizadas en Drawing v2 y WEBP. V1 sigue legible. El editor se cierra cuando el comando tuvo éxito y se recuperó su versión con imagen; conserva abierto cualquier trazo o texto posterior sin guardar.
 
 La radicación ofrece Descargar reporte PDF de Instalación si existe Snapshot.Report. La descarga
 usa GET projects/{id}/measurements/submissions/{submissionId}/report, el BFF cerrado, rol activo,
-no-store y attachment. Backend genera y conserva el PDF con el snapshot oficial; no hay captura
+no-store y attachment. Respeta el nombre seguro del Backend `Radicacion de medidas-[Nombre del proyecto].pdf`, también con guardado nativo disponible. Backend genera y conserva el PDF con el snapshot oficial; no hay captura
 HTML ni generación de reportes en el navegador. Expedientes históricos sin reporte no se reconstruyen.
 No se crean tareas de Ingeniería. Las migraciones de Backend requieren despliegue coordinado y no
 se aplican desde Frontend.
