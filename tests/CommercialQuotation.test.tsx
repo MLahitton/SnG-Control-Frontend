@@ -213,3 +213,15 @@ describe("commercial download and identity cleanup", () => {
     expect(panel().queryByRole("heading", { name: "Preview comercial" })).not.toBeInTheDocument(); expect(panel().queryByRole("button", { name: "Confirmar" })).not.toBeInTheDocument();
   });
 });
+
+
+it.each(["RecalculationRequired", "InconsistentFormulaCache"])("blocks preview and confirmation with actionable financial review: %s", async code => {
+  const api = backend();
+  api.setMutation(() => new Response(JSON.stringify({ code }), { status: 400, headers: { "Content-Type": "application/problem+json" } }));
+  renderOperational(<ProjectDetailPage id="project-1" />, commercialUser);
+  await userEvent.upload(await screen.findByLabelText("Seleccionar XLSX comercial"), xlsx());
+  await userEvent.click(panel().getByRole("button", { name: "Generar preview" }));
+  expect(await panel().findByRole("alert")).toHaveTextContent("No se ha confirmado la cotización");
+  expect(panel().queryByRole("button", { name: "Confirmar cotización comercial" })).not.toBeInTheDocument();
+  expect(posts(api.fetchMock)).toHaveLength(1);
+});

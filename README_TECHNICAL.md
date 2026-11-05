@@ -316,6 +316,12 @@ Smoke manual con una cuenta multirol y un proyecto sintético:
 
 ### Comercial 4E — revisión de cotización
 
+El importador financiero puede devolver HTTP 400 con RecalculationRequired o
+InconsistentFormulaCache. El BFF conserva el código seguro; commercialQuotationError muestra
+instrucciones de recálculo, revisión y guardado. No se crea preview ni se habilita confirmar
+después de un preview fallido. El diálogo exige revisar visualmente los importes del preview
+contra el XLSX guardado; no existe recálculo de precios ni parser Excel en el navegador.
+
 `features/commercialQuotation` contiene tipos, parser cerrado, service, mensajes seguros, `CommercialQuotationPanel`, preview de solo lectura y estilos responsive. Se monta en el expediente después de Presupuestos y antes de actividad/tareas, únicamente con CommercialHead activo y el Subject asignado a ReviewQuotation InProgress/Completed. La tarea InProgress permite actuar; Completed muestra estado y descarga final. No se infieren roles por email, nombre, creador o isManagement.
 
 Auditoría backend: preview/confirm y archivo operativo requieren CommercialHead; el archivo final permite Head activo asignado o Advisor activo propietario, sin ampliar el panel al asesor. El multipart acepta únicamente `file`; backend valida SG, estructura exacta Section + SourceRow, workbook y economía. La confirmación reinterpreta el XLSX, conserva sus bytes como archivo final y completa ReviewQuotation/inicia PresentQuotationToClient para el creador original. No hubo cambios backend para 4E.

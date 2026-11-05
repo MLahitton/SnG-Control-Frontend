@@ -97,13 +97,13 @@ export function CommercialQuotationPanel({ projectId, reviewStatus, disabled, on
     </> : conflicted ? <p role="status">La revisión ya fue confirmada. Actualiza la actividad para consultar las tareas oficiales.</p> : <>
       <p>La cotización preparada por Presupuestos está lista para revisión.</p>
       <div><button className="button-secondary" disabled={blocked} onClick={() => void run("download")}>Descargar cotización</button></div>
-      <p className={styles.muted}>Edita este archivo en Excel y vuelve a subirlo para revisar los valores comerciales.</p>
+      <p className={styles.muted}>Revisa el archivo en Excel, recalcula completamente y guárdalo antes de subirlo. El preview lee los importes guardados; no recalcula fórmulas.</p>
       <label className="field-label">Seleccionar XLSX comercial<input ref={fileInput} className="form-control" type="file" accept=".xlsx" disabled={blocked} onChange={(e) => select(e.target.files)} /></label>
       <div><button className="button-primary" disabled={blocked || !file} onClick={() => void run("preview")}>Generar preview</button></div>
       {preview && <p>Ronda {preview.data.quotationRound}</p>}
     {preview && <><CommercialQuotationPreview preview={preview.data} />
         {prompt ? <div role="group" aria-label="Confirmar cotización comercial" className={styles.confirmation}>
-          <h3>¿Confirmas esta cotización comercial?</h3><p>Al confirmar, la revisión Comercial finalizará y el proyecto pasará al asesor responsable para presentar la propuesta al cliente.</p>
+          <h3>¿Confirmas esta cotización comercial?</h3><p>Verifica que los precios por ítem y el total del preview coincidan con el Excel revisado y guardado. Si hay diferencias, cancela y revisa el archivo antes de confirmar.</p><p>Al confirmar, la revisión Comercial finalizará y el proyecto pasará al asesor responsable para presentar la propuesta al cliente.</p>
           <div className={styles.buttons}><button className="button-primary" disabled={blocked} onClick={() => void run("confirm")}>Confirmar</button>
             <button className="button-secondary" disabled={blocked} onClick={() => setPrompt(false)}>Cancelar</button></div>
         </div> : <div><button className="button-primary" disabled={blocked} onClick={() => setPrompt(true)}>Confirmar cotización comercial</button></div>}

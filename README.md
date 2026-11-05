@@ -96,6 +96,12 @@ El asesor original y Gerencia consultan ambas vistas. Presupuestos consulta su s
 
 El expediente muestra **Revisión Comercial** al usuario con CommercialHead activo cuyo Subject coincide con el asignado a ReviewQuotation. Con tarea InProgress puede descargar la cotización operativa de Presupuestos, editarla externamente en Excel y seleccionar un único `.xlsx` revisado. La autorización real corresponde al backend; email, nombre, creador del proyecto e indicador de Gerencia no conceden esta acción.
 
+Antes de subir el XLSX comercial, se debe recalcular completamente, revisar y guardar en Excel.
+El preview muestra valores guardados; no calcula fórmulas. Los errores RecalculationRequired e
+InconsistentFormulaCache impiden continuar e indican revisar el archivo. La confirmación solicita
+comparar precios y total con el Excel guardado; la ausencia de errores no certifica la vigencia de
+todas las dependencias del libro.
+
 **Generar preview** muestra el total del proyecto, precios unitarios/totales, ítems en el orden recibido y diferencias técnicas con atribución **Antes (Presupuestos)** / **Ahora (Comercial)**. Es solo lectura: no hay edición web ni cálculos económicos locales. Para cambiar valores se edita Excel y se genera otro preview. Reemplazar el archivo, incluso con el mismo nombre, descarta el preview y la confirmación pendiente.
 
 **Confirmar cotización comercial** requiere una confirmación humana; Cancelar no envía nada. Se remite exactamente el mismo archivo del preview para que backend vuelva a interpretarlo. El éxito muestra ReviewQuotation Completed y PresentQuotationToClient InProgress asignada por backend al asesor creador original, y actualiza tareas/actividad. No se calculan fechas ni se implementa todavía la presentación al cliente.

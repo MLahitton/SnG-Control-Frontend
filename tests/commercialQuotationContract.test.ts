@@ -44,7 +44,7 @@ describe("commercial quotation closed contracts", () => {
     const confirmation = { ...commercialConfirmation, reviewTask: { ...commercialConfirmation.reviewTask, wasOverdue: null, deadlineAt: null } };
     expect(parseConfirmation(confirmation, "project-1")).toEqual(confirmation);
   });
-  it.each(["ProjectNotFound", "Forbidden", "InvalidWorkflowState", "AlreadyConfirmed", "ProjectCreatorUnavailable", "DocumentUnavailable", "SgCodeMismatch", "StructuralMismatch", "InvalidWorkbook", "InvalidEconomics", "InvalidState"])("maps %s safely", (code) => {
+  it.each(["ProjectNotFound", "Forbidden", "InvalidWorkflowState", "AlreadyConfirmed", "ProjectCreatorUnavailable", "DocumentUnavailable", "SgCodeMismatch", "StructuralMismatch", "InvalidWorkbook", "InvalidEconomics", "RecalculationRequired", "InconsistentFormulaCache", "InvalidState"])("maps %s safely", (code) => {
     const error = new ApiError(409, { code, detail: "private", stackTrace: "private", token: "private" });
     expect(commercialQuotationError(error)).not.toBe(error.message);
     expect(commercialQuotationError(error)).not.toContain("private");
@@ -62,4 +62,11 @@ it("accepts commercial read currency and rejects an absent currency field", () =
   const missing = { ...commercialPreview } as Partial<typeof commercialPreview>;
   delete missing.currencyCode;
   expect(() => parsePreview(missing, "project-1")).toThrow(ApiError);
+});
+
+
+it("presents saved monetary values without applying taxes, totals or display-integer rounding", () => {
+  expect(formatCop(5796318.80)).toContain("5.796.318,8");
+  expect(formatCop(2278430.05)).toContain("2.278.430,05");
+  expect(formatCop(22540967.47)).toContain("22.540.967,47");
 });

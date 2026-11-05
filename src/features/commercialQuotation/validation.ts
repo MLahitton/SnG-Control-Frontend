@@ -11,6 +11,8 @@ const messages: Record<string, string> = {
   SgCodeMismatch: "El SG del archivo no coincide con el SG actual del proyecto.",
   StructuralMismatch: "La estructura del archivo cambió y ya no coincide con la cotización preparada por Presupuestos.",
   InvalidWorkbook: "El archivo no corresponde a una cotización comercial válida o soportada.",
+  RecalculationRequired: "El archivo indica un cálculo pendiente o manual. Recalcula completamente en Excel, revisa precios y total, guarda el archivo y vuelve a subirlo. No se ha confirmado la cotización.",
+  InconsistentFormulaCache: "Un importe guardado no coincide con la celda que referencia su fórmula. Recalcula y revisa el archivo en Excel, guarda y vuelve a subirlo. No se ha confirmado la cotización.",
   InvalidEconomics: "No fue posible validar los valores económicos de la cotización.",
 };
 export function commercialQuotationError(error: unknown): string {
