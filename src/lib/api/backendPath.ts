@@ -1,6 +1,7 @@
 export const backendRoots = ["clients", "projects", "project-tasks", "notifications"] as const;
 
 export function isBackendPath(segments: string[]): boolean {
+  if (segments[0] === "projects" && segments[2] === "engineering") return engineeringMethod(segments) !== null;
   if (segments[0] === "projects" && segments[2] === "measurements") {
     return /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(segments[1]) &&
       (segments.length === 3 || (segments.length === 4 && ["initialize", "commands"].includes(segments[3])) ||
@@ -70,4 +71,15 @@ export function isMeasurementSketchPath(segments: string[]): boolean {
 export function isMeasurementReportPath(segments: string[]): boolean {
  const guid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
  return segments.length === 6 && segments[0] === "projects" && guid.test(segments[1]) && segments[2] === "measurements" && segments[3] === "submissions" && guid.test(segments[4]) && segments[5] === "report";
+}
+
+export function engineeringMethod(s: string[]): "GET" | "PUT" | "POST" | null {
+  const guid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+  if (s[0] !== "projects" || !guid.test(s[1]) || s[2] !== "engineering") return null;
+  if (s.length === 3) return "GET";
+  if (s.length === 4 && ["acta", "complete", "initialize-historical"].includes(s[3])) return "POST";
+  if (s.length === 6 && s[3] === "structures" && guid.test(s[4]) && s[5] === "check") return "PUT";
+  if (s.length === 6 && s[3] === "acta" && guid.test(s[4]) && s[5] === "download") return "GET";
+  if (s.length === 8 && s[3] === "structures" && guid.test(s[4]) && s[5] === "sketches" && guid.test(s[6]) && s[7] === "image") return "GET";
+  return null;
 }

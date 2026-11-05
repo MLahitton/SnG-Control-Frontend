@@ -683,7 +683,7 @@ ni latencia de OpenAI. Usar el plan de preguntas de README y validar cards en m�
 ## Identity & Areas V1: sesión y transporte
 
 AuthProvider expone availableRoles, activeRole y setActiveRole. Solo roles implementados
-pueden seleccionarse; Engineering, Production y Logistics quedan reservados en SystemRole. La clave
+pueden seleccionarse; Engineering dispone de checklist y Acta; Production y Logistics quedan reservados en SystemRole. La clave
 `sng.active_role` guarda `{ subject, role }` como preferencia, nunca autoridad: al restaurar
 se valida primero el token con Backend, luego la coincidencia de Subject y pertenencia.
 Logout borra token/preferencia; otro Subject no hereda el área anterior.
@@ -888,10 +888,21 @@ La radicación ofrece Descargar reporte PDF de Instalación si existe Snapshot.R
 usa GET projects/{id}/measurements/submissions/{submissionId}/report, el BFF cerrado, rol activo,
 no-store y attachment. Respeta el nombre seguro del Backend `Radicacion de medidas-[Nombre del proyecto].pdf`, también con guardado nativo disponible. Backend genera y conserva el PDF con el snapshot oficial; no hay captura
 HTML ni generación de reportes en el navegador. Expedientes históricos sin reporte no se reconstruyen.
-No se crean tareas de Ingeniería. Las migraciones de Backend requieren despliegue coordinado y no
+La radicación crea una tarea de Ingeniería asignada desde Backend. Las migraciones de Backend requieren despliegue coordinado y no
 se aplican desde Frontend.
 
 
 La verificación del anticipo distingue archivos seleccionados (sin guardar), comprobantes guardados y envío confirmado a Contabilidad. El asesor carga, verifica y luego envía; ante rechazo puede sustituir evidencia y reenviar conservando el historial. Un envío pendiente de archivos locales queda deshabilitado. La carga con resultado incierto exige consultar primero los archivos del servidor; no se repite automáticamente. El envío conserva su clave idempotente durante el reintento.
 
 El expediente prioriza anticipo para Asesor/Contabilidad/Gerencia, propuesta técnica para Presupuestos y revisión comercial para Jefe Comercial. Instalación prioriza su tarea y expediente técnico, conservando documentos y responsable comercial como contacto disponible; no se inventan teléfonos o direcciones ausentes del contrato. Actividad/tareas generales y contexto comercial-contable quedan como consulta secundaria desplegable. Gerencia conserva la visión transversal. Esta organización no restringe ni amplía permisos: los endpoints mantienen el ámbito de lectura y las autorizaciones por rol activo, Subject y asignación.
+
+
+## Ingeniería — Acta de Vanos
+
+Engineering tiene bandeja propia y acceso a proyectos con tarea asignada. El expediente presenta las estructuras del snapshot radicado, en su orden original, con medidas en mm, información técnica, imágenes y croquis de solo lectura. Las tarjetas muestran tres columnas en escritorio y se adaptan a tablet.
+
+Cada check se confirma con el servidor antes de mostrarse guardado. Ante fallo se recupera el estado persistido y se ofrece reintento con la misma clave; conflictos requieren revisar el estado actualizado. El progreso procede del Backend. Solo el Subject asignado con rol activo Engineering puede escribir; los demás lectores autorizados consultan sin controles de escritura.
+
+La selección de PDF y su carga son operaciones distintas. Se admiten Actas de hasta 25 MiB y se conserva el historial de versiones con descargas autenticadas. La finalización requiere todos los checks, un Acta vigente y confirmación explícita. Tras cerrar, el expediente queda de solo lectura. No hay SLA ni traspaso a Comercial.
+
+El BFF permite únicamente los métodos y rutas de Ingeniería declarados, propaga identidad/rol y conserva no-store. La radicación requiere `Authentication:EngineeringAssigneeSubject` en Backend; no se configura un Subject real en Frontend. La migración y la incorporación explícita de expedientes históricos siguen el procedimiento de Backend y no se ejecutan desde esta UI.

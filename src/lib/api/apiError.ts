@@ -49,6 +49,7 @@ export function safeProblem(status: number, payload?: unknown): SafeProblemDetai
   // One documented operational 500 code; all other server diagnostics stay generic.
   if (status === 500 && (source.code ?? extra.code) === "DocumentUnavailable") extensions.code = "DocumentUnavailable";
   // Safe actionable configuration code; never expose arbitrary 503 diagnostics.
+  if (status === 503 && (source.code ?? extra.code) === "EngineeringAssigneeNotConfigured") extensions.code = "EngineeringAssigneeNotConfigured";
   if (status === 503 && (source.code ?? extra.code) === "InstallationAssigneeNotConfigured") extensions.code = "InstallationAssigneeNotConfigured";
   if (status >= 400 && status < 500) {
     for (const key of ["code", "errorCode", "field"] as const) {

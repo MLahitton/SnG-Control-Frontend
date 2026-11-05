@@ -1,4 +1,5 @@
 "use client";
+import { EngineeringPanel } from "@/features/engineering/EngineeringPanel";
 import { MeasurementPanel } from "@/features/measurements/MeasurementPanel";
 import { AccountingPanel } from "@/features/accounting/AccountingPanel";
 import { QuotationRoundsPanel } from "@/features/quotationRounds/QuotationRoundsPanel";
@@ -81,6 +82,7 @@ function ProjectDetailContent({ id }: { id: string }) {
   const canReadCommercial = advisorOwner || canReview || activeRole === "Management" || activeRole === "Accounting";
   const [contextOpen, setContextOpen] = useState(false);
   const installationView = activeRole === "Installation";
+  const engineeringView = activeRole === "Engineering";
   const showAccounting = ["CommercialAdvisor", "Accounting", "Management"].includes(activeRole ?? "");
   const showNegotiation = ["CommercialAdvisor", "CommercialHead", "Management"].includes(activeRole ?? "");
   const pendingSg = preparation?.status === "Pending" && data?.project.sgCode === null;
@@ -165,10 +167,11 @@ function ProjectDetailContent({ id }: { id: string }) {
     </div>
     {data && <>
       <ProjectHeader project={data.project} clientName={data.client.name} />
-      <ProjectStatusStrip tasks={installationView ? data.tasks.filter(t => t.type === "TakeMeasurements") : data.tasks} />
+      <ProjectStatusStrip tasks={engineeringView ? data.tasks.filter(t => t.type === "PrepareOpeningRecord") : installationView ? data.tasks.filter(t => t.type === "TakeMeasurements") : data.tasks} />
+      {data.tasks.some(t => t.type === "PrepareOpeningRecord") && <div className={styles.documents}><EngineeringPanel key={`engineering:${id}:${activeRole}`} projectId={id} onRefresh={refreshQuotationRelated} /></div>}
       {(activeRole === "Installation" || activeRole === "Management") && data.tasks.some(t => t.type === "TakeMeasurements") && <div className={styles.documents}><MeasurementPanel key={`${id}:${activeRole}`} projectId={id} onRefresh={refreshQuotationRelated} /></div>}
       {showAccounting && data.tasks.some(t => t.type === "PresentQuotationToClient" || t.type === "RegisterInitialDeposit") && <div className={styles.documents}><AccountingPanel key={`accounting:${id}:${activeRole}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
-      {!installationView && activeRole !== "Accounting" && preparation && <div className={styles.documents}><QuotationRoundsPanel key={`history:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
+      {!installationView && !engineeringView && activeRole !== "Accounting" && preparation && <div className={styles.documents}><QuotationRoundsPanel key={`history:${quotationRevision}`} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
       {showNegotiation && data.tasks.some(t => t.type === "PresentQuotationToClient") && <div className={styles.documents}><ClientDecisionCard key={latestQuotationTask(data.tasks, "PresentQuotationToClient")?.quotationRound} projectId={id} tasks={data.tasks} onRefresh={refreshQuotationRelated} /></div>}
       {activeRole !== "Management" && (!showAccounting || !showNegotiation || installationView || activeRole === "Accounting") && <details className={styles.documents} onToggle={e => setContextOpen(e.currentTarget.open)}>
         <summary>Contexto de otras áreas · Consulta complementaria</summary>
